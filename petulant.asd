@@ -1,0 +1,22 @@
+(defsystem "petulant"
+  :description "a command line parser for both Windows and Unix"
+  :version "0.1.0"
+  :license "MIT"
+  :depends-on ("anaphora")
+
+  :author "Bob Krzaczek"
+  :mailto "RobertKrzaczek+cli@gmail.com"
+  :homepage "http://github.com/krz8/petulant/"
+  :long-description "Petulant is used to support native-style option
+and argument processing under both Windows and Unix-like systems.
+That means, for example, that code using Petulant would accept and
+parse a command line like /a /b/c /out:foo \\bar\\baz under Windows,
+as well as -a -bc --out=foo /bar/baz under Unix-like systems.  Also,
+Petulant generally requires far less specification of its expected
+options than typical getopt(3)-like libraries (and in many cases, no
+specification at all is necessary).  Both functional and parsing
+interfaces are provided to the caller."
+
+  :components ((:file "pkg")
+	       (:file "misc" :depends-on ("pkg"))
+	       (:file "petulant" :depends-on ("misc"))))
