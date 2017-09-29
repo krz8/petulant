@@ -3,6 +3,7 @@
   :version "0.1.0"
   :license "MIT"
   :depends-on ("anaphora")
+  :in-order-to ((test-op (test-op "petulant-test")))
 
   :author "Bob Krzaczek"
   :mailto "RobertKrzaczek+cli@gmail.com"

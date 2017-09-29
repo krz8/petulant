@@ -1,5 +1,44 @@
 (in-package #:petulant)
 
+(defun parse-unix-cli (fn arglist optargs)
+  "Parse ARGLIST, a list of strings, as if they were an argument
+vector from the command line, according to most commonly accepted
+semantics.  For every option and argument parsed out of ARGLIST, FN is
+called with arguments representing a single option or argument.
+
+When the first argument to FN is the keyword :OPT, two more arguments
+are present describing an option encountered on the command line.
+The second argument is a string
+
+A a character or a string, representing a short
+or long option
+
+For every option seen in ARGLIST, FN is called with three arguments.
+The first argument will be the keyword :OPT.  The second argument
+will be the 
+
+
+the option and its argument, if any is present.  The return value is a
+list of strings to be processed as arguments, either because no more
+options were encountered, or because \"--\" was seen.
+
+Each call to FN has two arguments: the first is an option, either a
+character representing a \"short\" option or a string representing a
+\"long\" option.  The second argument is always a string, representing
+the argument to the option.
+
+  Two values are returned: the first is a list
+describing the options and their arguments in a regular fashion, the
+second is a list of strings that consititute the unprocessed remainder
+of the command line (that is, arguments to the command).
+
+OPTARGS is a list of characters (single letter options) and
+strings (so called \"long\" options) that take arguments.  Any option
+encountered in ARGLIST that does not appear in OPTARGS is simply taken
+as a flag.  Note that a long option in the form \"--foo=bar\" is
+processed exactly as if \"foo\" was present in OPTARGS.")
+
+#+nil
 (defun parse-unix-cli (arglist optargs &optional (optfixer #'identity))
   "Parse ARGLIST, a list of strings, as if they were an argument
 vector from the command line, according to most commonly accepted
@@ -48,18 +87,19 @@ on.  See MAKE-OPTION-FIXER for details."
 	       (-abc (car av)))))
 	  (advance))))))
 
-#|
-
+#+nil
 (defun parse-windows-cli (arglist optargs optfixer)
   (labels ((is/ (&rest cc) (apply #'char= #\/ cc)))
     (mapcar #'is- arglist)))
 
+#+nil
 (defun parse-cli (arglist &optional optargs (style #+windows :UP
 						   #-windows NIL))
   (funcall #+windows #'cli-parse-windows
 	   #-windows #'cli-parse-unix
 	   arglist (str-to-list optargs) (make-option-fixer style)))
 
+#+nil
 (defun optchar (c)
   "Return T if character C is a hyphen or a slash.  Hyphens are the
 POSIX way of introducing an option on a command line, while Windows
@@ -67,6 +107,7 @@ uses a slash."
   (and c (characterp c)
        (or (char= c #\-) (char= c #\/))))
 
+#+nil
 (defun cli-parse (arglist &optional optargs style)
   "Parse the supplied argument list into regular forms that describe
 the command line arguments present in the list of strings ARGLIST.
@@ -204,8 +245,6 @@ described:
 	    (advance)))))))
 
 
-#|
-
 ;;; This ought to be its own library.  Yes, there is a cl-getopt library
 ;;; which looks like some Debian fork of Kevin Rosenberg's original
 ;;; getopt library.  Coming from a Unix background and now hiding behind
@@ -251,6 +290,7 @@ described:
 ;; -ffoo vs -abc
 ;; distinguished by :arg f and :flag a
 
+#+nil
 (defun canonicalize-one-spec (kind &rest options)
   "Return a list that begins with KIND, contains a string that is an
 aggregation of all characters in OPTIONS, and then contains all the
@@ -276,6 +316,7 @@ mostly to prevent runtime errors, it isn't useful functionality."
       (mapc #'deal-with options))
     (nconc (list kind chars) strings)))
 
+#+nil
 (defun canonicalize-specs (argument-specs)
   (mapcar #'(lambda (x)
 	      (apply #'canonicalize-one-spec x))
@@ -291,6 +332,7 @@ mostly to prevent runtime errors, it isn't useful functionality."
 ;; approach was cleaner, but ugh, it really mkes you question if you
 ;; truly understand the problem.  Anyway...
 
+#+nil
 (defun cli-args (closure argspecs arglist &optional nil-when-done)
   (block nil
     (let ((specs (canonicalize-specs argspecs))
@@ -327,5 +369,3 @@ mostly to prevent runtime errors, it isn't useful functionality."
 ;; approach that slides the list along manually.  Otherwise, we can't
 ;; handle "-ofoo" and "-o foo" equally correctly.
 
-
-|#

@@ -10,5 +10,5 @@
 
   :components ((:file "petulant-test"))
   :perform (test-op (o s)
-	     (uiop:symbol-call :fiveam :run! 'petulant-test:all)))
-
+	     (uiop:symbol-call :fiveam '#:run!
+                               (uiop:find-symbol* '#:all :petulant-test))))
