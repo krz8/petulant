@@ -1,63 +1,100 @@
 (in-package #:petulant)
 
-(defun parse-unix-cli (fn arglist optargs)
+(defun parse-unix-cli (fn arglist optargs &optional flavor)
   "Parse ARGLIST, a list of strings, as if they were an argument
 vector from the command line, according to most commonly accepted
 semantics.  For every option and argument parsed out of ARGLIST, FN is
-called with arguments representing a single option or argument.
+called with arguments representing that option or argument.
 
 When the first argument to FN is the keyword :OPT, two more arguments
-are present describing an option encountered on the command line.
-The second argument is a string
+are present describing an option encountered on the command line.  The
+second argument is a string or a keyword (according to FLAVOR) naming
+the option seen.  The third argument is a string or NIL providing the
+argument to that option, if any.
 
-A a character or a string, representing a short
-or long option
+When the first argument to FN is the keyword :ARG, one more argument
+string is present, describing a non-option argument seen on the
+command line.
 
-For every option seen in ARGLIST, FN is called with three arguments.
-The first argument will be the keyword :OPT.  The second argument
-will be the 
+The string \"--\" in ARGLIST is silently consumed, and all subsequent
+strings are reported to FN as :ARG values, regardless of their format.
 
+By default, any long option appearing as \"--option=argument\" is
+processed as an option and its argument.  Any long option appearing
+without an equals sign is processed as a flag option.  All short
+options (introduced with one hyphen instead of two) are taken to be
+flags as well.  Multiple short options can be combined in a single
+hyphen, making \"-abc\" and \"-a\" \"-b\" \"-c\" equivalent; both
+will yield three identical calls to FN.
 
-the option and its argument, if any is present.  The return value is a
-list of strings to be processed as arguments, either because no more
-options were encountered, or because \"--\" was seen.
+However, short options and long options can be explicitly recognized
+as taking an argument by placing those strings in the OPTARGS list.
+If OPTARGS contained \"output\", then not only would \"--output=foo\"
+yield a call to FN of (:OPT \"output\" \"foo\"), but so would
+\"--output\" \"foo\".  Additionally, if OPTARGS contained \"o\", then
+both \"-o\" \"foo\" or from \"-ofoo\" would generate identical calls
+to FN of (:OPT \"o\" \"foo\").
 
-Each call to FN has two arguments: the first is an option, either a
-character representing a \"short\" option or a string representing a
-\"long\" option.  The second argument is always a string, representing
-the argument to the option.
+   (PARSE-UNIX-CLI FN '(\"-a\" \"-bcd\" \"-i\" \"inputfile\"
+                        \"-vf\" \"file1\" \"-xyz\" \"--output=bar\"
+                        \"--\" \"-one-\" \"two\")
+                      '(\"f\" \"i\" \"extra\" \"x\"))
+=> T
+and FN will be called with the following sets of arguments:
+   (:OPT \"a\" NIL) (:OPT \"b\" NIL) (:OPT \"c\" NIL) (:OPT \"d\" NIL)
+   (:OPT \"i\" \"inputfile\") (:OPT \"v\" NIL) (:OPT \"f\" \"file1\")
+   (:OPT \"x\" \"yz\") (:OPT \"output\" \"bar\") (:ARG \"-one-\" NIL)
+   (:ARG \"two\" NIL)
 
-  Two values are returned: the first is a list
-describing the options and their arguments in a regular fashion, the
-second is a list of strings that consititute the unprocessed remainder
-of the command line (that is, arguments to the command).
+Note that options were recognized without being specified; OPTARGS was
+only used to name ambiguous options.  In general practice, all options
+taking arguments should appear in OPTARGS, but for quick-and-dirty
+applications this can be skipped."
+  (let ((fn-str= (make-str= flavor))
+	(fn-char= (make-char= flavor))
+	(fn-optargp (make-optargp optargs flavor))
+	(fn-fixer (make-string-fixer flavor))
+	(saw-- nil))
+    (do ((av arglist))
+	((null av) t)
+      (labels ((str= (x y) (funcall fn-str= x y))
+	       (is- (&rest chars) (apply fn-char= #\- chars))
+	       (advance () (setf av (cdr av)))
+	       (fix (s) (funcall fn-fixer s))
+	       (fn (x o &optional a) (funcall fn x (fix o) a))
+	       (optargp (s) (funcall fn-optargp s))
+	       (arg () (funcall fn :arg (car av) nil))
+	       (--abc (opt) (let ((o (subseq opt 2)))
+			      (acond
+ 				((position #\= o)        ; --abc=xyz
+				 (fn :opt (subseq o 0 it) (subseq o (1+ it))))
+				((optargp o)             ; --abc xyz
+				 (fn :opt o (cadr av))
+				 (advance))
+				(t                       ; --abc
+				 (fn :opt o nil)))))
+	       (-abc (opt) (iterate
+			     (for i from 1 below (length opt))
+			     (fn :opt (char opt i) nil))))
+	(with-chars (c0 c1 c2) (car av)
+	  (cond
+	    (saw--	       ; saw "--", everything after is an argument
+	     (arg))
+	    ((not (and c0 c1 (is- c0)))	       ; "" "x" 
+	     (arg))
+	    ((and (is- c0 c1) (null c2))       ; "--"
+	     (setf saw-- t))
+	    ((is- c1)                          ; "--..."
+	     (--abc (car av)))
+	    (t                                 ; "-..."
+	     (-abc (car av)))))
+	(advance)))))
 
-OPTARGS is a list of characters (single letter options) and
-strings (so called \"long\" options) that take arguments.  Any option
-encountered in ARGLIST that does not appear in OPTARGS is simply taken
-as a flag.  Note that a long option in the form \"--foo=bar\" is
-processed exactly as if \"foo\" was present in OPTARGS.")
+(defun cb (kind a b)
+  (format t "cb ~s ~s ~s~%" kind a b))
 
 #+nil
 (defun parse-unix-cli (arglist optargs &optional (optfixer #'identity))
-  "Parse ARGLIST, a list of strings, as if they were an argument
-vector from the command line, according to most commonly accepted
-POSIX and GNU semantics.  Two values are returned: the first is a list
-describing the options and their arguments in a regular fashion, the
-second is a list of strings that consititute the unprocessed remainder
-of the command line (that is, arguments to the command).
-
-OPTARGS is a list of characters (single letter options) and
-strings (so called \"long\" options) that take arguments.  Any option
-encountered in ARGLIST that does not appear in OPTARGS is simply taken
-as a flag.  Note that a long option in the form \"--foo=bar\" is
-processed exactly as if \"foo\" was present in OPTARGS.
-
-OPTFIXER is a function used to render an option into a form the caller
-prefers in the first return value.  If no function is supplied,
-#'IDENTITY is assumed.  For example, OPTFIXER can be used to downcase
-all options seen on the command, or to render them as keywords, and so
-on.  See MAKE-OPTION-FIXER for details."
   (block parser
     (let ((longp-fn (make-optwitharg-tester optargs foldcase)))
       (do ((opts) (av arglist))
