@@ -164,3 +164,50 @@ OPTARGS, so don't modify it after the fact.
 				(if (characterp y)
 				    (member y optchars :test c=)
 				    (member y optstrings :test s=)))))))
+
+(defun permute-truncated-strings (strings)
+  "Given a list of STRINGS, return a list of those strings plus all
+the truncated permutations of those strings.  The returned list shares
+no list structure with STRINGS, but the strings it contains are all
+subsequences of the strings in STRINGS.
+
+   (PERMUTE-TRUNCATED-STRINGS '(\"alpha\" \"beta\"))
+=> (\"a\" \"al\" \"alp\" \"alph\" \"alpha\" \"b\" \"be\" \"bet\" \"beta\")"
+  (mapcan #'(lambda (str) (iterate
+			    (for i from 1 to (length str))
+			    (collect (subseq str 0 i))))
+	  strings))
+
+(defun count-strings (strings &optional safe)
+  "Given a list of STRINGS, return a new list whose elements are cons
+cells.  The car of each cell is a string from STRINGS, and its cdr is
+the number of times it appeared in STRINGS.
+
+COUNT-STRINGS may modify the list structure of STRINGS via SORT.  If
+it is safe to do so, set SAFE to TRUE.  Otherwise, COUNT-STRINGS will
+create an internal copy of STRINGS before calling SORT in order to
+stay safe.
+
+   (COUNT-STRINGS '(\"a\" \"bc\" \"a\" \"cd\" \"a\"))
+=> ((\"a\" . 3) (\"bc\" . 1) (\"cd\" . 1)"
+  (let (result)
+    (mapc #'(lambda (s) (if (or (null result) (string/= (caar result) s))
+			    (push (cons s 1) result)
+			    (incf (cdar result))))
+	  (sort (if safe strings (copy-seq strings))
+		#'string<))
+    result))
+
+(defun unique-substrings (strings)
+  "Given a list of STRINGS, generate all the truncated permutations of
+every string in that list.  Return only those strings that appear once
+across all the permutations of all the words in the list.  There is no
+specified order to the results.
+
+   (UNIQUE-SUBSTRINGS '(\"alpha\" \"beta\" \"ant\" \"beat\" \"coo\" \"bop\")
+=> (\"coo\" \"co\" \"c\" \"bop\" \"bo\" \"beta\" \"bet\" \"beat\" \"bea\"
+    \"ant\" \"an\" \"alpha\" \"alph\" \"alp\" \"al\") "
+  (mapcan #'(lambda (x) (if (= (cdr x) 1)
+			    (list (car x))
+			    nil))
+	  (count-strings (permute-truncated-strings strings) t)))
