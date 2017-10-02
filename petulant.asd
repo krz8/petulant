@@ -2,7 +2,7 @@
   :description "a command line parser for both Windows and Unix"
   :version "0.1.0"
   :license "MIT"
-  :depends-on ("anaphora" "iterate")
+  :depends-on ("alexandria" "anaphora" "iterate")
   :in-order-to ((test-op (test-op "petulant-test")))
 
   :author "Bob Krzaczek"

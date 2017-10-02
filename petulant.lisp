@@ -1,10 +1,11 @@
 (in-package #:petulant)
 
-(defun parse-unix-cli (fn arglist optargs &optional flavor)
+(defun parse-unix-cli (fn arglist &optional optargs flavor)
   "Parse ARGLIST, a list of strings, as if they were an argument
-vector from the command line, according to most commonly accepted
-semantics.  For every option and argument parsed out of ARGLIST, FN is
-called with arguments representing that option or argument.
+vector from the command line, according to most commonly accepted GNU
+and POSIX semantics.  For every option and argument parsed out of
+ARGLIST, FN is called with arguments representing that option or
+argument.
 
 When the first argument to FN is the keyword :OPT, two more arguments
 are present describing an option encountered on the command line.  The
@@ -40,7 +41,7 @@ to FN of (:OPT \"o\" \"foo\").
                         \"--\" \"-one-\" \"two\")
                       '(\"f\" \"i\" \"extra\" \"x\"))
 => T
-and FN will be called with the following sets of arguments:
+after calling FN with the following sets of arguments:
    (:OPT \"a\" NIL) (:OPT \"b\" NIL) (:OPT \"c\" NIL) (:OPT \"d\" NIL)
    (:OPT \"i\" \"inputfile\") (:OPT \"v\" NIL) (:OPT \"f\" \"file1\")
    (:OPT \"x\" \"yz\") (:OPT \"output\" \"bar\") (:ARG \"-one-\" NIL)
@@ -74,8 +75,19 @@ applications this can be skipped."
 				(t                       ; --abc
 				 (fn :opt o nil)))))
 	       (-abc (opt) (iterate
-			     (for i from 1 below (length opt))
-			     (fn :opt (char opt i) nil))))
+			     (for i index-of-string opt)
+			     (for c = (char opt i))
+			     (if-first-time (next-iteration))
+			     (cond
+			       ((not (optargp c))               ; -abc
+				(fn :opt c nil))
+			       ((< i (1- (length opt)))         ; -ifile
+				(fn :opt c (subseq opt (1+ i)))
+				(finish))
+			       (t	                        ; -i file
+				(fn :opt c (cadr av))
+				(advance)
+				(finish))))))
 	(with-chars (c0 c1 c2) (car av)
 	  (cond
 	    (saw--	       ; saw "--", everything after is an argument
