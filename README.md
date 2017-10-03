@@ -1,3 +1,6 @@
+Petulant
+========
+
 Overview
 --------
 
@@ -20,9 +23,9 @@ command line parsing.
 
 Now, that might be fine for people who use Unix-derived systems, but I
 can easily imagine the frustration and irritation of Windows users
-encountering such software.  If someone insisted that I have to adapt
-to using Windows switch syntax in all of my commands, I'd be mightily
-annoyed.  Petulant is my response.
+encountering such software.  If someone insisted that I had to adapt
+to Windows switch syntax in all of my commands, I'd be mightily
+annoyed.  Petulant is my response to this situation.
 
 
 
@@ -46,35 +49,47 @@ Here's what you get:
 - Hysterical option combinations with arguments: `foo -abd2 arg1 arg2`
 - GNU long options with `=`: `foo -ab --input=file --delay=2 arg1 arg2`
 - GNU long options without `=`: `foo -ab --input file --delay 2 arg1 arg2`
-- GNU out-of-order arguments: `foo -ab arg1 -f file arg2`
+- GNU out-of-order non-option arguments: `foo -ab arg1 -f file arg2`
 - GNU double dash termination: `foo -ab -- -these --are -not --options`
 
 ### What's Coming Next
 
 - Abbreviated long options: `foo --in file`
-- Addition to [Quicklisp][], as soon as I feel Petulant is mature enough.
+- Windows switches: `foo /a /b /c arg1 arg2`
+- Windows switch combinations: `foo /a /b/c arg1 arg2`
+- Windows option arguments w/ `:`: `foo /a/b /input:file /delay:2 arg1 arg2`
+- Windows option arguments w/o `:`: `foo /a/b /input file /delay 2 arg1 arg2`
+- Windows abbreviations: `foo /a/b /in:file /d2 arg1 arg2`
+- Addition to [Quicklisp][], as soon as I feel Petulant is good enough.
 
 [Quicklisp]: https://www.quicklisp.org/beta/
 
 ### Future
 
 Certainly, there are yet more styles out there that are in wide use
-(or, were in wide use at one point).  I'm not against these, I'm only
+(or, were in wide use in the past).  I'm not against these. I'm
 listing them here to be up front about what Petulant does and doesn't
 do at present.  (Most of these are easy for a caller to implement in
-the meantime.)
+the meantime, with the exception of **3** below).
 
-- Korn shell automatic numeric parsing
-- Korn shell option subargument support
-- `-f`/`+f` toggling
-- `--no-foo` negation
-- Types (numeric, strings, booleans, etc) for arguments
+1. Korn shell automatic numeric parsing
+2. Korn shell option subargument support
+3. `-f`/`+f` toggling
+4. `--no-foo` negation
+5. Types (numeric, strings, booleans, etc) for arguments
 
 Pull requests are always welcome.  Petulant includes a pretty good set
 of tests via [FiveAM][], so it's easy to see if your improvements work
 out or not.
 
 [FiveAM]: https://common-lisp.net/project/fiveam/
+
+
+
+Manual
+------
+
+On the way...
 
 
 
