@@ -234,14 +234,14 @@
 (def-suite parse-unix-cli :description "parse UNIX cli" :in all)
 (in-suite parse-unix-cli)
 
-(test parse-unix-cli-1
+(test parse-unix-cli-a1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (parse-unix-cli '("-a") #'cb)
       (is (= (length res) 1))
       (is (equalp '(:opt "a" nil) (car res))))))
 
-(test parse-unix-cli-2
+(test parse-unix-cli-a2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (parse-unix-cli '("-a" "-bc") #'cb)
@@ -250,7 +250,7 @@
       (is (equalp '(:opt "b" nil) (cadr res)))
       (is (equalp '(:opt "a" nil) (caddr res))))))
 
-(test parse-unix-cli-10
+(test parse-unix-cli-b1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (parse-unix-cli '("-a" "-bc" "d") #'cb)
@@ -260,7 +260,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-cli-11
+(test parse-unix-cli-b2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (parse-unix-cli '("-a" "-bc" "--" "-d") #'cb)
@@ -270,7 +270,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-cli-20
+(test parse-unix-cli-c1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (parse-unix-cli '("-a" "--alpha" "-bc" "--beta") #'cb)
@@ -281,7 +281,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-cli-21
+(test parse-unix-cli-c2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (parse-unix-cli '("-a" "--a" "-bc" "--beta") #'cb)
@@ -292,7 +292,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-cli-22
+(test parse-unix-cli-c3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (parse-unix-cli '("-a" "--a" "-bc" "--beta" "foo" "bar") #'cb)
@@ -305,7 +305,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-cli-23
+(test parse-unix-cli-c4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (parse-unix-cli '("-a" "--a" "-bc" "--beta" "--" "--foo" "bar") #'cb)
@@ -318,7 +318,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-cli-30
+(test parse-unix-cli-d1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (parse-unix-cli '("-a" "-bc" "--beta=fuzz" "foo" "bar") #'cb)
@@ -330,7 +330,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-cli-31					  ; gnu-ish
+(test parse-unix-cli-d2					  ; gnu-ish
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (parse-unix-cli '("-a" "-bc" "foo" "--beta=fuzz" "bar") #'cb)
@@ -342,7 +342,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-cli-40
+(test parse-unix-cli-e1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
@@ -353,7 +353,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-unix-cli-41
+(test parse-unix-cli-e2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
@@ -364,7 +364,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-unix-cli-42
+(test parse-unix-cli-e3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
@@ -375,7 +375,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-unix-cli-43
+(test parse-unix-cli-e4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
