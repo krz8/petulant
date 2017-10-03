@@ -1,5 +1,14 @@
 (in-package #:petulant)
 
+;; I'm not sure why AWHILE isn't in the Anaphora package, but... whatev.
+
+(defmacro awhile (test &body body)
+  "Evaluate TEST, binding its value to IT.  So long as IT is non-NIL, BODY
+is evaluated in that context."
+  `(do ((it ,test ,test))
+       ((not it))
+     ,@body))
+
 (defun fold? (flavor)
   "In a few different places, we need to know if we should be folding
 case or not, according to the option processing flavor selected by the
@@ -216,3 +225,32 @@ STRINGS will be silently dropped.)
 			    (list (car x))
 			    nil))
 	  (count-strings (all-truncated-strings strings) t)))
+
+(defun isolate-switches (string)
+  "Given a string that begins with at least one Windows CLI switch,
+return a list of strings that exist between slashes, skipping leading,
+multiple, and trailing slashes.  Arguments to switches introduced with
+nna colon are preserved with the switch.
+
+If this looks like SPLIT-SEQUENCE, well, you're not wrong.
+ISOLATE-SWITCHES exists because one day, this is going to require some
+kind of weird escape processing and probably a state machine of some
+kind.  In the meantime, our mini-split-sequence hack is good enough.
+
+   (ISOLATE-SWITCHES \"/a\")                 => (\"a\")
+   (ISOLATE-SWITCHES \"/ab\")                => (\"ab\")
+   (ISOLATE-SWITCHES \"/a/bc\")              => (\"a\" \"bc\")
+   (ISOLATE-SWITCHES \"/a/bc:de\")           => (\"a\" \"bc:de\")
+   (ISOLATE-SWITCHES \"/a/bc:de/f\")         => (\"a\" \"bc:de\" \"f\")
+   (ISOLATE-SWITCHES \"/a/bc:de/f/\")        => (\"a\" \"bc:de\" \"f\")
+   (ISOLATE-SWITCHES \"///a///bc:de///f//\") => (\"a\" \"bc:de\" \"f\")
+   (ISOLATE-SWITCHES \"\")                   => NIL"
+  (let ((str (string-trim "/" string))
+	(i 0) (res))
+    (unless (zerop (length str))
+      (awhile (position #\/ str :start i)
+	(push (subseq str i it) res)
+	(setq i (position #\/ str :start it :test #'char/=)))
+      (when i
+	(push (subseq str i) res))
+      (nreverse res))))

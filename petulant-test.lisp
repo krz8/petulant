@@ -6,7 +6,7 @@
   (:import-from #:petulant
 		#:make-string-fixer #:with-chars #:make-optargp
 		#:all-truncated-strings #:count-strings #:unique-substrings
-		#:parse-unix-cli))
+		#:isolate-switches #:parse-unix-cli))
 
 (in-package #:petulant-test)
 
@@ -230,6 +230,16 @@
     (is (member "al" res :test #'string=))
     (is (member "ant" res :test #'string=))
     (is (member "an" res :test #'string=))))
+
+(test isolate-switches
+  (is (equalp '("a") (isolate-switches "/a")))
+  (is (equalp '("ab") (isolate-switches "/ab")))
+  (is (equalp '("a" "bc") (isolate-switches "/a/bc")))
+  (is (equalp '("a" "bc:de") (isolate-switches "/a/bc:de")))
+  (is (equalp '("a" "bc:de" "f") (isolate-switches "/a/bc:de/f")))
+  (is (equalp '("a" "bc:de" "f") (isolate-switches "/a/bc:de/f/")))
+  (is (equalp '("a" "bc:de" "f") (isolate-switches "///a//bc:de///f//")))
+  (is (null (isolate-switches ""))))
 
 (def-suite parse-unix-cli :description "parse UNIX cli" :in all)
 (in-suite parse-unix-cli)
