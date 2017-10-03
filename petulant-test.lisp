@@ -385,3 +385,43 @@
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
+
+(test parse-unix-cli-f1
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "f")))
+      (parse-unix-cli '("-xv" "-f") #'cb #'f?)
+      (is (equalp '((:opt "f" nil)
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
+
+(test parse-unix-cli-f2
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "f")))
+      (parse-unix-cli '("-xvf") #'cb #'f?)
+      (is (equalp '((:opt "f" nil)
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
+
+(test parse-unix-cli-f3
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "file")))
+      (parse-unix-cli '("-xv" "--file=") #'cb #'f?)
+      (is (equalp '((:opt "file" nil)
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
+
+(test parse-unix-cli-f4
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "file")))
+      (parse-unix-cli '("-xv" "--file") #'cb #'f?)
+      (is (equalp '((:opt "file" nil)
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
