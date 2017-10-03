@@ -8,30 +8,30 @@ you're an end-user of Petulant, you might want to consider calling a
 higher level function; this one is mostly for implementation of other
 Petulant functionality.
 
-PARSE-UNIX-CLI works through ARGLIST, a list of strings from a command
-line, parsing it according to most POSIX and GNU behaviors.  As
-options are identified, OPTARGP-FN is called to determine if that
+PARSE-UNIX-CLI works through ARGLIST, a flat list of strings from a
+command line, parsing it according to most POSIX and GNU behaviors.
+As options are identified, OPTARGP-FN is called to determine if that
 option takes an argument.
 
-OPTARGP-FN, if supplied, is usually supplied within a closure that
-supports recognition of abbreviated option names and similar
-\"higher\" functionality.  Operations like mapping options to
-different cases or keywords, recognizing abbreviations, and so on are
-generally handled through the functions provided to PARSE-UNIX-CLI in
-conjunction with whatever is supplied as OPTARGP-FN.  See the
-documentation for examples.
+FN is called for each option (with or without an argument) and every
+non-option argument.  Each call has three arguments.  The first is
+always :ARG or :OPT.  When :ARG, the second argument is a non-option
+argument string from the command line, and the third argument is NIL.
+When :OPT, the second argument is an option (a string) found on the
+command line, eliding any leading dashes, and the third argument is
+any argument to that option or NIL.
 
-FN is always called with three arguments, describing an option or a
-non-option argument encountered while parsing ARGLIST.  The first
-argument to FN is either :ARG or :OPT.  When :ARG, the second argument
-is a string that is a non-option argument from the command line, and
-the third argument is NIL.  When :OPT, the sceond argument is a string
-that is an option found on the command line (eliding any leading
-dashes), and the third argument is either the argument to that option,
-or NIL if the option appears to be a flag.
+OPTARGP-FN, if supplied, is a mechanism for the caller to indicate
+when an option, long or short, should take the next word in ARGLIST as
+an argument.  The default binding of OPTARGP-FN always returns NIL,
+indicating that any ambiguous option is assumed not to take an
+argument.  The only non-ambiguous option with an argument are long
+options that use the \"=\" character (e.g., \"--foo=bar\").
 
-Generally speaking, the calls to FN operate from the head to the tail
-of ARGLIST, and from left to right within each string of ARGLIST."
+Generally speaking, the calls to FN proceed from the head to the tail
+of ARGLIST, and from left to right within each string of ARGLIST.
+This is useful to know in testing, but callers probably should not
+rely on any specific ordering."
   (do ((av arglist))
       ((null av) t)
     (labels ((optargp (x) (funcall optargp-fn x))
