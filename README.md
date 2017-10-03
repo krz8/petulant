@@ -127,8 +127,10 @@ Credits
 
 - [Roswell][], which inspired my need for Petulant,
 - [FiveAM][], which kept me sane during development,
-- [Iterate][], which is just a joy to use compared to LOOP's extended forms, and
-- [Alexandria][] and [Anaphora][], which save me from re-inventing wheels.
+- [Iterate][], which is simply a joy to use compared to LOOP's extended forms,
+  and
+- [Alexandria][] and [Anaphora][], which (try to) save me from re-inventing
+  wheels.
 
 [Alexandria]: https://common-lisp.net/project/alexandria/
 [Anaphora]: https://common-lisp.net/project/anaphora/
