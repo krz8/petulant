@@ -100,7 +100,7 @@ of the STRING.  The variables are NIL when STRING is not long enough.
      (LIST A B C D))
 => (#\\f #\\o #\\o NIL)"
   (let ((nvars (length vars)))
-    (alexandria:once-only (string)
+    (once-only (string)
       `(let ,vars
 	 (case (length ,string)
 	   ,@(iterate

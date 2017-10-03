@@ -1,5 +1,82 @@
 (in-package #:petulant)
 
+(defun parse-unix-cli (arglist fn
+		       &optional
+			 (optargp-fn (constantly nil)))
+  "This is the low level parser for Unix-style command lines.  If
+you're an end-user of Petulant, you might want to consider calling a
+higher level function; this one is mostly for implementation of other
+Petulant functionality.
+
+PARSE-UNIX-CLI works through ARGLIST, a list of strings from a command
+line, parsing it according to most POSIX and GNU behaviors.  As
+options are identified, OPTARGP-FN is called to determine if that
+option takes an argument.
+
+OPTARGP-FN, if supplied, is usually supplied within a closure that
+supports recognition of abbreviated option names and similar
+\"higher\" functionality.  Operations like mapping options to
+different cases or keywords, recognizing abbreviations, and so on are
+generally handled through the functions provided to PARSE-UNIX-CLI in
+conjunction with whatever is supplied as OPTARGP-FN.  See the
+documentation for examples.
+
+FN is always called with three arguments, describing an option or a
+non-option argument encountered while parsing ARGLIST.  The first
+argument to FN is either :ARG or :OPT.  When :ARG, the second argument
+is a string that is a non-option argument from the command line, and
+the third argument is NIL.  When :OPT, the sceond argument is a string
+that is an option found on the command line (eliding any leading
+dashes), and the third argument is either the argument to that option,
+or NIL if the option appears to be a flag.
+
+Generally speaking, the calls to FN operate from the head to the tail
+of ARGLIST, and from left to right within each string of ARGLIST."
+  (do ((av arglist))
+      ((null av) t)
+    (labels ((optargp (x) (funcall optargp-fn x))
+	     (is- (&rest chars) (apply #'char= #\- chars))
+	     (advance () (setf av (cdr av)))
+	     (opt! (o &optional a) (funcall fn :opt o a))
+	     (arg! (a) (funcall fn :arg a nil))
+	     (long (opt) (let ((o (subseq opt 2)))	    ; "--foo…"
+			    (acond
+			      ((position #\= o)	            ; "--foo=xyz"
+			       (opt! (subseq o 0 it)
+				     (subseq o (1+ it))))
+			      ((optargp o)                  ; "--foo" "xyz"
+			       (opt! o (cadr av))
+			       (advance))
+			      (t			    ; "--foo"
+			       (opt! o)))))
+	     (short (opt) (iterate			    ; "-f…"
+			   (for i index-of-string opt)
+			   (for c = (string (char opt i)))
+			   (if-first-time (next-iteration)) ; skip leading -
+			   (cond
+			     ((not (optargp c))		    ; "-fgh"
+			      (opt! c))
+			     ((< i (1- (length opt)))	    ; "-ffile"
+			      (opt! c (subseq opt (1+ i)))
+			      (finish))
+			     (t				    ; "-f" "file"
+			      (opt! c (cadr av))
+			      (advance)
+			      (finish))))))
+      (with-chars (c0 c1 c2) (car av)
+	(cond
+	  ((not (and c0 c1 (is- c0)))			    ; "" "x" 
+	   (arg! (car av)))
+	  ((and (is- c0 c1) (null c2))			    ; "--"
+	   (loop (unless (advance) (return))
+	      (arg! (car av))))
+	  ((is- c1)					    ; "--…"
+	   (long (car av)))
+	  (t						    ; "-…"
+	   (short (car av)))))
+      (advance))))
+
+#+nil
 (defun parse-unix-cli (fn arglist &optional optargs flavor)
   "Parse ARGLIST, a list of strings, as if they were an argument
 vector from the command line, according to most commonly accepted GNU

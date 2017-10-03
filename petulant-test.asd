@@ -2,7 +2,7 @@
   :description "petulant-test: sanity checking the petulant cli parser"
   :version "0.1.0"
   :license "MIT"
-  :depends-on ("petulant" "fiveam")
+  :depends-on ("petulant" "fiveam" "anaphora")
 
   :author "Bob Krzaczek"
   :mailto "RobertKrzaczek+cli@gmail.com"
