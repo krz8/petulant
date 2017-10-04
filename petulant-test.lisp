@@ -6,7 +6,8 @@
   (:import-from #:petulant
 		#:make-string-fixer #:with-chars #:make-optargp
 		#:all-truncated-strings #:count-strings #:unique-substrings
-		#:isolate-switches #:parse-unix-cli))
+		#:isolate-switches #:canonicalize-windows-args
+		#:parse-unix-cli))
 
 (in-package #:petulant-test)
 
@@ -240,6 +241,20 @@
   (is (equalp '("a" "bc:de" "f") (isolate-switches "/a/bc:de/f/")))
   (is (equalp '("a" "bc:de" "f") (isolate-switches "///a//bc:de///f//")))
   (is (null (isolate-switches ""))))
+
+(test canonicalize-windows-args
+  (is (equalp '("abc" "" "def")
+	      (canonicalize-windows-args '("abc" nil "" "def"))))
+  (is (equalp '("/abc" "def")
+	      (canonicalize-windows-args '("/abc" "def"))))
+  (is (equalp '("/a" "/bc" "def")
+	      (canonicalize-windows-args '("/a/bc" "def"))))
+  (is (equalp '("/a" "/bc" "def" "/ef:gh")
+	      (canonicalize-windows-args '("/a/bc" "def" "/ef:gh"))))
+  (is (equalp '("/a" "/bc" "def" "/ef" "gh")
+	      (canonicalize-windows-args '("/a/bc" "def" "/ef" "gh"))))
+  (is (equalp '("/a" "/bc" "def" "/e" "/f:g" "/h")
+	      (canonicalize-windows-args '("/a/bc" "def" "/e/f:g/h")))))
 
 (def-suite parse-unix-cli :description "parse UNIX cli" :in all)
 (in-suite parse-unix-cli)

@@ -254,3 +254,33 @@ kind.  In the meantime, our mini-split-sequence hack is good enough.
       (when i
 	(push (subseq str i) res))
       (nreverse res))))
+
+(defun canonicalize-windows-args (strings)
+  "Given a list of strings that represents command line options and
+arguments passed in a Windows environment, break up combined switches
+and return a new list of strings that is easier to parse.  The original
+set of STRINGS is broken down via ISOLATE-SWITCHES.
+
+   (CANONICALIZE-WINDOWS-ARGS '(\"abc\" nil \"\" \"def\")
+=> (\"abc\" \"\" \"def\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"/abc\" \"def\")
+=> (\"/abc\" \"def\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\")
+=> (\"/a\" \"/bc\" \"def\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/ef:gh\")
+=> (\"/a\" \"/bc\" \"def\" \"/ef:gh\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/ef\" \"gh\")
+=> (\"/a\" \"/bc\" \"def\" \"/ef\" \"gh\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/e/f:g/h\")
+=> (\"/a\" \"/bc\" \"def\" \"/e\" \"/f:g\" \"/h\""
+  (let ((result))
+    (labels ((collect (x) (push x result)))
+      (mapc #'(lambda (sw)
+		(cond
+		  ((null sw))
+		  ((and (> (length sw) 0) (char= #\/ (char sw 0)))
+		   (mapc #'(lambda (s) (collect (concatenate 'string "/" s)))
+			 (isolate-switches sw)))
+		  (t (collect sw))))
+	    strings))
+    (nreverse result)))
