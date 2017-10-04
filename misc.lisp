@@ -261,7 +261,12 @@ arguments passed in a Windows environment, break up combined switches
 and return a new list of strings that is easier to parse.  The original
 set of STRINGS is broken down via ISOLATE-SWITCHES.
 
+The string \"//\" is special, we preserve it as is.  We treat it as
+a sort of analog to GNU \"--\" in Unix-flavor command lines.
+
    (CANONICALIZE-WINDOWS-ARGS '(\"abc\" nil \"\" \"def\")
+=> (\"abc\" \"\" \"def\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"abc\" \"//\" \"def\")
 => (\"abc\" \"\" \"def\")
    (CANONICALIZE-WINDOWS-ARGS '(\"/abc\" \"def\")
 => (\"/abc\" \"def\")
@@ -278,9 +283,12 @@ set of STRINGS is broken down via ISOLATE-SWITCHES.
       (mapc #'(lambda (sw)
 		(cond
 		  ((null sw))
+		  ((string= "//" sw)
+		   (collect sw))
 		  ((and (> (length sw) 0) (char= #\/ (char sw 0)))
 		   (mapc #'(lambda (s) (collect (concatenate 'string "/" s)))
 			 (isolate-switches sw)))
-		  (t (collect sw))))
+		  (t
+		   (collect sw))))
 	    strings))
     (nreverse result)))

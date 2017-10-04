@@ -7,7 +7,7 @@
 		#:make-string-fixer #:with-chars #:make-optargp
 		#:all-truncated-strings #:count-strings #:unique-substrings
 		#:isolate-switches #:canonicalize-windows-args
-		#:parse-unix-cli))
+		#:parse-windows-cli #:parse-unix-cli))
 
 (in-package #:petulant-test)
 
@@ -245,6 +245,8 @@
 (test canonicalize-windows-args
   (is (equalp '("abc" "" "def")
 	      (canonicalize-windows-args '("abc" nil "" "def"))))
+  (is (equalp '("abc" "//" "def")
+	      (canonicalize-windows-args '("abc" "//" "def"))))
   (is (equalp '("/abc" "def")
 	      (canonicalize-windows-args '("/abc" "def"))))
   (is (equalp '("/a" "/bc" "def")
@@ -255,6 +257,198 @@
 	      (canonicalize-windows-args '("/a/bc" "def" "/ef" "gh"))))
   (is (equalp '("/a" "/bc" "def" "/e" "/f:g" "/h")
 	      (canonicalize-windows-args '("/a/bc" "def" "/e/f:g/h")))))
+
+(def-suite parse-windows-cli :description "parse Windows cli" :in all)
+(in-suite parse-windows-cli)
+
+(test parse-windows-cli-a1
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res)))
+      (parse-windows-cli '("/a") #'cb)
+      (is (= (length res) 1))
+      (is (equalp '(:opt "a" nil) (car res))))))
+
+(test parse-windows-cli-a2
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res)))
+      (parse-windows-cli '("/a" "/b/c") #'cb)
+      (is (= (length res) 3))
+      (is (equalp '(:opt "c" nil) (car res)))
+      (is (equalp '(:opt "b" nil) (cadr res)))
+      (is (equalp '(:opt "a" nil) (caddr res))))))
+
+(test parse-windows-cli-a3
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res)))
+      (parse-windows-cli '("/a" "/b/c" "/de") #'cb)
+      (is (= (length res) 4))
+      (is (equalp '(:opt "de" nil) (car res)))
+      (is (equalp '(:opt "c" nil) (cadr res)))
+      (is (equalp '(:opt "b" nil) (caddr res)))
+      (is (equalp '(:opt "a" nil) (cadddr res))))))
+
+(test parse-windows-cli-b1
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res)))
+      (parse-windows-cli '("/a" "/b/c" "d") #'cb)
+      (is (equalp '((:arg "d" nil)
+		    (:opt "c" nil)
+		    (:opt "b" nil)
+		    (:opt "a" nil))
+		  res)))))
+
+(test parse-windows-cli-b2
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res)))
+      (parse-windows-cli '("/a" "/b/c" "//" "/d") #'cb)
+      (is (equalp '((:arg "/d" nil)
+		    (:opt "c" nil)
+		    (:opt "b" nil)
+		    (:opt "a" nil))
+		  res)))))
+
+(test parse-windows-cli-c1
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res)))
+      (parse-windows-cli '("/a" "/alpha" "/b/c" "/beta") #'cb)
+      (is (equalp '((:opt "beta" nil)
+		    (:opt "c" nil)
+		    (:opt "b" nil)
+		    (:opt "alpha" nil)
+		    (:opt "a" nil))
+		  res)))))
+
+(test parse-windows-cli-c3
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res)))
+      (parse-windows-cli '("/a" "/b/c" "/beta" "foo" "bar") #'cb)
+      (is (equalp '((:arg "bar" nil)
+		    (:arg "foo" nil)
+		    (:opt "beta" nil)
+		    (:opt "c" nil)
+		    (:opt "b" nil)
+		    (:opt "a" nil))
+		  res)))))
+
+(test parse-windows-cli-c4
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res)))
+      (parse-windows-cli '("/a" "/b/c" "/beta" "//" "/foo" "bar") #'cb)
+      (is (equalp '((:arg "bar" nil)
+		    (:arg "/foo" nil)
+		    (:opt "beta" nil)
+		    (:opt "c" nil)
+		    (:opt "b" nil)
+		    (:opt "a" nil))
+		  res)))))
+
+(test parse-windows-cli-d1
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res)))
+      (parse-windows-cli '("/a" "/b/c" "/beta:fuzz" "foo" "bar") #'cb)
+      (is (equalp '((:arg "bar" nil)
+		    (:arg "foo" nil)
+		    (:opt "beta" "fuzz")
+		    (:opt "c" nil)
+		    (:opt "b" nil)
+		    (:opt "a" nil))
+		  res)))))
+
+(test parse-windows-cli-d2					  ; gnu-ish
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res)))
+      (parse-windows-cli '("/a" "/b/c" "foo" "/beta:fuzz" "bar") #'cb)
+      (is (equalp '((:arg "bar" nil)
+		    (:opt "beta" "fuzz")
+		    (:arg "foo" nil)
+		    (:opt "c" nil)
+		    (:opt "b" nil)
+		    (:opt "a" nil))
+		  res)))))
+
+(test parse-windows-cli-e1
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "f")))
+      (parse-windows-cli '("/x/v/f" "foo" "something") #'cb #'f?)
+      (is (equalp '((:arg "something" nil)
+		    (:opt "f" "foo")
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
+
+(test parse-windows-cli-e2
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "f")))
+      (parse-windows-cli '("/x/v/f:foo" "something") #'cb #'f?)
+      (is (equalp '((:arg "something" nil)
+		    (:opt "f" "foo")
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
+
+(test parse-windows-cli-e3
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "file")))
+      (parse-windows-cli '("/x/v" "/file:foo" "something") #'cb #'f?)
+      (is (equalp '((:arg "something" nil)
+		    (:opt "file" "foo")
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
+
+(test parse-windows-cli-e4
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "file")))
+      (parse-windows-cli '("/x/v" "/file" "foo" "something") #'cb #'f?)
+      (is (equalp '((:arg "something" nil)
+		    (:opt "file" "foo")
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
+
+(test parse-windows-cli-f1
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "f")))
+      (parse-windows-cli '("/x/v" "/f") #'cb #'f?)
+      (is (equalp '((:opt "f" nil)
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
+
+(test parse-windows-cli-f2
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "f")))
+      (parse-windows-cli '("/x/v/f") #'cb #'f?)
+      (is (equalp '((:opt "f" nil)
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
+
+(test parse-windows-cli-f3
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "file")))
+      (parse-windows-cli '("/x/v" "/file:") #'cb #'f?)
+      (is (equalp '((:opt "file" nil)
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
+
+(test parse-windows-cli-f4
+  (let (res)
+    (labels ((cb (kind key value) (push (list kind key value) res))
+	     (f? (x) (string= x "file")))
+      (parse-windows-cli '("/x/v" "/file") #'cb #'f?)
+      (is (equalp '((:opt "file" nil)
+		    (:opt "v" nil)
+		    (:opt "x" nil))
+		  res)))))
 
 (def-suite parse-unix-cli :description "parse UNIX cli" :in all)
 (in-suite parse-unix-cli)

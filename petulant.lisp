@@ -122,6 +122,10 @@ rely on any specific ordering."
 	(acond
 	  ((zerop len)					       ; nil ""
 	   (arg! str))
+	  ((string= str "//")				       ; "//"
+	   (loop (unless (advance)
+		   (return))
+	      (arg! (car av))))
 	  ((char/= (char str 0) #\/)			       ; "foo"
 	   (arg! str))
 	  ((position #\: str)				       ; "/foo:…"
