@@ -6,9 +6,6 @@ Overview
 
 [Homepage][home] [Manual][manual]
 
-[home]: https://krz8.github.io/petulant
-[manual]: https://krz8.github.io/petulant/manual
-
 Petulant is a command-line parser that can be used when delivering
 Common Lisp applications under both Windows and Unix, supporting
 _native_ CLI styles.  That means:
@@ -24,8 +21,6 @@ several other command line option and argument parsers for CL, and
 they all seem to expect their users to follow POSIX (or GNU) style
 command line parsing.
 
-[roswell]: https://github.com/roswell/roswell
-
 Sure, that's fine for people who use Unix-derived systems, but I can
 easily imagine the frustration and irritation of Windows users
 encountering such software.  For example, if someone insisted that I
@@ -33,9 +28,11 @@ had to use Windows switch syntax in my commands under FreeBSD in order
 to use their software, I'd be mightily annoyed, too, _no matter how
 much better_ someone else claimed it was.
 
-Petulant is my response to that situation.
+Hence, **Petulant**.
 
-
+[home]:    https://krz8.github.io/petulant        "Petulant Homepage"
+[manual]:  https://krz8.github.io/petulant/manual "Petulant Manual"
+[roswell]: https://github.com/roswell/roswell     "Roswell Project Homepage"
 
 
 
@@ -83,7 +80,7 @@ Here's what you get:
 - Windows abbreviations: `foo /a/b /in:file /d2 arg1 arg2`
 - Addition to [Quicklisp][], when I feel Petulant is good enough.
 
-[Quicklisp]: https://www.quicklisp.org/beta/
+[Quicklisp]: https://www.quicklisp.org/beta/ "The Quicklisp Project Homepage"
 
 
 
@@ -125,13 +122,6 @@ work out or not.
 
 
 
-Manual
-------
-
-On the way...
-
-
-
 Credits
 -------
 
@@ -143,17 +133,17 @@ Credits
   wheels.
 
 [Alexandria]: https://common-lisp.net/project/alexandria/
-[Anaphora]: https://common-lisp.net/project/anaphora/
-[Iterate]: https://common-lisp.net/project/iterate/
-
+              "Alexandria Package Homepage"
+[Anaphora]:   https://common-lisp.net/project/anaphora/
+              "Anaphora Package Homepage"
+[Iterate]:    https://common-lisp.net/project/iterate/
+              "Iterate Package Homepage"
 
 
 License
 -------
 
 Petulant is available under the [MIT License][].
-
-[MIT License]: https://opensource.org/licenses/MIT
 
 Copyright © 2017 Robert S. Krzaczek
 
@@ -175,3 +165,6 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+[MIT License]: https://opensource.org/licenses/MIT
+               "The MIT Open Source License"
