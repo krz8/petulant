@@ -4,6 +4,11 @@ Petulant
 Overview
 --------
 
+[Homepage][home] [Manual][manual]
+
+[home]: https://krz8.github.io/petulant
+[manual]: https://krz8.github.io/petulant/manual
+
 Petulant is a command-line parser that can be used when delivering
 Common Lisp applications under both Windows and Unix, supporting
 _native_ CLI styles.  That means:
@@ -47,31 +52,34 @@ Here's what you get:
 
 
 ### What's Supported Currently
-  
-- POSIX style short options: `foo -a -b -c arg1 arg2`
-- POSIX style combinations: `foo -a -bc arg1 arg2`
-- POSIX style option arguments: `foo -ab -f file -d2 arg1 arg2`
-- Historical option arguments: `foo -xvf junk.tar arg1 arg2`
-- Hysterical option combinations with arguments: `foo -abd2 arg1 arg2`
-- GNU long options with an equal sign:
-  `foo -ab --input=file --delay=2 arg1 arg2`
-- GNU long options without an equal sign:
-  `foo -ab --input file --delay 2 arg1 arg2`
-- GNU out-of-order non-option arguments: `foo -ab arg1 -f file arg2`
-- GNU double dash termination: `foo -ab -- -these --are -not --options`
-- Case-sensitive and case-insensitive option parsing.
-- Mapping options to keywords.
+
+- Windows
+  - Switches: `foo /a /b /c`
+  - Switch combination: `foo /a/bc /def`
+  - Switch arguments with colon: `foo /file:foo.bar /v/r`
+  - Switch arguments without colon: `foo /file foo.bar /v/r`
+  - Double slash termination (nonstandard, I know):
+    `foo /a/b // /these are /not options /either`
+- POSIX
+  - Short options: `foo -a -b -c arg1 arg2`
+  - Combinations: `foo -a -bc arg1 arg2`
+  - Option arguments: `foo -ab -f file -d2 arg1 arg2`
+  - Historical option arguments: `foo -xvf junk.tar arg1 arg2`
+  - Hysterical option combinations with arguments: `foo -abd2 arg1 arg2`
+- GNU
+  - Long options with an equal sign: `foo -ab --input=file --delay=2 arg1 arg2`
+  - Long options without an equal sign:
+    `foo -ab --input file --delay 2 arg1 arg2`
+  - Out-of-order non-option arguments: `foo -ab arg1 -f file arg2`
+  - Double dash termination: `foo -ab -- -these --are -not --options`
+- Additionally, there's
+  - Case-sensitive and case-insensitive option parsing.
+  - Mapping options to keywords.
 
 
 ### What's Coming Next
 
 - Abbreviated long options: `foo --in file`
-- Windows switches: `foo /a /b /c arg1 arg2`
-- Windows switch combinations: `foo /a /b/c arg1 arg2`
-- Windows option arguments with a colon:
-  `foo /a/b /input:file /delay:2 arg1 arg2`
-- Windows option arguments without a colon:
-  `foo /a/b /input file /delay 2 arg1 arg2`
 - Windows abbreviations: `foo /a/b /in:file /d2 arg1 arg2`
 - Addition to [Quicklisp][], when I feel Petulant is good enough.
 
@@ -83,8 +91,10 @@ Here's what you get:
 
 - Detecting an alternative `SwitChar` (switch character) in use
   under Windows CMD and PowerShell.
+- Accessing the actual command line string under Windows.  (More
+  details on this in the manual).
 
-I'd welcome the help, if you know how that works.
+I'd welcome the help, if you know how either of those work.
 
 
 ### Future Work
