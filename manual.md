@@ -17,9 +17,9 @@ _native_ CLI styles.  That means:
 As I begin to develop native executable applications for both Windows
 and Unix-like environment (hat tip to the wonderful [Roswell][]
 project), I saw a “one size fits all” problem.  I looked through
-several other command line option and argument parsers for CL, and
+several other command-line option and argument parsers for CL, and
 they all seem to expect their users to follow POSIX (or GNU) style
-command line parsing.
+command-line parsing.
 
 Sure, that's fine for people who use Unix-derived systems, but I can
 easily imagine the frustration and irritation of Windows users
@@ -36,8 +36,8 @@ Hence, **Petulant**.
 
 
 
-A Word About Nomenclature
--------------------------
+Some Words About Options and Arguments
+--------------------------------------
 
 Let me apologize in advance.  My long-term operating system of choice
 has always been Unix and Unix-like systems.  It's only in recent years
@@ -56,6 +56,19 @@ Programs have arguments, and so do their options.  The former are the
 arguments that aren't associated with an option, while the latter are.
 Simple as that.
 
+Petulant doesn't require a specification to parse a command-line.
+This might be a surprise for people coming from a getopt-style background,
+but it's true.  On its own, Petulant recognizes simple switch flags,
+single character (_aka_ short) options, and full word (_aka_ long) options.
+For example, 
+
+```
+foobar -v --conf=test.json my-directory
+```
+
+    foobar /v /conf:test.json my-directory
+
+Blah blah blah    
 
 
 Functionality
@@ -66,7 +79,7 @@ some very different contexts in which it could be used.
 
 - [The Basic Functional Interface](#basic)
 
-  A simple parser works through a command line, invoking functions
+  A simple parser works through a command-line, invoking functions
   provided by the caller.  The calls to that function indicate what
   was found by the parser (not entirely unlike a stream event parser).
 
@@ -82,17 +95,23 @@ some very different contexts in which it could be used.
 
   No longer a functional interface to parsing, here you can simply
   call Petulant and get back one easy-to-read data structure
-  representing the entire command line.
+  representing the entire command-line.  Small to medium sized
+  applications will probably use this most, as it's the easiest
+  to work with for most projects.
 
 - [The Specification-Driven Interface](#spec)
 
   For those that like writing out entire static specifications of
-  their command line options and argument processing needs, here you.
+  their command-line options and argument processing needs, here you.
   This most resembles what people expect if they come from
   getopt-style experiences.  However, while it's beneficial in
-  applications with potentially extensive command lines, the other
+  applications with potentially extensive command-lines, the other
   interfaces are much easier to use when all that's needed are a
   handful of flags, or while a tool is still in development.
+
+Also, after working through the available functionality below, if
+there's something that you'd like to see added to Petulant, feel free
+to write me and ask.
 
 
 
@@ -101,7 +120,11 @@ some very different contexts in which it could be used.
 The Basic Functional Interface
 ------------------------------
 
-foo
+A simple, non-validating option and argument parser is provided through
+the `simple-parse-cli` function.  You provide a function that gets called
+with whatever Petulant finds on the command line; what you do with that
+is your business.  There is a second function you can choose to provide,
+that helps Petulant recognize options that should take arguments.
 
 
 
