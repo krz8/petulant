@@ -152,13 +152,22 @@ name, argv[0], or other non-argument information."
      (error "Petulant needs to be ported to this Lisp environment."))
 
 (defun windowsp (style)
-  "If STYLE is :WINDOWS, or if STYLE is a list containing :WINDOWS as
-a non-nested element, return T.  Otherwise, examine CL:*FEATURES*.  If
-*FEATURES* contains a keyword that is associated with Windows, return
-T.  Otherwise, NIL is returned."
-  (or (eq :windows style)
-      (member :windows style)
-      (member :windows *features*)))
+  "Allow the user to determine which style of option processing we
+use (Windows or Unix), but also allow the current environment to
+determine a default.  STYLE can be a single value or a list of
+keywords affecting the behavior of Petulant.
+
+When STYLE is :UNIX, or when it contains :UNIX, return false.
+When STYLE is :WINDOWS, or when it contains :WINDOWS, return true.
+
+Otherwise, no matter what other values STYLE might have, it is taken
+to not specify Windows/Unix behavior.  So, return true if :WINDOWS is
+on the CL:*FEATURES* list, else false."
+  (unless (or (and (listp style) (member :unix style))
+	      (eq style :unix))
+    (or (and (listp style) (member :windows style))
+	(eq style :windows)
+	(featurep :windows))))
 
 (defun simple-parse-cli (fn &key arglist optarg-p-fn style)
   "This is the low level parser for command-lines.  If
@@ -209,7 +218,7 @@ this argument."
   (funcall (if (windowsp style) #'parse-windows-cli #'parse-unix-cli)
 	   (or arglist (argv))
 	   fn
-	   (or sw-arg-p (constantly nil))))
+	   (or optarg-p-fn (constantly nil))))
 
 (defun cb (kind a b)
   (format t "cb ~s ~s ~s~%" kind a b))
