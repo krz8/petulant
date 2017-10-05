@@ -57,18 +57,27 @@ arguments that aren't associated with an option, while the latter are.
 Simple as that.
 
 Petulant doesn't require a specification to parse a command-line.
-This might be a surprise for people coming from a getopt-style background,
-but it's true.  On its own, Petulant recognizes simple switch flags,
-single character (_aka_ short) options, and full word (_aka_ long) options.
-For example, 
+This might be a surprise for people coming from a getopt-style
+background, but it's true.  On its own, Petulant recognizes simple
+switch flags, single character (_aka_ short) options, and full word
+(_aka_ long) options.  It also recognizes long options that take
+arguments when they use equal signs, as well as switches that use
+colons.  For example, these two lines can be parsed in their
+respecting operating systems without any specification or other help:
 
-```
-foobar -v --conf=test.json my-directory
-```
+    foo -v -abc --conf=test.json /some/other/place
+    foo /v /a/b/c /conf:test.json X:\some\other\place
 
-    foobar /v /conf:test.json my-directory
+It's only when arguments need to be associated with short options,
+long options without an equals sign, or switches without colons, that
+you need to help Petulant out a bit and toss it a clue.
 
-Blah blah blah    
+    foo -xvfpath
+    foo -xvf path
+    foo -xv -f path
+    foo -xv --input path
+    foo /x/v /input path
+    
 
 
 Functionality
@@ -125,6 +134,138 @@ the `simple-parse-cli` function.  You provide a function that gets called
 with whatever Petulant finds on the command line; what you do with that
 is your business.  There is a second function you can choose to provide,
 that helps Petulant recognize options that should take arguments.
+
+It's been said elsewhere, but I'll repeat it here.  `simple-parse-cli`
+is available for your use, but you'll probably be more comfortable
+using the main functional interface, [`parse-cli`](#func) instead
+(below).  There's nothing wrong with the function, but it operates at
+a very low level.  It provides almost none of the niceties that go
+with a healthy command-line parser.  But, `simple-parse-cli` is also
+the key function that is used in the implementation of all the other
+functionality in Petulant.  In that light, it's quite possible you
+might re-use it as well.
+
+Its first argument, `arglist`, is simply a list of strings
+representing the command-line.  All quoting, escapes, and special
+processing should have been taken care of by the time `simple-parse-cli`
+is called, as the strings in `arglist` are taken literally.
+
+Its second argument, `fn`, is a function that is called with each parsing
+event.  Generally, parsing proceeds down `arglist` from its frontmost
+element, and within elements, parsing proceeds left-to-right.  As
+options and elements are recognized in `arglist`, the caller-supplied
+function `fn` is invoked once for each, with three arguments:
+
+1. Always either `:arg` or `:opt`, indicating whether an option was
+   recognized or if a plain argument was encountered.
+2. A string providing the name of the option, or the argument itself.
+3. If the option was associated with an argument, that string appears
+   here; otherwise, `nil` is supplied.
+
+With that alone, we can parse a command-line like the following.  Here
+is an example showing the argument list as received in a Unix
+environment, and the simple binding for `fn` we supply to print its
+arguments.
+
+```cl
+(simple-parse-cli '("-a" "--beta" "--input=file" "something" "-v" "else")
+                  #'(lambda (kind name arg)
+		      (format t "~s ~s ~s~%" kind name arg)))
+=> NIL
+(:OPT "a" NIL)
+(:OPT "beta" NIL)
+(:OPT "input" "file")
+(:ARG "something" NIL)
+(:OPT "v" NIL)
+(:ARG "else" NIL)
+```
+
+Under a Windows system, the exact same calls could be found with
+the same invocation code and the same callbacks.  The only difference
+would be the actual arguments typed by a user in the two environments.
+
+```cl
+(simple-parse-cli '("/a" "/beta" "/input:file" "something" "/v" "else")
+                  #'(lambda (kind name arg)
+		      (format t "~s ~s ~s~%" kind name arg)))
+=> NIL
+(:OPT "a" NIL)
+(:OPT "beta" NIL)
+(:OPT "input" "file")
+(:ARG "something" NIL)
+(:OPT "v" NIL)
+(:ARG "else" NIL)
+```
+
+In the early stages of development, it may not always be clear what
+options and arguments an application will need.  In order to not
+spend too much time on the problem, it's useful to adopt a simple
+approach to parsing command-lines, where anything is accepted and
+only options we recognize are processed; everything else can be
+safely ignored.  One wouldn't ship a final application in this state,
+but for exploratory programming, for early development, for private
+hacks, this proves sufficient.
+
+Imagine being at a state in an application's development where it was
+known that some sort of verbosity flag was needed.
+
+```cl
+(defvar *verbose* nil)
+```
+
+It's conceivable that option and argument processing should happen in
+a single function in that application.
+
+```cl
+(defun optarg (kind name value)
+  (when (and (eq kind :opt) (string-equal name "v"))
+    (setf *verbose* t)))
+```
+
+Just the following call would be sufficient in such an application.
+Here, we assume the [CCL][] environment for development, where the
+strings of the command-line are kept in the variable below.  If
+[SBCL][] were in use, `*posix-argv*` would be used instead, while
+[LispWorks][] uses `system:*line-arguments-list*`.
+
+```cl
+(simple-parse-cli ccl:*command-line-argument-list* #'optarg)
+```
+
+Before we move on to higher levels of the API, let's consider one more
+case.  Imagine that after some development, the application in
+question now needs to accept two command line arguments, in addition
+to the verbosity flag: a filename and some other word argument.
+
+```cl
+(defvar *verbose* nil)
+(defvar *filename* nil)
+(defvar *wordarg* nil)
+```
+
+`optarg` now needs to be a touch more clever than before.  It needs to
+know when it has already seen the first argument for the command before
+recognizing the second argument.  There are many ways to achieve this,
+the function below is merely one approach.
+
+```cl
+(defun optarg (kind name value)
+  (case kind
+    (cond
+      ((eq kind :opt)
+       (when (string-equal name "v")
+         (setf *verbose* t)))
+      ((null *filename*)
+       (setf *filename* name))
+      ((null *wordarg*)
+       (setf *wordarg* name)))))
+```
+
+
+
+[CCL]:       https://clozure.com/clozure-cl.html "Clozure CL"
+[SBCL]:      http://www.sbcl.org/                "Steel Bank Common Lisp"
+[LispWorks]: http://www.lispworks.com/           "LispWorks"
 
 
 

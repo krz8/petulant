@@ -1,4 +1,4 @@
 (defpackage #:petulant
   (:use #:cl #:anaphora #:iterate #:alexandria)
   (:nicknames #:cli)
-  (:export #:parse))
+  (:export #:simple-parse-cli))
