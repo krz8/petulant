@@ -139,6 +139,18 @@ rely on any specific ordering."
 	   (opt! (subseq str 1)))))
       (advance))))
 
+(defun argv ()
+  "Returns a list of strings representing the command-line from the
+environment.  This is necessarily OS specific.  It's assumed that
+the list returned by ARGV does not include the executable name, image
+name, argv[0], or other non-argument information."
+  #+ccl ccl:*command-line-argument-list*
+  #+sbcl sb-ext:*posix-argv*
+  #+clisp ext:*args*
+  #+acl (cdr (sys:command-line-arguments))
+  #- (or ccl sbcl clisp acl)
+     (error "Petulant needs to be ported to this Lisp environment."))
+
 (defun windowsp (style)
   "If STYLE is :WINDOWS, or if STYLE is a list containing :WINDOWS as
 a non-nested element, return T.  Otherwise, examine CL:*FEATURES*.  If
@@ -148,49 +160,56 @@ T.  Otherwise, NIL is returned."
       (member :windows style)
       (member :windows *features*)))
 
-(defun simple-parse-cli (arglist fn &key (sw-arg-p (constantly nil)) style)
+(defun simple-parse-cli (fn &key arglist optarg-p-fn style)
   "This is the low level parser for command-lines.  If
 you're an end-user of Petulant, you might want to consider calling a
-higher level function; this one is mostly for implementation of other
+higher level function; this one is mainly for implementation of other
 Petulant functionality.
 
-SIMPLE-PARSE-CLI works through ARGLIST, a flat list of strings
-representing the command-line.  It parses ARGLIST according to the
-dominant style for a specific operating system (e.g., slash-based
-switches under Windows, and hyphen-based options under Unix).
+SIMPLE-PARSE-CLI works through an argument list, a flat list of
+strings representing the command-line.  It parses this list according
+to the dominant style for a specific operating system (e.g.,
+slash-based switches under Windows, and hyphen-based options under
+Unix).
 
-FN is called for each option (with or without an argument)and every
-non-option argument identified.  Each call to FN has three arguments.
-The first is always :ARG or :OPT.  When :ARG, the second argument is a
-non-switch argument string from the command line, and the third
-argument is NIL.  When :OPT, the second argument is a switch (a
-string) found on the command line, eliding its leading slash, and the
-third argument is any argument to that option or NIL.
+FN is called for each option (with or without an argument) and every
+non-option argument identified during parsing.  Each call to FN has
+three arguments.  The first is always :ARG or :OPT.  When :ARG, the
+second argument is a non-switch argument string from the command line,
+and the third argument is NIL.  When :OPT, the second argument is a
+switch (a string) found on the command line, eliding its leading
+slash, and the third argument is any argument to that option or NIL.
 
-SW-ARG-P, if supplied, is a function. It is the mechanism for the
-caller to indicate when an option (supplied as a string) should take
-an argument.  The default binding of SW-ARG-P always returns NIL,
-indicating that any ambiguous switch is assumed not to take an
-argument.  A non-ambiguous switch with an argument is one that uses
-the colon character (e.g., \"/foo:bar\").
+Generally speaking, the calls to FN proceed from the head to the tail
+of the list of argument strings, and from left to right within each
+string of that list.  This is useful to know in testing, but callers
+probably should not rely on any specific ordering.
+
+ARGLIST, if supplied, is a list of strings to parse.  By default,
+SIMPLE-PARSE-CLI will parse a list of strings provided by the Lisp
+environment representing the command-line with which the application
+was started.
+
+OPTARG-P-FN, if supplied, is a function.  Petulant recognizes certain
+long options (\"--foo=bar\") and switches (\"/foo:bar\") that
+unambiguously present an option taking an argument.  However, Petulant
+cannot know for certain when a short option (\"-f\" \"bar\") takes an
+option, nor can it discern when a long option (\"--foo\" \"bar\") or a
+switch (\"/foo\" \"bar\") lacking extra punctuation takes an argument.
+The caller can supply a function taking the name of the option as a
+string (\"f\" or \"foo\") and returning true or false to indicate if
+it takes an argument.
 
 STYLE can be used to select a particular style of command-line
-processing.  By defauly, SIMPLE-PARSE-CLI will choose the style based
+processing.  By default, SIMPLE-PARSE-CLI will choose the style based
 on the current operating system environment (using *FEATURES*).
 However, the caller can force a particular style by supplying :UNIX
 or :WINDOWS, or by supplying a list containing :UNIX or :WINDOWS, to
-this argument.
-
-Generally speaking, the calls to FN proceed from the head to the tail
-of ARGLIST, and from left to right within each string of ARGLIST.
-This is useful to know in testing, but callers probably should not
-rely on any specific ordering."
+this argument."
   (funcall (if (windowsp style) #'parse-windows-cli #'parse-unix-cli)
-	   arglist fn sw-arg-p))
+	   (or arglist (argv))
+	   fn
+	   (or sw-arg-p (constantly nil))))
 
 (defun cb (kind a b)
   (format t "cb ~s ~s ~s~%" kind a b))
-
-(defun foo (foo)
-  (cond
-    )

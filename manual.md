@@ -129,11 +129,72 @@ to write me and ask.
 The Basic Functional Interface
 ------------------------------
 
-A simple, non-validating option and argument parser is provided through
-the `simple-parse-cli` function.  You provide a function that gets called
-with whatever Petulant finds on the command line; what you do with that
-is your business.  There is a second function you can choose to provide,
-that helps Petulant recognize options that should take arguments.
+A simple, non-validating option and argument parser is provided
+through the `simple-parse-cli` function.  The caller provides a
+'function that is invoked with whatever Petulant finds on the command
+line.  A second _optional_ function may also be supplied, to help
+Petulant recognize more options that should take arguments.
+
+This basic function is used in the implementation of the rest of
+Petulant.  For that reason, it's documented and exported, as it might
+be used by a caller to implement other functionality.  For most option
+and argument processing, though, one of the other three interfaces are
+recommended.
+
+### API
+
+function  
+**simple-parse-cli** fn _&key_ arglist sw-arg-p-fn style
+
+This is the low level parser for command-lines.  If you're an end-user
+of Petulant, you might want to consider calling a higher level
+function; this one is mainly for implementation of other Petulant
+functionality.
+
+**simple-parse-cli** works through an argument list, a flat list of
+strings representing the command-line.  It parses this list according
+to the dominant style for a specific operating system (e.g.,
+slash-based switches under Windows, and hyphen-based options under
+Unix).
+
+**fn** is called for each option (with or without an argument) and
+every non-option argument identified during parsing.  Each call to
+**fn** has three arguments.  The first is always **_arg** or **:opt**.
+When **:arg**, the second argument is a non-switch argument string
+from the command line, and the third argument is **nil**.  When
+**:opt**, the second argument is a switch (a string) found on the
+command line, eliding its leading slash, and the third argument is any
+argument to that option or **nil**.
+
+Generally speaking, the calls to **fn** proceed from the head to the tail
+of the list of argument strings, and from left to right within each
+string of that list.  This is useful to know in testing, but callers
+probably should not rely on any specific ordering.
+
+**arglist**, if supplied, is a list of strings to parse.  By default,
+**simple-parse-cli** will parse a list of strings provided by the Lisp
+environment representing the command-line with which the application
+was started.
+
+**optarg-p-fn**, if supplied, is a function.  Petulant recognizes
+certain long options (`"--foo=bar"`) and switches (`"/foo:bar"`) that
+unambiguously present an option taking an argument.  However, Petulant
+cannot know for certain when a short option (`"-f" "bar"`) takes an
+option, nor can it discern when a long option (`"--foo" "bar"`) or a
+switch (`"/foo" "bar"`) lacking extra punctuation takes an argument.
+The caller can supply a function taking the name of the option as a
+string (`"f"` or `"foo"`) and returning true or false to indicate if
+it takes an argument.
+
+**style** can be used to select a particular style of command-line
+processing.  By default, **simple-parse-cli** will choose the style
+based on the current operating system environment.  However, the
+caller can force a particular style by supplying `:unix` or
+`:windows`, or by supplying a list containing `:unix` or `:windows`,
+to this argument.
+
+### Usage
+
 
 It's been said elsewhere, but I'll repeat it here.  `simple-parse-cli`
 is available for your use, but you'll probably be more comfortable
@@ -156,7 +217,7 @@ element, and within elements, parsing proceeds left-to-right.  As
 options and elements are recognized in `arglist`, the caller-supplied
 function `fn` is invoked once for each, with three arguments:
 
-1. Always either `:arg` or `:opt`, indicating whether an option was
+1. Either `:arg` or `:opt`, indicating whether an option was
    recognized or if a plain argument was encountered.
 2. A string providing the name of the option, or the argument itself.
 3. If the option was associated with an argument, that string appears
@@ -207,16 +268,13 @@ but for exploratory programming, for early development, for private
 hacks, this proves sufficient.
 
 Imagine being at a state in an application's development where it was
-known that some sort of verbosity flag was needed.
+known that some sort of verbosity flag was needed.  It's conceivable
+that option and argument processing should happen in a single function
+in that application.
 
 ```cl
 (defvar *verbose* nil)
-```
 
-It's conceivable that option and argument processing should happen in
-a single function in that application.
-
-```cl
 (defun optarg (kind name value)
   (when (and (eq kind :opt) (string-equal name "v"))
     (setf *verbose* t)))
@@ -232,40 +290,13 @@ strings of the command-line are kept in the variable below.  If
 (simple-parse-cli ccl:*command-line-argument-list* #'optarg)
 ```
 
-Before we move on to higher levels of the API, let's consider one more
-case.  Imagine that after some development, the application in
-question now needs to accept two command line arguments, in addition
-to the verbosity flag: a filename and some other word argument.
-
-```cl
-(defvar *verbose* nil)
-(defvar *filename* nil)
-(defvar *wordarg* nil)
-```
-
-`optarg` now needs to be a touch more clever than before.  It needs to
-know when it has already seen the first argument for the command before
-recognizing the second argument.  There are many ways to achieve this,
-the function below is merely one approach.
-
-```cl
-(defun optarg (kind name value)
-  (case kind
-    (cond
-      ((eq kind :opt)
-       (when (string-equal name "v")
-         (setf *verbose* t)))
-      ((null *filename*)
-       (setf *filename* name))
-      ((null *wordarg*)
-       (setf *wordarg* name)))))
-```
-
-
-
 [CCL]:       https://clozure.com/clozure-cl.html "Clozure CL"
 [SBCL]:      http://www.sbcl.org/                "Steel Bank Common Lisp"
 [LispWorks]: http://www.lispworks.com/           "LispWorks"
+
+If you don't want to implement case-insensitivity, partial matching of
+options, and such on your own, you can use one of the other interfaces
+to Petulant, below.
 
 
 
