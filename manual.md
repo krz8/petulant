@@ -195,67 +195,35 @@ to this argument.
 
 ### Usage
 
-
-It's been said elsewhere, but I'll repeat it here.  `simple-parse-cli`
-is available for your use, but you'll probably be more comfortable
-using the main functional interface, [`parse-cli`](#func) instead
-(below).  There's nothing wrong with the function, but it operates at
-a very low level.  It provides almost none of the niceties that go
-with a healthy command-line parser.  But, `simple-parse-cli` is also
-the key function that is used in the implementation of all the other
-functionality in Petulant.  In that light, it's quite possible you
-might re-use it as well.
-
-Its first argument, `arglist`, is simply a list of strings
-representing the command-line.  All quoting, escapes, and special
-processing should have been taken care of by the time `simple-parse-cli`
-is called, as the strings in `arglist` are taken literally.
-
-Its second argument, `fn`, is a function that is called with each parsing
-event.  Generally, parsing proceeds down `arglist` from its frontmost
-element, and within elements, parsing proceeds left-to-right.  As
-options and elements are recognized in `arglist`, the caller-supplied
-function `fn` is invoked once for each, with three arguments:
-
-1. Either `:arg` or `:opt`, indicating whether an option was
-   recognized or if a plain argument was encountered.
-2. A string providing the name of the option, or the argument itself.
-3. If the option was associated with an argument, that string appears
-   here; otherwise, `nil` is supplied.
-
-With that alone, we can parse a command-line like the following.  Here
-is an example showing the argument list as received in a Unix
+Here is an example showing the argument list as received in a Unix
 environment, and the simple binding for `fn` we supply to print its
-arguments.
+arguments.  For this example, imagine the Lisp environment is hosted
+on Unix and the argument list is
+`("-a" "--beta" "--input=file" "some" "-v" "thing")`.
 
 ```cl
-(simple-parse-cli '("-a" "--beta" "--input=file" "something" "-v" "else")
-                  #'(lambda (kind name arg)
+(simple-parse-cli #'(lambda (kind name value)
 		      (format t "~s ~s ~s~%" kind name arg)))
 => NIL
 (:OPT "a" NIL)
 (:OPT "beta" NIL)
 (:OPT "input" "file")
-(:ARG "something" NIL)
+(:ARG "some" NIL)
 (:OPT "v" NIL)
-(:ARG "else" NIL)
+(:ARG "thing" NIL)
 ```
 
-Under a Windows system, the exact same calls could be found with
-the same invocation code and the same callbacks.  The only difference
-would be the actual arguments typed by a user in the two environments.
+To ignore the command-line with which the application was invoked, the
+`:arglist` and `:style` keywords can be used to force a particular
+interpretation of options and arguments, no matter the current
+environment.  This would yield the same results as the previous
+example, and would do so equally on both Unix and Windows systems.
 
 ```cl
-(simple-parse-cli '("/a" "/beta" "/input:file" "something" "/v" "else")
-                  #'(lambda (kind name arg)
-		      (format t "~s ~s ~s~%" kind name arg)))
-=> NIL
-(:OPT "a" NIL)
-(:OPT "beta" NIL)
-(:OPT "input" "file")
-(:ARG "something" NIL)
-(:OPT "v" NIL)
-(:ARG "else" NIL)
+(simple-parse-cli #'(lambda (kind name arg)
+		      (format t "~s ~s ~s~%" kind name arg))
+		  :arglist '("/a" "/beta" "/input:file" "some" "/v" "thing")
+		  :style :windows)
 ```
 
 In the early stages of development, it may not always be clear what
@@ -268,35 +236,30 @@ but for exploratory programming, for early development, for private
 hacks, this proves sufficient.
 
 Imagine being at a state in an application's development where it was
-known that some sort of verbosity flag was needed.  It's conceivable
-that option and argument processing should happen in a single function
-in that application.
+known that some sort of verbosity flag was needed.  It's likely that
+option and argument processing should happen in a single function in
+that application.
 
 ```cl
 (defvar *verbose* nil)
 
-(defun optarg (kind name value)
+(defun opts-and-args (kind name value)
   (when (and (eq kind :opt) (string-equal name "v"))
     (setf *verbose* t)))
 ```
 
 Just the following call would be sufficient in such an application.
-Here, we assume the [CCL][] environment for development, where the
-strings of the command-line are kept in the variable below.  If
-[SBCL][] were in use, `*posix-argv*` would be used instead, while
-[LispWorks][] uses `system:*line-arguments-list*`.
+`-v` seen under Unix, and `/v` under Windows, would lead to
+`*verbose*` becoming true.  All other options and arguments would be
+silently ignored.
 
 ```cl
-(simple-parse-cli ccl:*command-line-argument-list* #'optarg)
+(simple-parse-cli ccl:*command-line-argument-list* #'opts-and-args)
 ```
 
-[CCL]:       https://clozure.com/clozure-cl.html "Clozure CL"
-[SBCL]:      http://www.sbcl.org/                "Steel Bank Common Lisp"
-[LispWorks]: http://www.lispworks.com/           "LispWorks"
-
-If you don't want to implement case-insensitivity, partial matching of
-options, and such on your own, you can use one of the other interfaces
-to Petulant, below.
+If you don't want to write your own implementations of
+case-insensitivity, partial matching of options, and the like, you can
+use one of the other interfaces to Petulant, below.
 
 
 
