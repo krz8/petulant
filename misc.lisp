@@ -244,16 +244,34 @@ kind.  In the meantime, our mini-split-sequence hack is good enough.
    (ISOLATE-SWITCHES \"/a/bc:de/f\")         => (\"a\" \"bc:de\" \"f\")
    (ISOLATE-SWITCHES \"/a/bc:de/f/\")        => (\"a\" \"bc:de\" \"f\")
    (ISOLATE-SWITCHES \"///a///bc:de///f//\") => (\"a\" \"bc:de\" \"f\")
-   (ISOLATE-SWITCHES \"\")                   => NIL"
-  (let ((str (string-trim "/" string))
-	(i 0) (res))
-    (unless (zerop (length str))
-      (awhile (position #\/ str :start i)
-	(push (subseq str i it) res)
-	(setq i (position #\/ str :start it :test #'char/=)))
-      (when i
-	(push (subseq str i) res))
-      (nreverse res))))
+   (ISOLATE-SWITCHES \"\")                   => (\"\")
+   (ISOLATE-SWITCHES \"/\")                  => (\"/\")
+   (ISOLATE-SWITCHES \"//\")                 => (\"//\") "
+  (cond
+    ((zerop (length string))
+     '(""))
+    ((not (position #\/ string :test #'char/=))
+     (list string))
+    (t
+     (let ((str (string-trim "/" string))
+	   (i 0) (res))
+       (awhile (position #\/ str :start i)
+	 (push (subseq str i it) res)
+	 (setq i (position #\/ str :start it :test #'char/=)))
+       (when i
+	 (push (subseq str i) res))
+       (nreverse res)))))
+
+(defun slashify (x)
+  "Prefix X with a slash character, unless it already has one, or is
+an empty string."
+  (cond
+    ((zerop (length x))
+     x)
+    ((char= #\/ (char x 0))
+     x)
+    (t
+     (concatenate 'string "/" x))))
 
 (defun canonicalize-windows-args (strings)
   "Given a list of strings that represents command line options and
@@ -261,13 +279,13 @@ arguments passed in a Windows environment, break up combined switches
 and return a new list of strings that is easier to parse.  The original
 set of STRINGS is broken down via ISOLATE-SWITCHES.
 
-The string \"//\" is special, we preserve it as is.  We treat it as
-a sort of analog to GNU \"--\" in Unix-flavor command lines.
+Strings like \"\", \"/\", \"//\", and so on are special, we preserve
+them as they are.
 
    (CANONICALIZE-WINDOWS-ARGS '(\"abc\" nil \"\" \"def\")
 => (\"abc\" \"\" \"def\")
    (CANONICALIZE-WINDOWS-ARGS '(\"abc\" \"//\" \"def\")
-=> (\"abc\" \"\" \"def\")
+=> (\"abc\" \"//\" \"def\")
    (CANONICALIZE-WINDOWS-ARGS '(\"/abc\" \"def\")
 => (\"/abc\" \"def\")
    (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\")
@@ -283,10 +301,8 @@ a sort of analog to GNU \"--\" in Unix-flavor command lines.
       (mapc #'(lambda (sw)
 		(cond
 		  ((null sw))
-		  ((string= "//" sw)
-		   (collect sw))
 		  ((and (> (length sw) 0) (char= #\/ (char sw 0)))
-		   (mapc #'(lambda (s) (collect (concatenate 'string "/" s)))
+		   (mapc #'(lambda (s) (collect (slashify s)))
 			 (isolate-switches sw)))
 		  (t
 		   (collect sw))))

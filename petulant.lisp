@@ -149,31 +149,65 @@ name, argv[0], or other non-argument information."
   #+clisp ext:*args*
   #+acl (cdr (sys:command-line-arguments))
   #- (or ccl sbcl clisp acl)
-     (error "Petulant needs to be ported to this Lisp environment."))
+  (error "Petulant needs to be ported to this Lisp environment."))
 
-(defun windowsp (style)
+(defun canonicalize-styles (styles)
+  "Given STYLES, which might be a keyword or a list of keywords,
+return a complete list of keywords.  Mostly, this function deals
+with implications: for example, a style of :KEY implies both
+:UP and :FOLD.
+
+Once processed by CANONICALIZE-STYLES, the keyword :CANON is pushed to
+the front of the resulting list.  By leaving :CANON at the front,
+future calls of CANONICALIZE-STYLES can quickly detect when they've
+already run on a list, and avoid duplicating work when called more
+than once.
+
+   (CANONICALIZE-STYLES '(:UNIX :KEY))
+=> (:CANON :FOLD :UP :UNIX :KEY)
+   (CANONICALIZE-STYLES '(:FOO :BAR)
+=> (:CANON :FOO :BAR)
+   (CANONICALIZE-STYLES :DOWN)
+=> (:CANON :FOLD :DOWN)
+   (CANONICALIZE-STYLES :FOLD)
+=> (:CANON :FOLD)"
+  (let ((res (ensure-list styles)))
+    (unless (member :canon res)
+      (when (member :key res)
+	(push :up res))
+      (when (or (member :up res) (member :down res))
+	(push :fold res))
+      (push :canon res))
+    res))
+
+(defmacro with-styles-canon ((var val) &body body)
+  "Evaluate BODY in a context where VAR is bound to the canonicalized
+styles based on VAL.  This macro can be used more than once."
+  `(let ((,var (canonicalize-styles ,val)))
+     ,@body))
+
+(defun windowsp (styles)
   "Allow the user to determine which style of option processing we
 use (Windows or Unix), but also allow the current environment to
-determine a default.  STYLE can be a single value or a list of
-keywords affecting the behavior of Petulant.
+determine a default.  STYLES is a list of keywords affecting the
+behavior of Petulant, and it is assumed these keywords have already
+been rendered into a canonical set of styles.
 
-When STYLE is :UNIX, or when it contains :UNIX, return false.
-When STYLE is :WINDOWS, or when it contains :WINDOWS, return true.
-
-Otherwise, no matter what other values STYLE might have, it is taken
-to not specify Windows/Unix behavior.  So, return true if :WINDOWS is
-on the CL:*FEATURES* list, else false."
-  (unless (or (and (listp style) (member :unix style))
-	      (eq style :unix))
-    (or (and (listp style) (member :windows style))
-	(eq style :windows)
+When STYLES contains :UNIX, return false.  Else, when STYLES
+contains :WINDOWS, return true.  Otherwise, no matter what other
+values STYLES might hold, it is taken to not specify Windows/Unix
+behavior.  In that case, return true if :WINDOWS is on the
+CL:*FEATURES* list, else false."
+  (unless (member :unix styles)
+    (or (member :windows styles)
 	(featurep :windows))))
 
-(defun simple-parse-cli (fn &key arglist optarg-p-fn style)
-  "This is the low level parser for command-lines.  If
-you're an end-user of Petulant, you might want to consider calling a
-higher level function; this one is mainly for implementation of other
-Petulant functionality.
+(defun simple-parse-cli (fn &key arglist optarg-p-fn styles)
+  "This is the low level parser for command-lines.  If you're simply
+using Petulant in your application (i.e., you aren't developing
+Petulant), you might want to consider calling a higher level function;
+SIMPLE-PARSE-CLI is mainly for implementation of other Petulant
+functionality.
 
 SIMPLE-PARSE-CLI works through an argument list, a flat list of
 strings representing the command-line.  It parses this list according
@@ -209,16 +243,78 @@ The caller can supply a function taking the name of the option as a
 string (\"f\" or \"foo\") and returning true or false to indicate if
 it takes an argument.
 
-STYLE can be used to select a particular style of command-line
+STYLES can be used to select a particular style of command-line
 processing.  By default, SIMPLE-PARSE-CLI will choose the style based
 on the current operating system environment (using *FEATURES*).
 However, the caller can force a particular style by supplying :UNIX
 or :WINDOWS, or by supplying a list containing :UNIX or :WINDOWS, to
 this argument."
-  (funcall (if (windowsp style) #'parse-windows-cli #'parse-unix-cli)
-	   (or arglist (argv))
-	   fn
-	   (or optarg-p-fn (constantly nil))))
+  (with-styles-canon (styles styles)
+    (funcall (if (windowsp styles) #'parse-windows-cli #'parse-unix-cli)
+	     (or arglist (argv))
+	     fn
+	     (or optarg-p-fn (constantly nil)))))
 
-(defun cb (kind a b)
-  (format t "cb ~s ~s ~s~%" kind a b))
+(defun cb (&rest args)
+  (format t "cb~{ ~s~}~%" args))
+
+(defun parse-cli (fn &key arglist optargs aliases styles)
+  "PARSE-CLI examines the command-line with which an application was
+invoked.  According to a given style (Windows or Unix), options (aka
+switches) and arguments are recognized.
+
+FN is a function supplied by the caller, which is called for each
+option or argument identified by PARSE-CLI.  Each call to FN has three
+arguments.  The first is the keyword :OPT or :ARG, indicating whether
+an option \(aka switch\) or an non-option argument was found.
+When :ARG, the second argument is a string, an argument from the
+command-line that was not associated with an option, and the third
+argument is NIL.  When :OPT, the second argument is a string naming an
+option, and the third argument is an argument associated with that
+option, or NIL.
+
+ARGLIST causes PARSE-CLI to parse a supplied list of strings, instead
+of the default command-line that was supplied to the application.
+These strings are parsed exactly as if they appeared on the
+command-line, each string corresponding to one \"word\".
+
+   (parse-cli … :arglist '(\"-xv\" \"-f\" \"foo.tar\") … )
+
+OPTARGS can be used to supply a list of strings naming options
+\(switches\) that take arguments.  While Petulant can recognize some
+options and their arguments, there are also ambiguous situations that
+arise during parsing.  Petulant assumes that any ambiguous option does
+not take an argument unless it appears in the list of string supplied
+to OPTARGS.
+
+ALIASES is used to define aliases between options; in other words,
+mapping one option to another.  Most often, this is used to implement
+partial matching \(e.g., allowing \"--in\" to be recognized as
+\"--input\"\), it can also be used to map short options with long
+options \(\"-v\" becomes \"--verbose\"\), and even to map entirely
+different words to one another \(\"/transparency\" might be mapped to
+\"/alpha\"\).  ALIASES is an association list.  For each element, the
+CAR is a string naming the option being mapped to.  The rest of the
+element is a list of alternate strings that should be recognized as
+aliases to the CAR.  For example,
+
+  (parse-cli … :aliases '((\"alpha\" \"transparency\")
+                          (\"input\" \"inpu\" \"inp\" \"in\" \"i\")) … )
+
+STYLES is a keyword, or a list of keywords, that influence Petulant's
+behavior.  Recognized keywords are listed here; unrecognized keywords
+are silently ignored.
+
+   :FOLD    All string comparisons are case-insensitive.
+   :UP      All option names presented to FN will be converted to
+            upper case.  Implies :FOLD.
+   :DOWN    All option names presented to FN will be converted to
+            lower case.  Implies :FOLD.
+   :KEY     All option names presented to FN will be converted to
+            symbols in the keyword package.  Implies :UP.
+   :UNIX    Disregard the current running system, and process the
+            command-line arguments as if in a Unix environment.
+   :WINDOWS Disregard the current running system, and process the
+            command-line arguments as if in a Windows environment."
+  (simple-parse-cli fn :arglist arglist :styles styles))
+
