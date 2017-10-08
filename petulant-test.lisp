@@ -7,7 +7,8 @@
 		#:make-string-fixer #:with-chars #:make-optargp
 		#:all-truncated-strings #:count-strings #:unique-substrings
 		#:isolate-switches #:canonicalize-windows-args
-		#:parse-windows-cli #:parse-unix-cli))
+		#:parse-windows-cli #:parse-unix-cli
+		#:simple-parse-cli))
 
 (in-package #:petulant-test)
 
@@ -571,12 +572,12 @@
 (test parse-unix-cli-e1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
-	     (f? (x) (string= x "f")))
-      (parse-unix-cli '("-xvf" "foo" "something") #'cb #'f?)
+	     (f? (x) (string= x "F")))
+      (parse-unix-cli '("-XVF" "foo" "something") #'cb #'f?)
       (is (equalp '((:arg "something" nil)
-		    (:opt "f" "foo")
-		    (:opt "v" nil)
-		    (:opt "x" nil))
+		    (:opt "F" "foo")
+		    (:opt "V" nil)
+		    (:opt "X" nil))
 		  res)))))
 
 (test parse-unix-cli-e2
@@ -651,3 +652,84 @@
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
+
+;; These more-or-less implement the examples in the manual
+
+(def-suite simple-parse-cli :description "simple parsing" :in all)
+(in-suite simple-parse-cli)
+
+(test simple-parse-cli-1
+  (let ((res (with-output-to-string (s)
+	       (simple-parse-cli #'(lambda (x y z)
+				     (format s "|~s ~s ~s" x y z))
+				 :arglist '("/a" "/beta" "/input:file"
+					    "some" "/v" "thing")
+				 :styles :windows))))
+    (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
+		      res))))
+
+(test simple-parse-cli-2
+  (let ((res (with-output-to-string (s)
+	       (simple-parse-cli #'(lambda (x y z)
+				     (format s "|~s ~s ~s" x y z))
+				 :arglist '("-a" "--beta" "--input=file"
+					    "some" "-v" "thing")
+				 :styles :unix))))
+    (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
+		      res))))
+
+(test simple-parse-cli-3
+  (let ((*verbose* nil))
+    (labels ((opts-and-args (kind name value)
+	       (declare (ignore value))
+	       (when (and (eq kind :opt) (string-equal name "v"))
+		 (setf *verbose* t))))
+      (simple-parse-cli #'opts-and-args
+			:arglist '("-v") :styles :unix)
+      (is (not (null *verbose*))))))
+
+(test simple-parse-cli-4
+  (let ((*verbose* 0))
+    (labels ((opts-and-args (kind name value)
+	       (declare (ignore value))
+	       (case kind
+		 (:arg t)
+		 (:opt (cond
+			 ((string-equal name "q")
+			  (decf *verbose*))
+			 ((string-equal name "v")
+			  (incf *verbose*)))))))
+      (simple-parse-cli #'opts-and-args
+			:arglist '("/v" "/q/v" "/v/q/v" "/q/q/q" "/v/v")
+			:styles :windows)
+      (is (= 1 *verbose*)))))
+
+(test simple-parse-cli-5
+  (let* ((*apphome* (make-pathname :directory '(:absolute "opt" "app")))
+	 (*verbose* 0)
+	 (*inpath* nil)
+	 (*outpath* nil)
+	 (*confpath* (merge-pathnames "config.yaml" *apphome*)))
+    (labels ((opts-and-args (kind x y)
+	       (case kind
+		 (:arg (cond
+			 ((null *inpath*)
+			  (setf *inpath* (pathname x)))
+			 ((null *outpath*)
+			  (setf *outpath* (pathname x)))))
+		 (:opt (cond
+			 ((string-equal x "c")
+			  (setf *confpath* (pathname y)))
+			 ((string-equal x "q")
+			  (decf *verbose*))
+			 ((string-equal x "v")
+			  (incf *verbose*)))))))
+      (simple-parse-cli #'opts-and-args
+			:arglist '("-c" "/foo/altconf.yml"
+				   "-v" "one.dat" "-q" "two.dat" "-v")
+			:optarg-p-fn #'(lambda (x) (string-equal "c" x))
+			:styles :unix)
+      (is (= 1 *verbose*))
+      (is (equalp (pathname "one.dat") *inpath*))
+      (is (equalp (pathname "two.dat") *outpath*))
+      (is (equalp (pathname "/foo/altconf.yml") *confpath*)))))

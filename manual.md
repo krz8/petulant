@@ -220,7 +220,7 @@ example, and would do so on both Unix and Windows systems.
 ```cl
 (simple-parse-cli #'(lambda (&rest args) (print args))
 		  :arglist '("/a" "/beta" "/input:file" "some" "/v" "thing")
-		  :style :windows)
+		  :styles :windows)
 ```
 
 In the early stages of development, it may not always be clear what
@@ -302,6 +302,14 @@ implementing this using the basic API might look like this:
 	     (decf *verbose*))
 	    ((string-equal x "v")
 	     (incf *verbose*))))))
+```
+
+The call to `simple-parse-cli` changes slightly to include a function
+for `optarg-p-fn` which recognizes `c` as taking an option:
+
+```cl
+(simple-parse-cli #'opts-and-args
+                  :optarg-p-fn #'(lambda (x) (string-equal "c" x)))
 ```
 
 Further functionality is obvious at this point.  One thing to consider
