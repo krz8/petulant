@@ -143,8 +143,7 @@ recommended.
 
 ### API
 
-function  
-**simple-parse-cli** fn _&key_ arglist sw-arg-p-fn style
+Function **simple-parse-cli** fn _&key_ arglist sw-arg-p-fn style
 
 This is the low level parser for command-lines.  If you're an end-user
 of Petulant, you might want to consider calling a higher level
@@ -159,7 +158,7 @@ Unix).
 
 **fn** is called for each option (with or without an argument) and
 every non-option argument identified during parsing.  Each call to
-**fn** has three arguments.  The first is always **_arg** or **:opt**.
+**fn** has three arguments.  The first is always **:arg** or **:opt**.
 When **:arg**, the second argument is a non-switch argument string
 from the command line, and the third argument is **nil**.  When
 **:opt**, the second argument is a switch (a string) found on the
@@ -202,8 +201,7 @@ on Unix and the argument list is
 `("-a" "--beta" "--input=file" "some" "-v" "thing")`.
 
 ```cl
-(simple-parse-cli #'(lambda (kind name value)
-		      (format t "~s ~s ~s~%" kind name arg)))
+(simple-parse-cli #'(lambda (&rest args) (print args)))
 => NIL
 (:OPT "a" NIL)
 (:OPT "beta" NIL)
@@ -217,11 +215,10 @@ To ignore the command-line with which the application was invoked, the
 `:arglist` and `:style` keywords can be used to force a particular
 interpretation of options and arguments, no matter the current
 environment.  This would yield the same results as the previous
-example, and would do so equally on both Unix and Windows systems.
+example, and would do so on both Unix and Windows systems.
 
 ```cl
-(simple-parse-cli #'(lambda (kind name arg)
-		      (format t "~s ~s ~s~%" kind name arg))
+(simple-parse-cli #'(lambda (&rest args) (print args))
 		  :arglist '("/a" "/beta" "/input:file" "some" "/v" "thing")
 		  :style :windows)
 ```
@@ -236,12 +233,10 @@ but for exploratory programming, for early development, for private
 hacks, this proves sufficient.
 
 Imagine being at a state in an application's development where it was
-known that some sort of verbosity flag was needed.  It's likely that
-option and argument processing should happen in a single function in
-that application.
+known that some sort of verbosity flag was needed.
 
 ```cl
-(defvar *verbose* nil)
+(defparameter *verbose* nil)
 
 (defun opts-and-args (kind name value)
   (when (and (eq kind :opt) (string-equal name "v"))
@@ -250,16 +245,80 @@ that application.
 
 Just the following call would be sufficient in such an application.
 `-v` seen under Unix, and `/v` under Windows, would lead to
-`*verbose*` becoming true.  All other options and arguments would be
-silently ignored.
+`*verbose*` becoming true.  All other options and arguments are
+silently ignored by the `opts-and-args` function, as written above.
 
 ```cl
-(simple-parse-cli ccl:*command-line-argument-list* #'opts-and-args)
+(simple-parse-cli #'opts-and-args)
 ```
 
-If you don't want to write your own implementations of
-case-insensitivity, partial matching of options, and the like, you can
-use one of the other interfaces to Petulant, below.
+Some applications take multiple instances of a switch to incrememnt
+and decrement debugging verbosity.  Here, we'll implement one such
+where `v` (verbose) and `q` (quiet) are used in just that manner.
+
+```cl
+(defparameter *verbose* 0)
+
+(defun opts-and-args (kind name value)
+  (case kind
+    (:arg t)
+    (:opt (cond
+	    ((string-equal name "q")
+	     (decf *verbose*))
+	    ((string-equal name "v")
+	     (incf *verbose*))))))
+```
+
+Obviously, we are reaching the point where a few well placed macros
+would make our life much more succinct.  As our focus is on the
+functionality and not its presentation, though, we'll stick with this
+approach for just one more example.
+
+Imagine our application has defined `*apphome*` as a directory where
+all of its installed data lives, including some default configuration
+file.  We will still take the `q` and `v` options from the command
+line, but we'll also process a `c` option to specify an alternative
+configuration file.  Two arguments will be taken from the command-line
+as well that specify input and output files.  A first pass at
+implementing this using the basic API might look like this:
+
+```cl
+(defparameter *verbose* 0)
+(defparameter *inpath* nil)
+(defparameter *outpath* nil)
+(defparameter *confpath* (merge-pathnames "config.yaml" *apphome*)
+
+(defun opts-and-args (kind x y)
+  (case kind
+    (:arg (cond
+            ((null *inpath*)
+             (setf *inpath* (pathname x)))
+            ((null *outpath*)
+             (setf *outpath* (pathname x)))))
+    (:opt (cond
+            ((string-equal x "c")
+	     (setf *confpath* (pathname y)))
+	    ((string-equal x "q")
+	     (decf *verbose*))
+	    ((string-equal x "v")
+	     (incf *verbose*))))))
+```
+
+Further functionality is obvious at this point.  One thing to consider
+is our use of `string-equal` above, to get case insensitivity.  This
+would be common under Windows, but it might surprise some Unix users
+that `-c` and `-C` would be the same.  If we used the `string=`
+function instead, the surprise might then be on the Windows users.
+There's no single right answer, but your author humbly suggests that
+unless you are reimplementing `ls`, case insensitivity is rarely a
+real problem.
+
+Hopefully, `opts-and-args` suggests why this is known as the _basic_
+or _simple_ API.  If you prefer it, more power to you!  But if you
+don't want to write your own implementations of common functionality
+like case-insensitivity, partial matching of options, or option
+aliases, you can use one of the other interfaces to Petulant, below.
+
 
 
 
