@@ -9,6 +9,7 @@ is evaluated in that context."
        ((not it))
      ,@body))
 
+#+nil
 (defun fold? (flavor)
   "In a few different places, we need to know if we should be folding
 case or not, according to the option processing flavor selected by the
@@ -16,6 +17,7 @@ user.  At present, we know that when the user selects one
 of :UP, :DOWN, or :KEY, case folding should be performed."
   (member flavor '(:up :down :key)))
 
+#+nil
 (defun make-str= (&optional flavor)
   "Generate and return a function for comparing strings (options)
 according to a user preference.  When the user wants to receive all
@@ -25,6 +27,7 @@ otherwise, string comparisons should be sensitive to case."
   (or (and (fold? flavor) #'string-equal)
       #'string=))
 
+#+nil
 (defun make-char= (&optional flavor)
   "Generate and return a function for comparing characters according
 to a user preference.  When the user wants to receive all options
@@ -147,6 +150,7 @@ as a single character in the first return value.
 	  list)
     (values chars strings)))
 
+#+nil
 (defun make-optargp (optargs &optional flavor)
   "Given a list of characters and strings specifying options that take
 arguments, generate and return a function that can test any single
@@ -190,68 +194,88 @@ STRINGS will be silently dropped.)
 			    (collect (subseq str 0 i))))
 	  strings))
 
-(defun count-strings (strings &optional safe)
-  "Given a list of STRINGS, return a new list whose elements are cons
-cells.  The car of each cell is a string from STRINGS, and its cdr is
-the number of times it appeared in STRINGS.
+(defun count-strings (strings &key safe fold)
+  "Given a list of STRINGS, return an alist indicating the number
+of times each string appeared in STRINGS.  The key to the alist is
+a string, and its cdr is the count.
 
 COUNT-STRINGS may modify the list structure of STRINGS via SORT.  If
 it is safe to do so, set SAFE to TRUE.  Otherwise, COUNT-STRINGS will
-create an internal copy of STRINGS in order to preserve the list
+create an internal copy of STRINGS in order not to corrupt the list
 structure of the supplied STRINGS argument.
+
+Set FOLD when case-insensitive testing is desired.
 
    (COUNT-STRINGS '(\"a\" \"bc\" \"a\" \"cd\" \"a\"))
 => ((\"a\" . 3) (\"bc\" . 1) (\"cd\" . 1)"
-  (let (result)
-    (mapc #'(lambda (s) (if (or (null result) (string/= (caar result) s))
+  (let ((result)
+	(str/= (if fold #'string-not-equal #'string/=))
+	(str< (if fold #'string-lessp #'string<)))
+    (mapc #'(lambda (s) (if (or (null result)
+				(funcall str/= (caar result) s))
 			    (push (cons s 1) result)
 			    (incf (cdar result))))
-	  (sort (if safe strings (copy-seq strings)) #'string<))
+	  (sort (if safe strings (copy-seq strings))
+		str<))
     result))
 
-(defun unique-substrings (strings)
+(defun unique-substrings (strings &key fold)
   "Given a list of STRINGS, generate all the truncated permutations of
 every string in that list.  Return only those strings that appear once
 across all the permutations of all the words in the list.  There is no
 specified order to the results.
 
-(A side effect of implementation, any empty string or NIL value in
-STRINGS will be silently dropped.)
+Set FOLD to perform case-insensitive testing instead of the default
+case sensitive method.
 
-   (UNIQUE-SUBSTRINGS '(\"alpha\" \"beta\" \"ant\" \"beat\" \"coo\" \"bop\")
-=> (\"coo\" \"co\" \"c\" \"bop\" \"bo\" \"beta\" \"bet\" \"beat\" \"bea\"
-    \"ant\" \"an\" \"alpha\" \"alph\" \"alp\" \"al\") "
+\(A side effect of implementation, any empty string or NIL value in
+STRINGS will be silently dropped.\)
+
+   \(UNIQUE-SUBSTRINGS '\(\"alpha\" \"beta\" \"ant\" \"beat\" \"coo\" \"bop\"\)
+=> \(\"coo\" \"co\" \"c\" \"bop\" \"bo\" \"beta\" \"bet\" \"beat\" \"bea\"
+    \"ant\" \"an\" \"alpha\" \"alph\" \"alp\" \"al\"\) "
   (mapcan #'(lambda (x) (if (= (cdr x) 1)
 			    (list (car x))
 			    nil))
-	  (count-strings (all-truncated-strings strings) t)))
+	  (count-strings (all-truncated-strings strings)
+			 :safe t :fold fold)))
+
+(defun ensure-string (x)
+  "Returns a string from X.  NIL becomes an empty string.  Characters
+are converted to strings of length 1.  Keywords are returned as
+upper-case strings.  Numbers are converted to decimal strings."
+  (typecase x
+    (string x)
+    (number (format nil "~d" x))
+    (t (cond
+	 ((null x) "")
+	 ((symbolp x) (symbol-name x))
+	 (t (string x))))))		; hope for the best
 
 (defun isolate-switches (string)
-  "Given a string that begins with at least one Windows CLI switch,
-return a list of strings that exist between slashes, skipping leading,
-multiple, and trailing slashes.  Arguments to switches introduced with
-nna colon are preserved with the switch.
+  "Given a string that begins with at least one Windows CLI switch
+character, return a list of strings that exist between slashes,
+skipping leading, multiple, and trailing slashes.  Arguments to
+switches introduced with a colon are preserved with the switch.
 
 If this looks like SPLIT-SEQUENCE, well, you're not wrong.
 ISOLATE-SWITCHES exists because one day, this is going to require some
 kind of weird escape processing and probably a state machine of some
 kind.  In the meantime, our mini-split-sequence hack is good enough.
 
-   (ISOLATE-SWITCHES \"/a\")                 => (\"a\")
-   (ISOLATE-SWITCHES \"/ab\")                => (\"ab\")
-   (ISOLATE-SWITCHES \"/a/bc\")              => (\"a\" \"bc\")
-   (ISOLATE-SWITCHES \"/a/bc:de\")           => (\"a\" \"bc:de\")
-   (ISOLATE-SWITCHES \"/a/bc:de/f\")         => (\"a\" \"bc:de\" \"f\")
-   (ISOLATE-SWITCHES \"/a/bc:de/f/\")        => (\"a\" \"bc:de\" \"f\")
-   (ISOLATE-SWITCHES \"///a///bc:de///f//\") => (\"a\" \"bc:de\" \"f\")
-   (ISOLATE-SWITCHES \"\")                   => (\"\")
-   (ISOLATE-SWITCHES \"/\")                  => (\"/\")
-   (ISOLATE-SWITCHES \"//\")                 => (\"//\") "
+   \(ISOLATE-SWITCHES \"/a\"\)                 => \(\"a\"\)
+   \(ISOLATE-SWITCHES \"/ab\"\)                => \(\"ab\"\)
+   \(ISOLATE-SWITCHES \"/a/bc\"\)              => \(\"a\" \"bc\"\)
+   \(ISOLATE-SWITCHES \"/a/bc:de\"\)           => \(\"a\" \"bc:de\"\)
+   \(ISOLATE-SWITCHES \"/a/bc:de/f\"\)         => \(\"a\" \"bc:de\" \"f\"\)
+   \(ISOLATE-SWITCHES \"/a/bc:de/f/\"\)        => \(\"a\" \"bc:de\" \"f\"\)
+   \(ISOLATE-SWITCHES \"///a///bc:de///f//\"\) => \(\"a\" \"bc:de\" \"f\"\)
+   \(ISOLATE-SWITCHES \"\"\)                   => \(\"\"\)
+   \(ISOLATE-SWITCHES \"/\"\)                  => \(\"/\"\)
+   \(ISOLATE-SWITCHES \"//\"\)                 => \(\"//\"\)"
   (cond
-    ((zerop (length string))
-     '(""))
-    ((not (position #\/ string :test #'char/=))
-     (list string))
+    ((zerop (length string))                       '(""))
+    ((not (position #\/ string :test #'char/=))    (list string))
     (t
      (let ((str (string-trim "/" string))
 	   (i 0) (res))

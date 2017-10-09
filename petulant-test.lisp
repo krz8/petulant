@@ -14,9 +14,11 @@
 
 (def-suite all :description "all petulant tests")
 (def-suite util :description "petulant misc utilities" :in all)
-(def-suite string-fixers :description "make-string-fixer" :in util)
-(in-suite string-fixers)
 
+#+nil (def-suite string-fixers :description "make-string-fixer" :in util)
+#+nil (in-suite string-fixers)
+
+#+nil
 (test make-string-fixer-plain
   (let ((fn (make-string-fixer)))
     (flet ((fn (x) (funcall fn x)))
@@ -26,7 +28,7 @@
       (is (string= (fn "BaR") "BaR"))
       (is (string= (fn "BAZ") "BAZ"))
       (is (string= (fn "") "")))))
-
+#+nil
 (test make-string-fixer-up
   (let ((fn (make-string-fixer :up)))
     (flet ((fn (x) (funcall fn x)))
@@ -37,6 +39,7 @@
       (is (string= (fn "BAZ") "BAZ"))
       (is (string= (fn "") "")))))
 
+#+nil
 (test make-string-fixer-down
   (let ((fn (make-string-fixer :down)))
     (flet ((fn (x) (funcall fn x)))
@@ -47,6 +50,7 @@
       (is (string= (fn "BAZ") "baz"))
       (is (string= (fn "") "")))))
 
+#+nil
 (test make-string-fixer-key
   (let ((fn (make-string-fixer :key)))
     (flet ((fn (x) (funcall fn x)))
@@ -81,9 +85,10 @@
       (is (null g))
       (is (null h)))))
 
-(def-suite make-optargp :description "make-optargp" :in util)
-(in-suite make-optargp)
+#+nil (def-suite make-optargp :description "make-optargp" :in util)
+#+nil (in-suite make-optargp)
 
+#+nil
 (test make-optargp-plain
   (let ((fn (make-optargp '("foo" #\a "B"))))
     (flet ((f (x) (funcall fn x)))
@@ -104,6 +109,7 @@
       (is (f "foo"))
       (is (not (f ""))))))
 
+#+nil
 (test make-optargp-up
   (let ((fn (make-optargp '("foo" #\a "B") :up)))
     (flet ((f (x) (funcall fn x)))
@@ -124,6 +130,7 @@
       (is (f "foo"))
       (is (not (f ""))))))
 
+#+nil
 (test make-optargp-down
   (let ((fn (make-optargp '("foo" #\a "B") :down)))
     (flet ((f (x) (funcall fn x)))
@@ -144,6 +151,7 @@
       (is (f "foo"))
       (is (not (f ""))))))
 
+#+nil
 (test make-optargp-key
   (let ((fn (make-optargp '("foo" #\a "B") :key)))
     (flet ((f (x) (funcall fn x)))
