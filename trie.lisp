@@ -176,6 +176,18 @@
   (make-instance 'dict :table (make-hash-table
 			       :test (if loose #'equalp #'equal))))
 
+(defgeneric dict-word-p (dict word)
+  (:documentation "Returns true if WORD has been added to DICT via DICT-ADD."))
+
+(defmethod dict-word-p ((dict dict) (word string))
+  "Returns true if the supplied WORD was added to DICT via DICT-ADD."
+  (labels ((scan (dict word length idx)
+	     (awhen (gethash (char word idx) (trie-table dict))
+	       (if (< idx (1- length))
+		   (scan it word length (1+ idx))
+		   (dict-term-p it)))))
+    (scan dict word (length word) 0)))
+
 (defgeneric dict-add (dict word)
   (:documentation "Given a WORD, add it to the supplied dictionary."))
 
@@ -187,7 +199,7 @@
   dictionary DICT.  All necessary new subtries are added to DICT, all
   nodes along the \"path\" of the WORD are incremented, and the
   termination flag of the node corresponding to the end of that
-  \"path\" is set.  DICT is returned."
+  \"path\" is set. DICT is returned."
   (labels ((add (dict word length idx)
 	     (let ((subtrie (trie-at dict (char word idx))))
 	       (incf (dict-count subtrie))
