@@ -262,7 +262,7 @@ rest for the time being.  Consider supporting a traditional verbosity
 flag and a single command-line argument that names a file in an
 application.
 
-```cl
+```
 (defvar *verbose* nil)
 (defvar *filename* nil)
 
