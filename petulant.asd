@@ -19,4 +19,5 @@ and data interfaces are provided to the caller."
 
   :components ((:file "pkg")
 	       (:file "misc" :depends-on ("pkg"))
-	       (:file "petulant" :depends-on ("misc"))))
+	       (:file "trie" :depends-on ("pkg"))
+	       (:file "petulant" :depends-on ("trie"))))

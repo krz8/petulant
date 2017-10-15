@@ -2,7 +2,8 @@
 
 (defun parse-unix-cli (arglist fn
 		       &optional
-			 (optargp-fn (constantly nil)))
+			 (optargp-fn (constantly nil))
+			 (fixname-fn #'identity))
   "This is the low level parser for Unix-style command lines.  If
   you're an end-user of Petulant, you might want to consider calling a
   higher level function; this one is mostly for implementation of
@@ -28,6 +29,13 @@
   argument.  The only non-ambiguous option with an argument are long
   options that use the \"=\" character \(e.g., \"--foo=bar\"\).
 
+  FIXNAME-FN, if supplied, can be used to change a detected option
+  from one value to another, taking a string and returning a string to
+  use in its place.  It could be used to implement aliases or partial
+  matching, for example.  Every detected option, long or short, is
+  passed through this function before processing continues; it is
+  called before OPTARGP-FN, for example.
+
   Generally speaking, the calls to FN proceed from the head to the
   tail of ARGLIST, and from left to right within each string of
   ARGLIST.  This is useful to know in testing, but callers probably
@@ -35,22 +43,55 @@
   (do ((av arglist))
       ((null av) t)
     (labels ((optargp (x) (funcall optargp-fn x))
+	     (fixname (x) (funcall fixname-fn x))
 	     (is- (&rest chars) (apply #'char= #\- chars))
 	     (advance () (setf av (cdr av)))
 	     (opt! (o &optional a) (funcall fn :opt o a))
 	     (arg! (a) (funcall fn :arg a nil))
-	     (long (opt) (let ((o (subseq opt 2)))	       ; "--foo…"
+	     (long (opt)
+	       (let* ((o (subseq opt 2))                    ; "--foo…"
+		      (i (position #\= o))		    ; "--foo=…"
+		      (f (fixname o)))
+		 (cond
+		   (i                                       ; "--foo=…"
+		    (opt! f (unless (= i (1- (length o)))   ; "--foo="
+			      (subseq o (1+ i)))))          ; "--foo=xyz"
+		   ((optargp f)                             ; "--foo" "xyz"
+		    (opt! f (cadr av))
+		    (advance))
+		   (t                                       ; "--foo"
+		    (opt! f)))))
+	     (short (opt)
+	       (iterate
+		 (for i index-of-string opt)
+		 (for c = (string (char opt i)))
+		 (if-first-time (next-iteration))           ; skip leading -
+		 (let ((f (fixname c)))
+		   (cond
+		     ((not (optargp f))			    ; "-fgh"
+		      (opt! f))
+		     ((< i (1- (length opt)))		    ; "-ffile"
+		      (opt! f (subseq opt (1+ i)))
+		      (finish))
+		     (t					    ; "-f" "file"
+		      (opt! f (cadr av))
+		      (advance)
+		      (finish))))))
+	     #+nil
+	     (long (opt) (let ((o (subseq opt 2))) ; "--foo…"
 			   (acond
-			     ((position #\= o)		       ; "--foo=xyz"
-			      (opt!
-			       (subseq o 0 it)
-			       (unless (= it (1- (length o)))  ; "--foo="
-				 (subseq o (1+ it)))))
-			     ((optargp o)                      ; "--foo" "xyz"
+			     ((position #\= o) ; "--foo=xyz"
+			      (let ((fixed (fixname (subseq o 0 it))))
+				(opt!
+				 fixed
+				 (unless (= it (1- (length o))) ; "--foo="
+				   (subseq o (1+ it))))))
+			     ((optargp o) ; "--foo" "xyz"
 			      (opt! o (cadr av))
 			      (advance))
-			     (t				       ; "--foo"
+			     (t		; "--foo"
 			      (opt! o)))))
+	     #+nil
 	     (short (opt) (iterate			       ; "-f…"
 			   (for i index-of-string opt)
 			   (for c = (string (char opt i)))
@@ -81,7 +122,8 @@
 
 (defun parse-windows-cli (arglist fn
 			  &optional
-			    (swargp-fn (constantly nil)))
+			    (swargp-fn (constantly nil))
+			    (fixname-fn #'identity))
   "This is the low level parser for Windows-style command lines.  If
   you're an end-user of Petulant, you might want to consider calling a
   higher level function; this one is mostly for implementation of
@@ -107,6 +149,13 @@
   is assumed not to take an argument.  A non-ambiguous switch with an
   argument is one that uses the colon character \(e.g., \"/foo:bar\"\).
 
+  FIXNAME-FN, if supplied, can be used to change a detected switch
+  from one value to another, taking a string and returning a string to
+  use in its place.  It could be used to implement aliases or partial
+  matching, for example.  Every detected switch is passed through this
+  function before processing continues; it is called before SWARGP-FN,
+  for example.
+
   Generally speaking, the calls to FN proceed from the head to the
   tail of ARGLIST, and from left to right within each string of
   ARGLIST.  This is useful to know in testing, but callers probably
@@ -114,6 +163,7 @@
   (do ((av (canonicalize-windows-args arglist)))
       ((null av) t)
     (labels ((swargp (x) (funcall swargp-fn x))
+	     (fixname (x) (funcall fixname-fn x))
 	     (advance () (setf av (cdr av)))
 	     (opt! (o &optional a) (funcall fn :opt o a))
 	     (arg! (a) (funcall fn :arg a nil)))
@@ -129,14 +179,17 @@
 	  ((char/= (char str 0) #\/)			       ; "foo"
 	   (arg! str))
 	  ((position #\: str)				       ; "/foo:…"
-	   (opt! (subseq str 1 it)
+	   (opt! (fixname (subseq str 1 it))
 		 (unless (= it (1- len))		       ; "/foo:xyz"
 		   (subseq str (1+ it)))))
-	  ((swargp (subseq str 1))			       ; "/foo" "xyz"
-	   (opt! (subseq str 1) (cadr av))
-	   (advance))
-	  (t						       ; "/foo"
-	   (opt! (subseq str 1)))))
+	  (t
+	   (let ((f (fixname (subseq str 1))))
+	     (cond
+	       ((swargp f)                                     ; "/foo" "xyz"
+		(opt! f (cadr av))
+		(advance))
+	       (t                                              ; "/foo"
+		(opt! f)))))))
       (advance))))
 
 (defun argv ()
@@ -154,7 +207,17 @@
 (defun canonicalize-styles (styles)
   "Given STYLES, which might be a keyword or a list of keywords,
   return a complete list of keywords and any other keywords they imply.
-  For example, a style of :KEY implies both :UP and :FOLD.
+
+  If :UNIX or :WINDOWS appears in styles, it is left as-is.
+  Otherwise, CL:*FEATURES* is consulted, and if :WINDOWS appears
+  there, it is added to STYLES.  In this way, we support a default
+  based on the local operating system, but make it easy for clients of
+  Petulant to override this forcing one or the other behavior.
+
+  If :KEY appears in STYLES, :UP is added to STYLES as well.
+
+  If :NOFOLD does not appear in STYLES, and one of :UP, :DOWN, or :WINDOWS
+  appears, then :FOLD is added to STYLES.
 
   Once processed by CANONICALIZE-STYLES, the keyword :CANON is pushed to
   the front of the resulting list.  By leaving :CANON at the front,
@@ -176,13 +239,14 @@
     ;; should be leftmost in RES once we've run once, but that relies
     ;; on no one messing with STYLES once it's been processed.
     (unless (member :canon res)
+      (unless (or (member :windows res) (member :unix res))
+	(push (if (featurep :windows) :windows :unix) res))
       (when (member :key res)
 	(push :up res))
       (unless (member :nofold res)
 	(when (or (member :up res)
 		  (member :down res)
-		  (member :windows res)
-		  (and (featurep :windows) (not (member :unix res))))
+		  (member :windows res))
 	  (push :fold res)))
       (push :canon res))		; always last!
     res))
@@ -194,22 +258,6 @@
   `(let ((,var (canonicalize-styles ,val)))
      ,@body))
 
-(defun windowsp (styles)
-  "Allow the user to determine which style of option processing we
-  use \(Unix or Windows\), but also allow the current environment to
-  determine a default.  STYLES is a list of keywords affecting the
-  behavior of Petulant.
-
-  When STYLES contains :UNIX, return false.  Else, when STYLES
-  contains :WINDOWS, return true.  Otherwise, no matter what other
-  values STYLES might hold, it is taken to not specify Unix/Windows
-  behavior.  In that case, return true if :WINDOWS is on the
-  CL:*FEATURES* list, else false."
-  (with-styles-canon (styles styles)
-    (unless (member :unix styles)
-      (or (member :windows styles)
-	  (featurep :windows)))))
-
 (defun foldp (styles)
   "Returns true when STYLES indicates that case-insensitive matching
   should be employed.  Specifically, this is described by :NOFOLD not
@@ -219,7 +267,7 @@
     (and (not (member :nofold styles))
 	 (member :fold styles))))
 
-(defun simple-parse-cli (fn &key arglist optarg-p-fn styles)
+(defun simple-parse-cli (fn &key arglist optarg-p-fn fixname-fn styles)
   "This is the low level parser for command-lines.  If you're simply
   using Petulant in your application \(i.e., you aren't developing
   Petulant\), you might want to consider calling a higher level function;
@@ -260,6 +308,13 @@
   string (\"f\" or \"foo\") and returning true or false to indicate if
   it takes an argument.
 
+  FIXNAME-FN, if supplied, can be used to change a detected switch
+  from one value to another, taking a string and returning a string to
+  use in its place.  It could be used to implement aliases or partial
+  matching, for example.  Every detected switch is passed through this
+  function before processing continues; it is called before OPTARG-P-FN,
+  for example.
+
   STYLES can be used to select a particular style of command-line
   processing.  By default, SIMPLE-PARSE-CLI will choose the style based
   on the current operating system environment \(using *FEATURES*\).
@@ -267,10 +322,11 @@
   or :WINDOWS, or by supplying a list containing :UNIX or :WINDOWS, to
   this argument."
   (with-styles-canon (styles styles)
-    (funcall (if (windowsp styles) #'parse-windows-cli #'parse-unix-cli)
+    (funcall (if (member :windows styles) #'parse-windows-cli #'parse-unix-cli)
 	     (or arglist (argv))
 	     fn
-	     (or optarg-p-fn (constantly nil)))))
+	     (or optarg-p-fn (constantly nil))
+	     (or fixname-fn #'identity))))
 
 (defun cb (&rest args)
   (format t "cb~{ ~s~}~%" args))
@@ -278,62 +334,75 @@
 (defun str=-fn (styles)
   "Return a function to be used in comparing option strings for
   equality, based on FOLDP."
-  (if (foldp styles)
-      #'string-equal
-      #'string=))
+  (with-styles-canon (styles styles)
+    (if (member :fold styles)
+	#'string-equal
+	#'string=)))
 
 (defun eq=-fn (styles)
   "Return a function to be used in comparing option strings for
   equality, based on FOLDP.  Where STR=-FN returns a string comparison
   function, this returns an equality function \(e.g., for use in hash
   tables\)."
-  (if (foldp styles)
-      #'equalp
-      #'equal))
+  (with-styles-canon (styles styles)
+    (if (member :fold styles)
+	#'equalp
+	#'equal)))
 
 (defun str<-fn (styles)
   "Return a function to be used in comparing option strings for
   sorting, based on FOLDP."
-  (if (foldp styles)
-      #'string-lessp
-      #'string<))
+  (with-styles-canon (styles styles)
+    (if (member :fold styles)
+	#'string-lessp
+	#'string<)))
 
 (defun str/=-fn (styles)
   "Return a function to be used in comparing option strings for
   inequality, based on FOLDP."
-  (if (foldp styles)
-      #'string-not-equal
-      #'string/=))
+  (with-styles-canon (styles styles)
+    (if (member :fold styles)
+	#'string-not-equal
+	#'string/=)))
 
 (defun partials-fn (optargs optflags aliases styles)
-  "Given a list of options that take arguments, a list of options that
-  are simply flags, an alist specifying known aliases for options, and
-  a style keyword \(or list of style keywords\), craft a function that
-  maps a string that might be a partial match to an option, returning
-  the proper option \(from OPTARGS OPTFLAGS or ALIASES\) if it
-  indicates if it is an unambiguous substring; otherwise, the original
-  supplied string is returned."
+  "When STYLES contains :PARTIAL, return a function that implements
+  partial matching for all the options seen in OPTARGS, OPTFLAGS, and
+  ALIASES; otherwise, #'IDENTITY is returned and no partial matching
+  is supported.
+
+  When partial matching is desired, OPTARGS OPTFLAGS ALIASES and
+  STYLES are taken in the same format as PARSE-CLI.  A function is
+  returned that takes a single string as an option or argument
+  appearing on a command-line, recognizing unambiguous partial matches
+  of options as they appear in the three supplied lists, and returning
+  a possibly new string that PARSE-CLI should process as if it were
+  the original word from the command-line."
   (with-styles-canon (styles styles)
-    (let ((dict (make-dict :loose (foldp styles)))
-	  (str= (str=-fn styles)))
-      (labels ((maybe-add (o)
-		 (unless (dict-word-p dict o)
-		   (dict-add dict o))))
-	(mapc #'maybe-add (append optargs optflags))
-	(mapc #'(lambda (alist)
-		  (mapc #'maybe-add (cdr alist)))
-	      aliases))
-      (let ((minwords (minwords dict)))
-	(lambda (x) 
-	  (block nil
-	    (let ((len (length x)))
-	      (mapc #'(lambda (partial)
-			(destructuring-bind (min max option) partial
-			  (when (and (<= min len max)
-				     (funcall str= x (subseq option 0 len)))
-			    (return option))))
-		    minwords)
-	      x)))))))
+    (cond
+      ((member :partial styles)
+       (let ((dict (make-dict :loose (foldp styles)))
+	     (str= (str=-fn styles)))
+	    (labels ((maybe-add (o)
+		       (unless (dict-word-p dict o)
+			 (dict-add dict o))))
+	      (mapc #'maybe-add (append optargs optflags))
+	      (mapc (lambda (alist)
+		      (mapc #'maybe-add (cdr alist)))
+		    aliases))
+	    (let ((minwords (minwords dict)))
+	      (lambda (x) 
+		(block nil
+		  (let ((len (length x)))
+		    (mapc (lambda (partial)
+			    (destructuring-bind (min max option) partial
+			      (when (and (<= min len max)
+					 (funcall str= x (subseq option 0 len)))
+				(return option))))
+			  minwords)
+		    x))))))
+      (t
+       #'identity))))
 
 (defun build-alias-hash (aliases styles)
   "Returns a hash table initialized with the option alias list ALIASES.
@@ -342,11 +411,11 @@
   compare strings within the hash table."
   (with-styles-canon (styles styles)
     (let ((hash (make-hash-table :test (eq=-fn styles))))
-      (mapc #'(lambda (entry)
-		(let ((value (car entry)))
-		  (mapc #'(lambda (key)
-			    (setf (gethash key hash) value))
-			(cdr entry))))
+      (mapc (lambda (entry)
+	      (let ((value (car entry)))
+		(mapc (lambda (key)
+			(setf (gethash key hash) value))
+		      (cdr entry))))
 	    aliases)
       hash)))
 
@@ -379,7 +448,7 @@
   test."
   (with-styles-canon (styles styles)
     (let ((hash (make-hash-table :test (eq=-fn styles))))
-      (mapc #'(lambda (optarg) (setf (gethash optarg hash) t))
+      (mapc (lambda (optarg) (setf (gethash optarg hash) t))
 	    optargs)
       hash)))
 
@@ -396,7 +465,6 @@
   (with-styles-canon (styles styles)
     (let ((hash (build-optarg-hash optargs styles)))
       (lambda (x) (gethash x hash)))))
-
 
 
 ;; x comes from the arg list
@@ -533,9 +601,9 @@ Note: even if :KEY is present in STYLES, only strings are compared
 by the returned function."
   (with-styles-canon (styles styles)
     (let ((str=-fn (str=-fn styles)))
-      #'(lambda (opt)
-	  (member opt optargs
-		  :test #'(lambda (x y) (funcall str=-fn x y)))))))
+      (lambda (opt)
+	(member opt optargs
+		:test (lambda (x y) (funcall str=-fn x y)))))))
 
 #+nil
 (defun option-hackers (optargs styles)
@@ -554,96 +622,110 @@ the supplied callback function."
       (when (member :up styles)
 	(push #'string-upcase funcs))
       (when (member :key styles)
-	(push #'(lambda (x) (intern x "KEYWORD")) funcs))
+	(push (lambda (x) (intern x "KEYWORD")) funcs))
       (apply #'compose funcs))))
 
-#+nil
-(defun parse-cli (fn &key arglist optargs optflags aliases styles)
+(defun parse-cli (fn &key optargs optflags aliases arglist styles)
   "PARSE-CLI examines the command-line with which an application was
-invoked.  According to given styles, options (aka switches) and
-arguments are recognized.
+  invoked.  According to given styles and the local environment,
+  options (aka switches) and arguments are recognized.
 
-FN is a function supplied by the caller, which is called for each
-option or argument identified by PARSE-CLI.  Each call to FN has three
-arguments.  The first is the keyword :OPT or :ARG, indicating whether
-an option \(aka switch\) or an non-option argument was found.
-When :ARG, the second argument is a string, an argument from the
-command-line that was not associated with an option, and the third
-argument is NIL.  When :OPT, the second argument is usually a string
-naming an option \(although see STYLES below\), and the third argument
-is a string value associated with that option, or NIL.
+  FN is a function supplied by the caller, which is called for each
+  option or argument identified by PARSE-CLI.  Each call to FN has
+  three arguments.  The first is the keyword :OPT or :ARG, indicating
+  whether an option \(aka switch\) or an non-option argument was
+  found.  When :ARG, the second argument is a string, an argument from
+  the command-line that was not associated with an option, and the
+  third argument is NIL.  When :OPT, the second argument is usually a
+  string naming an option \(although see STYLES below\), and the third
+  argument is a string value associated with that option, or NIL.
 
-OPTARGS, if supplied, is a list of all options \(short or long\) that
-require an argument.  While Petulant can recognize options that
-explicitly take an argument \(as in \"--file=foo.psd\" or
-\"/file:foo.psd\"\), it needs the hint in OPTARGS to recognize other
-patterns \(such as \"-f\" \"foo.psd\", or \"/file\" \"foo.psd\"\).
-Simply place the option (no leading hyphens or slashes) as a string in
-this list.  The call below would recognize both \"-f\" and \"--file\"
-as requiring an argument.
+  OPTARGS, if supplied, is a list of all options \(short or long\)
+  that require an argument.  While Petulant can automatically
+  recognize some options that explicitly take an argument \(as in
+  \"--file=foo.psd\" or \"/file:foo.psd\"\), it needs the hint in
+  OPTARGS to recognize other patterns \(such as \"-f\" \"foo.psd\", or
+  \"/file\" \"foo.psd\"\).  Simply place the option (no leading
+  hyphens or slashes) as a string in this list.  The call below would
+  recognize both \"-f\" and \"--file\" as requiring an argument.
+  \(Note that \"f\" in the list is better handled by an ALIAS below,
+  or by the use of :PARTIALS in STYLES; its presence here is merely
+  for example.\) OPTARGS does not limit the options that PARSE-CLI
+  handles, even those with arguments; it is merely a hint that
 
-   \(parse-cli … :optargs '\(\"f\" \"file\"\) … \)
+     \(parse-cli … :optargs '\(\"f\" \"file\"\) … \)
 
-OPTFLAGS, if supplied, is a list of all the options \(short or long\)
-that do not take an argument.  This argument has no effect on
-PARSE-CLI unless :PARTIAL appears in STYLES.  See :PARTIAL below.
+  OPTFLAGS, if supplied, is a list of all the options \(short or
+  long\) that do not take an argument.  This argument has no effect on
+  PARSE-CLI unless :PARTIAL appears in STYLES.  See :PARTIAL below.
 
-ARGLIST causes PARSE-CLI to parse a specified list of strings, instead
-of the default command-line that was supplied to the application.
-These strings are parsed exactly as if they appeared on the
-command-line, each string corresponding to one \"word\".
+     \(parse-cli … :optflags '\(\"verbose\" \"debug\" \"trace\"\) … \)
 
-   \(parse-cli … :arglist '\(\"-xv\" \"-f\" \"foo.tar\"\) … \)
+  ALIASES can be used to supply one or more alternative options that,
+  when encountered, are considered aliases for another option.
+  ALIASES is a list of lists.  Every element of ALIASES is a list
+  naming the primary option first, followed by all aliases for it.
+  For example, in the call below, both \"/sleep\" and \"/wait\" would
+  be recognized by PARSE-CLI, but processed as if \"/delay\" were
+  seen.
 
-ALIASES can be used to supply one or more alternative options that,
-when encountered, are considered aliases for another option.  ALIASES
-is an association list, in which every element has a primary option
-string as its CAR, and a list of alternative strings as their CDR.
-For example, in the call below, both \"/sleep\" and \"/wait\" would be
-recognized in an argument list, but FN would be called with \"/delay\"
-in either event.
+    \(parse-cli … :aliases '\(\(\"alpha\" \"transparency\"\)
+			     \(\"delay\" \"sleep\" \"wait\"\)
+			     \(\"file\" \"f\"\)\) … \)
 
-  \(parse-cli … :aliases '\(\(\"alpha\" \"transparency\"\)
-                          \(\"delay\" \"sleep\" \"wait\"\)\) … \)
+  ARGLIST causes PARSE-CLI to parse a specified list of strings,
+  instead of the default command-line that was supplied to the
+  application.  These strings are parsed exactly as if they appeared
+  on the command-line, each string corresponding to one \"word\".
 
-STYLES is a keyword, or a list of keywords, that influence Petulant's
-behavior.  Recognized keywords are as follows; unrecognized keywords
-are silently ignored.
+     \(parse-cli … :arglist '\(\"-xv\" \"-f\" \"foo.tar\"\) … \)
 
-   :NOFOLD  String matching between OPTARGS, OPTFLAGS, ALIASES, and the
-            command-line being parsed is sensitive to case.  This
-            exists solely to override any semantics implied
-            by :WINDOWS, :UNIX, :UP, :DOWN, :KEY, and the local Lisp
-            environment.  Overrides :FOLD.
-   :FOLD    String matching between OPTARGS, OPTFLAGS, ALIASES, and
-            the command-line being parsed is insensitive to case.
-   :UP      All option names presented to FN will be converted to
-            upper case.  Implies :FOLD.
-   :DOWN    All option names presented to FN will be converted to
-            lower case.  Implies :FOLD.
-   :KEY     All option names presented to FN will be converted to
-            symbols in the keyword package.  Implies :UP.
-   :PARTIAL Support partial matches of options.  When present,
-            Petulant will support unambiguous partial matches of
-            options \(as they appear in OPTARGS, OPTFLAGS, and
-            ALIASES\).  For example, if OPTARGS contained \"beat\",
-            then :PARTIAL would trigger aliases of \"b\", \"be\", and
-            \"bea\" for \"beat\".  But, if OPTFLAGS also contained
-            \"bop\" then \"b\" would no longer be automatically
-            created as an alias, and \"bo\" would be added as an alias
-            for \"bop\".
-   :UNIX    Disregard the current running system, and process the
-            command-line arguments as if in a Unix environment.
-   :WINDOWS Disregard the current running system, and process the
-            command-line arguments as if in a Windows environment.
-            Also implies :FOLD."
+  STYLES is a keyword, or a list of keywords, that influence
+  Petulant's behavior.  Recognized keywords are as follows;
+  unrecognized keywords are silently ignored.
+
+     :NOFOLD  String matching between OPTARGS, OPTFLAGS, ALIASES, and
+	      the command-line being parsed is sensitive to case.
+	      This exists solely to override any folding semantics
+	      implied by :WINDOWS, :UNIX, :UP, :DOWN, :KEY, and the
+	      local Lisp environment.  Overrides :FOLD.
+
+     :FOLD    String matching between OPTARGS, OPTFLAGS, ALIASES, and
+	      the command-line being parsed is insensitive to case.
+
+     :UP      All option names presented to FN will be converted to
+	      upper case.  Implies :FOLD.
+
+     :DOWN    All option names presented to FN will be converted to
+	      lower case.  Implies :FOLD.
+
+     :KEY     All option names presented to FN will be converted to
+	      symbols in the keyword package.  Implies :UP.
+
+     :PARTIAL Support partial matches of options.  When present,
+              Petulant will support unambiguous partial matches of
+	      options \(as they appear in OPTARGS, OPTFLAGS, and
+	      ALIASES\).  For example, if OPTARGS contained \"beat\",
+	      then :PARTIAL would trigger aliases of \"b\", \"be\",
+	      and \"bea\" for \"beat\".  But, if OPTFLAGS also
+	      contained \"bop\" then \"b\" would no longer be
+	      automatically created as an alias, and \"bo\" would be
+	      added as an alias for \"bop\".
+
+     :UNIX    Disregard the current running system, and process the
+	      command-line arguments as if in a Unix environment.
+
+     :WINDOWS Disregard the current running system, and process the
+	      command-line arguments as if in a Windows environment.
+	      Also implies :FOLD."
   (with-styles-canon (styles styles)
-    (let ((optcounts (count-options optargs optflags aliases styles)))
-      (simple-parse-cli
-       (option-hackers fn optargs styles)
-       :arglist arglist
-       :styles styles
-       :optarg-p-fn (optarg-p-fn optargs styles)))))
+    (simple-parse-cli fn
+		      :optarg-p-fn (optarg-p-fn optargs styles)
+		      :fixname-fn (compose (aliases-fn aliases styles)
+					   (partials-fn optargs optflags
+							aliases styles))
+		      :arglist arglist
+		      :styles styles)))
 
 ;;; okay. think.
 ;;; cb takes THREE arguments
