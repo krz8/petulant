@@ -3,7 +3,7 @@
 (defun parse-unix-cli (arglist fn
 		       &optional
 			 (optargp-fn (constantly nil))
-			 (fixname-fn #'identity))
+			 (chgname-fn #'identity))
   "This is the low level parser for Unix-style command lines.  If
   you're an end-user of Petulant, you might want to consider calling a
   higher level function; this one is mostly for implementation of
@@ -29,7 +29,7 @@
   argument.  The only non-ambiguous option with an argument are long
   options that use the \"=\" character \(e.g., \"--foo=bar\"\).
 
-  FIXNAME-FN, if supplied, can be used to change a detected option
+  CHGNAME-FN, if supplied, can be used to change a detected option
   from one value to another, taking a string and returning a string to
   use in its place.  It could be used to implement aliases or partial
   matching, for example.  Every detected option, long or short, is
@@ -43,7 +43,7 @@
   (do ((av arglist))
       ((null av) t)
     (labels ((optargp (x) (funcall optargp-fn x))
-	     (fixname (x) (funcall fixname-fn x))
+	     (chgname (x) (funcall chgname-fn x))
 	     (is- (&rest chars) (apply #'char= #\- chars))
 	     (advance () (setf av (cdr av)))
 	     (opt! (o &optional a) (funcall fn :opt o a))
@@ -51,7 +51,7 @@
 	     (long (opt)
 	       (let* ((o (subseq opt 2))                    ; "--foo…"
 		      (i (position #\= o))		    ; "--foo=…"
-		      (f (fixname o)))
+		      (f (chgname o)))
 		 (cond
 		   (i                                       ; "--foo=…"
 		    (opt! f (unless (= i (1- (length o)))   ; "--foo="
@@ -66,7 +66,7 @@
 		 (for i index-of-string opt)
 		 (for c = (string (char opt i)))
 		 (if-first-time (next-iteration))           ; skip leading -
-		 (let ((f (fixname c)))
+		 (let ((f (chgname c)))
 		   (cond
 		     ((not (optargp f))			    ; "-fgh"
 		      (opt! f))
@@ -76,36 +76,7 @@
 		     (t					    ; "-f" "file"
 		      (opt! f (cadr av))
 		      (advance)
-		      (finish))))))
-	     #+nil
-	     (long (opt) (let ((o (subseq opt 2))) ; "--foo…"
-			   (acond
-			     ((position #\= o) ; "--foo=xyz"
-			      (let ((fixed (fixname (subseq o 0 it))))
-				(opt!
-				 fixed
-				 (unless (= it (1- (length o))) ; "--foo="
-				   (subseq o (1+ it))))))
-			     ((optargp o) ; "--foo" "xyz"
-			      (opt! o (cadr av))
-			      (advance))
-			     (t		; "--foo"
-			      (opt! o)))))
-	     #+nil
-	     (short (opt) (iterate			       ; "-f…"
-			   (for i index-of-string opt)
-			   (for c = (string (char opt i)))
-			   (if-first-time (next-iteration)) ; skip leading -
-			   (cond
-			     ((not (optargp c))		       ; "-fgh"
-			      (opt! c))
-			     ((< i (1- (length opt)))	       ; "-ffile"
-			      (opt! c (subseq opt (1+ i)))
-			      (finish))
-			     (t				       ; "-f" "file"
-			      (opt! c (cadr av))
-			      (advance)
-			      (finish))))))
+		      (finish)))))))
       (with-chars (c0 c1 c2) (car av)
 	(cond
 	  ((not (and c0 c1 (is- c0)))			       ; "" "x" 
@@ -123,7 +94,7 @@
 (defun parse-windows-cli (arglist fn
 			  &optional
 			    (swargp-fn (constantly nil))
-			    (fixname-fn #'identity))
+			    (chgname-fn #'identity))
   "This is the low level parser for Windows-style command lines.  If
   you're an end-user of Petulant, you might want to consider calling a
   higher level function; this one is mostly for implementation of
@@ -149,7 +120,7 @@
   is assumed not to take an argument.  A non-ambiguous switch with an
   argument is one that uses the colon character \(e.g., \"/foo:bar\"\).
 
-  FIXNAME-FN, if supplied, can be used to change a detected switch
+  CHGNAME-FN, if supplied, can be used to change a detected switch
   from one value to another, taking a string and returning a string to
   use in its place.  It could be used to implement aliases or partial
   matching, for example.  Every detected switch is passed through this
@@ -163,7 +134,7 @@
   (do ((av (canonicalize-windows-args arglist)))
       ((null av) t)
     (labels ((swargp (x) (funcall swargp-fn x))
-	     (fixname (x) (funcall fixname-fn x))
+	     (chgname (x) (funcall chgname-fn x))
 	     (advance () (setf av (cdr av)))
 	     (opt! (o &optional a) (funcall fn :opt o a))
 	     (arg! (a) (funcall fn :arg a nil)))
@@ -179,11 +150,11 @@
 	  ((char/= (char str 0) #\/)			       ; "foo"
 	   (arg! str))
 	  ((position #\: str)				       ; "/foo:…"
-	   (opt! (fixname (subseq str 1 it))
+	   (opt! (chgname (subseq str 1 it))
 		 (unless (= it (1- len))		       ; "/foo:xyz"
 		   (subseq str (1+ it)))))
 	  (t
-	   (let ((f (fixname (subseq str 1))))
+	   (let ((f (chgname (subseq str 1))))
 	     (cond
 	       ((swargp f)                                     ; "/foo" "xyz"
 		(opt! f (cadr av))
@@ -267,7 +238,7 @@
     (and (not (member :nofold styles))
 	 (member :fold styles))))
 
-(defun simple-parse-cli (fn &key arglist optarg-p-fn fixname-fn styles)
+(defun simple-parse-cli (fn &key arglist optarg-p-fn chgname-fn styles)
   "This is the low level parser for command-lines.  If you're simply
   using Petulant in your application \(i.e., you aren't developing
   Petulant\), you might want to consider calling a higher level function;
@@ -308,7 +279,7 @@
   string (\"f\" or \"foo\") and returning true or false to indicate if
   it takes an argument.
 
-  FIXNAME-FN, if supplied, can be used to change a detected switch
+  CHGNAME-FN, if supplied, can be used to change a detected switch
   from one value to another, taking a string and returning a string to
   use in its place.  It could be used to implement aliases or partial
   matching, for example.  Every detected switch is passed through this
@@ -326,7 +297,7 @@
 	     (or arglist (argv))
 	     fn
 	     (or optarg-p-fn (constantly nil))
-	     (or fixname-fn #'identity))))
+	     (or chgname-fn #'identity))))
 
 (defun cb (&rest args)
   (format t "cb~{ ~s~}~%" args))
@@ -466,147 +437,7 @@
     (let ((hash (build-optarg-hash optargs styles)))
       (lambda (x) (gethash x hash)))))
 
-
-;; x comes from the arg list
-;; opt is nil
-;;
-;; set matchers
-;;
-;; trueopt takes an arg, returns a true option string
-;; if arg is in the aliases list, return its mapping
-;; if arg is in the partials, try to return from there
-;; return arg
-;;
-;; optarg calls trueopt, then looks for a match in optargs
-;;
-;; optargs and optflags are used in the creation of the dict for partials
-;;
-;; set up partials in the parse-cli, and just pass it to the other funcs
-;; so we're not constantly setting that shit up over and over
-;;
-;; while folding is used in comparisons, we don't actually map values
-;; until just before calling the user.  this is when option hacking
-;; happens.
-
-
-
-
-;; -xvf file   --file=file  -v --verbose  -x --extract  -c --create
-;; -t --list
-;; and partials
-;; and alias --toc to --list
-
-;; optargs  ("f" "file")
-;; optflags ("verbose" "x" "extract" "c" "create" "t" "list")
-;; aliases  (("list" "toc" "foo") ("verbose" "v"))  ;; note, no create nor list
-;; partials t
-
-;; The optargs list yields an optargs hash.  As well as flags and aliases.
-;; optargs keys: "file" "f"
-;; optargs values: t t
-;; optflags keys: "verbose" "x" "extract" ...
-;; optflags values: t t
-;; aliases keys: "toc" "v" "foo"
-;; aliases values: "list" "verbose" "list"
-
-;; When Partial:
-;; Construct a superhash that is just the union of the three hashes.
-;; Each value is just T.
-;; Then, for each optargs and each optflags in the *list*,
-;; compute all partial matches.
-;; When a partial match does not exist in the big hash, add it to the
-
-;; So, those lists are primaries.
-;; We can put them all into a counting hash, with a value of 1.
-
-;; Then, when partial, we have
-
-
-;; wait wiat wait
-
-;; maybe unique substrings is right?
-
-
-;; counts     (("f" . 2) ("fi" . 1) ("fil" . 1) ("file" . 1)
-;; of	    ("v" . 2) ("ve" . 1) ("ver" . 1) ("verb" . 1) ("verbo" . 1)
-;; everything  ("verbos" . 1) ("verbose" . 1)
-;; 	    ("x" . 1)
-;; 	    ("e" . 1) ("ex" . 1) ("ext" . 1) ("extr" . 1) ("extra" . 1)
-;; 	    ("extrac" . 1) ("extract" . 1)
-;; 	    ("c" . 2) ("cr" . 1) ("cre" . 1) ("crea" . 1) ("creat" . 1)
-;; 	    ("create" . 1)
-;; 	    ("t" . 2) ("l" . 1) ("li" . 1) ("lis" . 1) ("list" . 1)
-;; 	    ("to" . 1) ("toc" . 1))
-
-;; counts optargs  (("f" . 2) ("file" . 1) ("fil" . 1) ("fi" . 1))
-;; counts optflags (("verbose" . 1) ("verbos" . 1) ("verbo" . 1) ("verb" . 1)
-;; 		 ("ver" . 1) ("ve" . 1) ("v" . 1)
-;; 		 ("x" . 1)
-;; 		 ("extract" . 1) ("extrac" . 1) ("extra" . 1) ("extr" . 1)
-;; 		 ("ext" . 1) ("ex" . 1) ("e" . 1)
-;; 		 ("c" . 2)
-;; 		 ("create" . 1) ("creat" . 1) ("crea" . 1) ("cre" . 1)
-;; 		 ("cr" . 1)
-;; 		 ("t" . 1)
-;; 		 ("list" . 1) ("lis" . 1) ("li" . 1) ("l" . 1))
-;; count aliases   (("toc" . 1) ("to" . 1) ("t" . 1) ("v" . 1))
-
-;; add the    (("f" . 2) ("fi" . 1) ("fil" . 1) ("file" . 1)
-;; counts	    ("v" . 2) ("ve" . 1) ("ver" . 1) ("verb" . 1) ("verbo" . 1)
-;; together    ("verbos" . 1) ("verbose" . 1)
-;; 	    ("x" . 1)
-;; 	    ("e" . 1) ("ex" . 1) ("ext" . 1) ("extr" . 1) ("extra" . 1)
-;; 	    ("extrac" . 1) ("extract" . 1)
-;; 	    ("c" . 2) ("cr" . 1) ("cre" . 1) ("crea" . 1) ("creat" . 1)
-;; 	    ("create" . 1)
-;; 	    ("t" . 2) ("l" . 1) ("li" . 1) ("lis" . 1) ("list" . 1)
-;; 	    ("to" . 1) ("toc" . 1))
-
-;; new alias  (("list" "lis" "li" "toc" "to" "t")
-;; 	    ("verbose" "verbos" "verbo" "verb" "ver" "ve"
-;; 		       "v" ; because it was explicit on alias list
-;; 		       )
-;; 	    ; no "x" nor "t" because it's one letter
-;; 	    ("extract" "extrac" "extra" "extr" "ext" "ex" "e")
-;; 	    ("list" "lis" "li" "l")
-;; 	    ; no "f" because it appears explicitly in optargs so count was 2
-;; 	    ("file" "fil" "fi"))
-
-;; optargs  
-;; optflags still ("verbose" "x" "extract" "c" "create" "t" "list")
-
-;; So what we should do, is recommend placing "toc" as an alias of "list"
-;; as well as "t" and other single letter aliases? hmm.
-
-;;; write down a set of optargs, optflags, aliases, and :partial
-;;;
-;;; work through what an optarg-p-fn would look like
-;;; work through what an aliasing would look like
-;;;
-;;; determine order (alias, then optarg-p?  vice versa?)
-;;; or how things would nest, whatever
-;;; beginning to end
-
-#+nil
-(defun optarg-p-fn (optargs aliases styles)
-  "Given a list of options that take arguments, OPTARGS, an alist of
-option aliases, and a list of STYLES for processing, return a function
-of one argument that returns true when its argument, an option
-recognized by the simple CLI parser, should be considered an
-argument-bearing option.  If STYLES contains :FOLD or another value
-that implies :FOLD, use case-insensitive string matching; otherwise,
-exact \(case-sensitive\) matching is employed.
-
-Note: even if :KEY is present in STYLES, only strings are compared
-by the returned function."
-  (with-styles-canon (styles styles)
-    (let ((str=-fn (str=-fn styles)))
-      (lambda (opt)
-	(member opt optargs
-		:test (lambda (x y) (funcall str=-fn x y)))))))
-
-#+nil
-(defun option-hackers (optargs styles)
+(defun hack-option-fn (styles)
   "Compose a new function that calls other functions to transform
 \(hack\) a single argument that is an option name.  These other
 functions are based on the contents of STYLES and OPTARGS, and might
@@ -623,6 +454,8 @@ the supplied callback function."
 	(push #'string-upcase funcs))
       (when (member :key styles)
 	(push (lambda (x) (intern x "KEYWORD")) funcs))
+      (when (null funcs)
+	(push #'identity funcs))
       (apply #'compose funcs))))
 
 (defun parse-cli (fn &key optargs optflags aliases arglist styles)
@@ -719,21 +552,12 @@ the supplied callback function."
 	      command-line arguments as if in a Windows environment.
 	      Also implies :FOLD."
   (with-styles-canon (styles styles)
-    (simple-parse-cli fn
-		      :optarg-p-fn (optarg-p-fn optargs styles)
-		      :fixname-fn (compose (aliases-fn aliases styles)
-					   (partials-fn optargs optflags
-							aliases styles))
-		      :arglist arglist
-		      :styles styles)))
-
-;;; okay. think.
-;;; cb takes THREE arguments
-;;; you're trying to compose it with functions that take ONE argument
-;;; and in those cases, it's the SECOND argument of the callback
-;;; that needs the hackery.
-;;;
-;;; Break FN out of the compose hacks, and call it manually.
-;;; can compose take nothing but a list? or does it have to start
-;;; with an argument separate from, say, (&rest funcs).
-;;; Why is it defined that way?
+    (let ((hack-fn (hack-option-fn styles)))
+      (flet ((cb (x y z) (funcall fn x (funcall hack-fn y) z)))
+	(simple-parse-cli #'cb
+			  :optarg-p-fn (optarg-p-fn optargs styles)
+			  :chgname-fn (compose (aliases-fn aliases styles)
+					       (partials-fn optargs optflags
+							    aliases styles))
+			  :arglist arglist
+			  :styles styles)))))
