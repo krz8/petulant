@@ -166,7 +166,7 @@ for example.) **optargs** does not limit the options that **parse-cli**
 handles, even those with arguments; it is merely a hint that
 
 ```cl
-(parse-cli … :optargs '("delay" "file") … )
+(parse-cli fn :optargs '("delay" "file"))
 ````
 
 **optflags**, if supplied, is a list of all the options (short or
@@ -175,7 +175,7 @@ long) that do not take an argument.  This argument has no effect on
 **:partial** below.
 
 ```cl
-(parse-cli … :optflags '(“verbose” “debug” “trace”) … )
+(parse-cli fn :optflags '(“verbose” “debug” “trace”))
 ```
 
 **aliases** can be used to supply one or more alternative options
@@ -186,8 +186,8 @@ For example, in the call below, both “/sleep” and “/wait” would be
 recognized by **parse-cli**, but processed as if “/delay” were seen.
 
 ```cl
-(parse-cli … :aliases '(("alpha" "transparency")
-			("delay" "sleep" "wait")) … )
+(parse-cli fn :aliases '(("alpha" "transparency")
+			 ("delay" "sleep" "wait")))
 ```
 
 **arglist** causes **parse-cli** to parse a specified list of strings,
@@ -196,7 +196,7 @@ application.  These strings are parsed exactly as if they appeared on
 the command-line, each string corresponding to one “word”.
 
 ```cl
-(parse-cli … :arglist '("-xv" "-f" "foo.tar") … )
+(parse-cli fn :arglist '("-xv" "-f" "foo.tar"))
 ```
 
 **styles** is a keyword, or a list of keywords, that influence
@@ -266,8 +266,8 @@ application.
 (defvar *verbose* nil)
 (defvar *filename* nil)
 
-(defun main (…)
-  ⋮
+(defun main ()
+
   (parse-cli (lambda (kind name extra)
                (case kind
 	         (:opt (when (string= name "v")
