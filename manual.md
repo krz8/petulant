@@ -175,7 +175,7 @@ long) that do not take an argument.  This argument has no effect on
 **:partial** below.
 
 ```cl
-(parse-cli fn :optflags '(“verbose” “debug” “trace”))
+(parse-cli fn :optflags '("verbose" "debug" "trace"))
 ```
 
 **aliases** can be used to supply one or more alternative options
@@ -256,27 +256,41 @@ this section.  We'll start with something dirt simple and add more
 capabilities to it by using features provided by Petulant.
 
 In the early stages of application development, we often don't know
-exactly what the command-line will need to be.  So it's convenient to
-just recognize the options and arguments we expect, and ignore the
-rest for the time being.  Consider supporting a traditional verbosity
-flag and a single command-line argument that names a file in an
-application.
+exactly what the final command-line will eventually look like.  It's
+convenient to just recognize the options and arguments we expect, and
+ignore the rest for the time being.  Consider supporting a traditional
+verbosity flag in the application.
 
-```
+```cl
 (defvar *verbose* nil)
-(defvar *filename* nil)
 
-(defun main ()
-
-  (parse-cli (lambda (kind name extra)
-               (case kind
-	         (:opt (when (string= name "v")
-                         (setf *verbose t)))
-                 (:arg (when (null *filename*)
-                         (setf *filename* name)))))
+  ;; somewhere in a main function
+  (parse-cli (lambda (kind item extra)
+               (declare (ignore extra))
+	       (when (and (eq kind :opt) (string= item "v"))
+                 (setf *verbose* t))))
 ```
 
+If the application were deployed on a Unix system, the first line
+below would work as you might expect.  Likewise, under Windows, the
+second line would be supported.
 
+```text
+$ myapp -v file.csv
+C:\Users\krz> myapp /v file.csv
+```
+
+and a single command-line argument that names a file in
+an application.
+(defvar *filename* nil)
+  ;; somewhere in a main function
+  (parse-cli (lambda (kind item extra)
+               (declare (ignore extra))
+               (case kind
+	         (:opt (when (string= item "v")
+                         (setf *verbose* t)))
+                 (:arg (when (null *filename*)
+                         (setf *filename* item)))))
 
 
 <a name="basic"></a>
