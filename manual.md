@@ -165,14 +165,18 @@ or by the use of **:partial** in **styles**; its presence here is merely
 for example.) **optargs** does not limit the options that **parse-cli**
 handles, even those with arguments; it is merely a hint that
 
-    (parse-cli … :optargs '("delay" "file") … )
+```cl
+(parse-cli … :optargs '("delay" "file") … )
+````
 
 **optflags**, if supplied, is a list of all the options (short or
 long) that do not take an argument.  This argument has no effect on
 **parse-cli** unless **:partial** appears in **styles**.  See
 **:partial** below.
 
-    (parse-cli … :optflags '(“verbose” “debug” “trace”) … )
+```cl
+(parse-cli … :optflags '(“verbose” “debug” “trace”) … )
+```
 
 **aliases** can be used to supply one or more alternative options
 that, when encountered, are considered aliases for another option.
@@ -181,62 +185,96 @@ list naming the primary option first, followed by all aliases for it.
 For example, in the call below, both “/sleep” and “/wait” would be
 recognized by **parse-cli**, but processed as if “/delay” were seen.
 
-   (parse-cli … :aliases '(("alpha" "transparency")
-                           ("delay" "sleep" "wait")) … )
+```cl
+(parse-cli … :aliases '(("alpha" "transparency")
+			("delay" "sleep" "wait")) … )
+```
 
 **arglist** causes **parse-cli** to parse a specified list of strings,
 instead of the default command-line that was supplied to the
 application.  These strings are parsed exactly as if they appeared on
 the command-line, each string corresponding to one “word”.
 
-    (parse-cli … :arglist '("-xv" "-f" "foo.tar") … )
+```cl
+(parse-cli … :arglist '("-xv" "-f" "foo.tar") … )
+```
 
 **styles** is a keyword, or a list of keywords, that influence
 Petulant's behavior.  Recognized keywords are as follows;
 unrecognized keywords are silently ignored.
 
-> **:nofold**
->   String matching between **optargs**, **optflags**, **aliases**, and
->   the command-line being parsed is sensitive to case.  This exists
->   solely to override any folding semantics implied by **:windows**,
->   **:unix**, **:up**, **:down**, **:key**, and the local Lisp
->   environment.  Overrides **:fold**.
-> 
-> **:fold**
->   String matching between **optargs**, **optflags**, **aliases**, and
->   the command-line being parsed is insensitive to case.
-> 
-> **:up**
->   All option names presented to **fn** will be converted to upper
->   case.  Implies **:fold**.
-> 
-> **:down**
->   All option names presented to **fn** will be converted to lower
->   case.  Implies **:fold**.
-> 
-> **:key**
->   All option names presented to **fn** will be converted to symbols in
->   the keyword package.  Implies **:up**.
-> 
-> **:partial**
->   Support partial matches of options.  When present, Petulant will
->   support unambiguous partial matches of options (as they appear in
->   **optargs**, **optflags**, and **aliases**).  For example, if
->   **optargs** contained “beat”, then **:partial** would trigger
->   aliases of “b”, “be”, and “bea” for “beat”.  But, if **optflags**
->   also contained “bop” then “b” would no longer be recognized, instead
->   “be” and “bo” would become the minimum length unambiguous matches
->   for “beat” and “bop”.
-> 
-> **:unix**
->   Disregard the current running system, and process the command-line
->   arguments as if in a Unix environment.
-> 
-> **:windows**
->   Disregard the current running system, and process the command-line
->   arguments as if in a Windows environment.  Also implies **:fold**.
+- **:nofold**  
+  String matching between **optargs**, **optflags**, **aliases**, and
+  the command-line being parsed is sensitive to case.  This exists
+  solely to override any folding semantics implied by **:windows**,
+  **:unix**, **:up**, **:down**, **:key**, and the local Lisp
+  environment.  Overrides **:fold**.
+- **:fold**  
+  String matching between **optargs**, **optflags**, **aliases**, and
+  the command-line being parsed is insensitive to case.
+- **:up**  
+  All option names presented to **fn** will be converted to upper
+  case.  Implies **:fold**.
+- **:down**  
+  All option names presented to **fn** will be converted to lower
+  case.  Implies **:fold**.
+- **:key**  
+  All option names presented to **fn** will be converted to symbols in
+  the keyword package.  Implies **:up**.
+- **:partial**  
+  Support partial matches of options.  When present, Petulant will
+  support unambiguous partial matches of options (as they appear in
+  **optargs**, **optflags**, and **aliases**).  For example, if
+  **optargs** contained “beat”, then **:partial** would trigger
+  aliases of “b”, “be”, and “bea” for “beat”.  But, if **optflags**
+  also contained “bop” then “b” would no longer be recognized, instead
+  “be” and “bo” would become the minimum length unambiguous matches
+  for “beat” and “bop”.
+- **:unix**  
+  Disregard the current running system, and process the command-line
+  arguments as if in a Unix environment.
+- **:windows**  
+  Disregard the current running system, and process the command-line
+  arguments as if in a Windows environment.  Also implies **:fold**.
 
+### Usage
 
+The basic call to **parse-cli** is as simple as the following example.
+With it, the supplied function **myfun** will be called once for each
+option and for each argument encountered on the command-line.  That
+command-line, in turn, will be parsed under Unix or Windows
+conventions, according to the presence of the **:windows** feature in
+the Lisp runtime environment.
+
+```cl
+(parse-cli #'myfun)
+```
+
+To work through the usage of Petulant, we'll imagine developing an
+application that needs to parse its command-line for the remainder of
+this section.  We'll start with something dirt simple and add more
+capabilities to it by using features provided by Petulant.
+
+In the early stages of application development, we often don't know
+exactly what the command-line will need to be.  So it's convenient to
+just recognize the options and arguments we expect, and ignore the
+rest for the time being.  Consider supporting a traditional verbosity
+flag and a single command-line argument that names a file in an
+application.
+
+```cl
+(defvar *verbose* nil)
+(defvar *filename* nil)
+
+(defun main (…)
+  ⋮
+  (parse-cli (lambda (kind name extra)
+               (case kind
+	         (:opt (when (string= name "v")
+                         (setf *verbose t)))
+                 (:arg (when (null *filename*)
+                         (setf *filename* name)))))
+```
 
 
 
