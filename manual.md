@@ -21,14 +21,10 @@ several other command-line option and argument parsers for CL, and
 they all seem to expect their users to follow POSIX (or GNU) style
 command-line parsing.
 
-Sure, that's fine for people who use Unix-derived systems, but I can
-easily imagine the frustration and irritation of Windows users
-encountering such software.  For example, if someone insisted that I
-had to use Windows switch syntax in my commands under FreeBSD in order
-to use their software, I'd be mightily annoyed, too, _no matter how
-much better_ someone else claimed it was.
-
-Hence, **Petulant**.
+Petulant exists so that developers can deliver applications in
+Unix and Windows environments, supporting users who don't want to
+give up the established command-line semantics of their respective
+systems.
 
 [home]:    https://krz8.github.io/petulant        "Petulant Homepage"
 [manual]:  https://krz8.github.io/petulant/manual "Petulant Manual"
@@ -41,7 +37,7 @@ Some Words About Options and Arguments
 
 Let me apologize in advance.  My long-term operating system of choice
 has always been Unix and Unix-like systems.  It's only in recent years
-that I've needed to live under Windows, and even more recent that I've
+that I've needed to live under Windows, and even more recently that I've
 needed to deliver Lisp applications in it.
 
 So, while I know the proper terms are “options” and “switches” under
@@ -60,10 +56,10 @@ Petulant doesn't require a specification to parse a command-line.
 This might be a surprise for people coming from a getopt-style
 background, but it's true.  On its own, Petulant recognizes simple
 switch flags, single character (_aka_ short) options, and full word
-(_aka_ long) options.  It also recognizes long options that take
-arguments when they use equal signs, as well as switches that use
-colons.  For example, these two lines can be parsed in their
-respecting operating systems without any specification or other help:
+(_aka_ long) options.  It recognizes long options that take arguments
+when they use equal signs, as well as switches that use colons.  For
+example, these two lines can be parsed in their respecting operating
+systems without any specification or other help:
 
     foo -v -abc --conf=test.json /some/other/place
     foo /v /a/b/c /conf:test.json X:\some\other\place
@@ -74,7 +70,7 @@ you need to help Petulant out a bit and toss it a clue.
 
     foo -xvfpath
     foo -xvf path
-    foo -xv -f path
+    foo /x/v /f path
     foo -xv --input path
     foo /x/v /input path
     
@@ -86,41 +82,162 @@ Functionality
 Petulant provides its functionality in layers, in order to suit
 some very different contexts in which it could be used.
 
-- [The Basic Functional Interface](#basic)
+- [The Functional Interface](#func)
 
-  A simple parser works through a command-line, invoking functions
-  provided by the caller.  The calls to that function indicate what
-  was found by the parser (not entirely unlike a stream event parser).
-
-- [A Higher Functional Interface](#func)
-
-  A second functional interface, a bit more powerful, is also
-  available.  At this level, the caller supplies just a single
-  function for processing option and argument events.  The caller also
-  can specify that options are mapped from strings to keywords, that
-  partial matching of options is supported and so forth.
+  This was originally the intended way to use Petulant.  The caller
+  supplies a single function for processing option and argument
+  events.  Optionally, the caller can also specify aliases for options
+  and switches.  Petulant provides not only option and argument
+  processing, but also supports case folding, mapping option strings
+  to keywords, and partial unique matching of specified options.
 
 - [The Data-Oriented Interface](#data)
 
-  No longer a functional interface to parsing, here you can simply
-  call Petulant and get back one easy-to-read data structure
-  representing the entire command-line.  Small to medium sized
-  applications will probably use this most, as it's the easiest
+  Here you can simply call Petulant and get back one easy-to-read data
+  structure representing the entire command-line.  Small to medium
+  sized applications will probably use this most, as it's the simplest
   to work with for most projects.
 
 - [The Specification-Driven Interface](#spec)
 
   For those that like writing out entire static specifications of
-  their command-line options and argument processing needs, here you.
-  This most resembles what people expect if they come from
+  their command-line options and argument processing needs, here you
+  go.  This most resembles what people expect if they come from
   getopt-style experiences.  However, while it's beneficial in
   applications with potentially extensive command-lines, the other
   interfaces are much easier to use when all that's needed are a
   handful of flags, or while a tool is still in development.
 
+- [The Basic Functional Interface](#basic)
+
+  A simple parser works through a command-line, invoking functions
+  provided by the caller.  The calls to that function indicate what
+  was found by the parser (not entirely unlike a stream event parser).
+  This is provided so that a developer might provide their own
+  command-line parsing implementation.
+
 Also, after working through the available functionality below, if
 there's something that you'd like to see added to Petulant, feel free
 to write me and ask.
+
+
+<a name="func"></a>
+
+The Functional Interface
+------------------------
+
+A option and argument parser is provided through the `parse-cli`
+function.  The caller provides a function that is called back with
+whatever options and arguments Petulant teases from the command line,
+in left-to-right order.  This is the main interface to Petulant,
+the functionality in the data-oriented and the specification-based
+interfaces are built on top of this.
+
+### API
+
+Function **parse-cli** fn _&key_ optargs optflags aliases arglist styles
+
+**parse-cli** examines the command-line with which an application was
+invoked.  According to given styles and the local environment,
+options (aka switches) and arguments are recognized.
+
+**fn** is a function supplied by the caller, which is called for each
+option or argument identified by **parse-cli**.  Each call to **fn**
+has three arguments.  The first is the keyword **:opt** or **:arg**,
+indicating whether an option (aka switch) or an non-option argument
+was found.  When **:arg**, the second argument is a string, an
+argument from the command-line that was not associated with an option,
+and the third argument is **nil**.  When **:opt**, the second argument
+is usually a string naming an option (although see **styles** below),
+and the third argument is a string value associated with that option,
+or **nil**.
+
+**optargs**, if supplied, is a list of all options (short or long)
+that require an argument.  While Petulant can automatically
+recognize some options that explicitly take an argument (as in
+“--file=foo.psd” or “/file:foo.psd”), it needs the hint in
+**optargs** to recognize other patterns (such as “-f” “foo.psd”, or
+“/file” “foo.psd”).  Simply place the option (no leading
+hyphens or slashes) as a string in this list.  The call below would
+recognize both “-f” and “--file” as requiring an argument.
+(Note that “f” in the list is better handled by an alias below,
+or by the use of **:partial** in **styles**; its presence here is merely
+for example.) **optargs** does not limit the options that **parse-cli**
+handles, even those with arguments; it is merely a hint that
+
+    (parse-cli … :optargs '("delay" "file") … )
+
+**optflags**, if supplied, is a list of all the options (short or
+long) that do not take an argument.  This argument has no effect on
+**parse-cli** unless **:partial** appears in **styles**.  See
+**:partial** below.
+
+    (parse-cli … :optflags '(“verbose” “debug” “trace”) … )
+
+**aliases** can be used to supply one or more alternative options
+that, when encountered, are considered aliases for another option.
+**aliases** is a list of lists.  Every element of **aliases** is a
+list naming the primary option first, followed by all aliases for it.
+For example, in the call below, both “/sleep” and “/wait” would be
+recognized by **parse-cli**, but processed as if “/delay” were seen.
+
+   (parse-cli … :aliases '(("alpha" "transparency")
+                           ("delay" "sleep" "wait")) … )
+
+**arglist** causes **parse-cli** to parse a specified list of strings,
+instead of the default command-line that was supplied to the
+application.  These strings are parsed exactly as if they appeared on
+the command-line, each string corresponding to one “word”.
+
+    (parse-cli … :arglist '("-xv" "-f" "foo.tar") … )
+
+**styles** is a keyword, or a list of keywords, that influence
+Petulant's behavior.  Recognized keywords are as follows;
+unrecognized keywords are silently ignored.
+
+> **:nofold**
+>   String matching between **optargs**, **optflags**, **aliases**, and
+>   the command-line being parsed is sensitive to case.  This exists
+>   solely to override any folding semantics implied by **:windows**,
+>   **:unix**, **:up**, **:down**, **:key**, and the local Lisp
+>   environment.  Overrides **:fold**.
+> 
+> **:fold**
+>   String matching between **optargs**, **optflags**, **aliases**, and
+>   the command-line being parsed is insensitive to case.
+> 
+> **:up**
+>   All option names presented to **fn** will be converted to upper
+>   case.  Implies **:fold**.
+> 
+> **:down**
+>   All option names presented to **fn** will be converted to lower
+>   case.  Implies **:fold**.
+> 
+> **:key**
+>   All option names presented to **fn** will be converted to symbols in
+>   the keyword package.  Implies **:up**.
+> 
+> **:partial**
+>   Support partial matches of options.  When present, Petulant will
+>   support unambiguous partial matches of options (as they appear in
+>   **optargs**, **optflags**, and **aliases**).  For example, if
+>   **optargs** contained “beat”, then **:partial** would trigger
+>   aliases of “b”, “be”, and “bea” for “beat”.  But, if **optflags**
+>   also contained “bop” then “b” would no longer be recognized, instead
+>   “be” and “bo” would become the minimum length unambiguous matches
+>   for “beat” and “bop”.
+> 
+> **:unix**
+>   Disregard the current running system, and process the command-line
+>   arguments as if in a Unix environment.
+> 
+> **:windows**
+>   Disregard the current running system, and process the command-line
+>   arguments as if in a Windows environment.  Also implies **:fold**.
+
+
+
 
 
 

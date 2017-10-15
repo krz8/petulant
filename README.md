@@ -21,14 +21,10 @@ several other command line option and argument parsers for CL, and
 they all seem to expect their users to follow POSIX (or GNU) style
 command line parsing.
 
-Sure, that's fine for people who use Unix-derived systems, but I can
-easily imagine the frustration and irritation of Windows users
-encountering such software.  For example, if someone insisted that I
-had to use Windows switch syntax in my commands under FreeBSD in order
-to use their software, I'd be mightily annoyed, too, _no matter how
-much better_ someone else claimed it was.
-
-Hence, **Petulant**.
+Petulant exists so that developers can deliver applications in
+Unix and Windows environments, supporting users who don't want to
+give up the established command-line semantics of their respective
+systems.
 
 [home]:    https://krz8.github.io/petulant        "Petulant Homepage"
 [manual]:  https://krz8.github.io/petulant/manual "Petulant Manual"
@@ -39,14 +35,12 @@ Hence, **Petulant**.
 Functionality
 -------------
 
-Here's what you get:
+### What You Get
 
 - No need for specifications to process simple sets of options,
-- If you really like writing out specifications, though, Petulant works
-  with those, too,
-- A functional interface to CLI parsing, and
-- A data interface to CLI parsing.
-
+- A functional interface to CLI parsing,
+- A data interface to CLI parsing, and
+- A specification interface to CLI parsing if you like writing those.
 
 ### What's Supported Currently
 
@@ -69,20 +63,18 @@ Here's what you get:
     `foo -ab --input file --delay 2 arg1 arg2`
   - Out-of-order non-option arguments: `foo -ab arg1 -f file arg2`
   - Double dash termination: `foo -ab -- -these --are -not --options`
-- Additionally, there's
+- As well as
   - Case-sensitive and case-insensitive option parsing.
+  - Option aliasing (allowing one or more words to stand for a given option
+    or switch).
   - Mapping options to keywords.
+  - Abbreviated matching of options and strings (no need to type out an
+    entire long option or switch name), sometimes called partial matching.
 
-
-### What's Coming Next
-
-- Abbreviated long options: `foo --in file`
-- Windows abbreviations: `foo /a/b /in:file /d2 arg1 arg2`
-- Addition to [Quicklisp][], when I feel Petulant is good enough.
+Eventually, I'll request getting this package added to [Quicklisp][],
+when I feel Petulant is good enough.
 
 [Quicklisp]: https://www.quicklisp.org/beta/ "The Quicklisp Project Homepage"
-
-
 
 ### Things I Don't Know
 
@@ -94,13 +86,15 @@ Here's what you get:
 I'd welcome the help, if you know how either of those work.
 
 
+
 ### Future Work
 
 Certainly, there are yet more styles out there that are in wide use
 (or, were in wide use in the past).  I'm not against these. I'm
 listing them here to be up front about what Petulant does and doesn't
-do at present.  (Most of these are easy for a caller to implement in
-the meantime, with the exception of **3** below).
+do at present.  (Most of these would be easy for a client of Petulant
+to implement on their own in the meantime, with the exception of **3**
+below).
 
 1. Korn shell automatic numeric parsing
 2. Korn shell option subargument support
@@ -129,7 +123,7 @@ Credits
 - [FiveAM][], which kept me sane during development,
 - [Iterate][], which is simply a joy to use compared to LOOP's extended forms,
   and
-- [Alexandria][] and [Anaphora][], which (try to) save me from re-inventing
+- [Alexandria][] and [Anaphora][], which save me from re-inventing
   wheels.
 
 [Alexandria]: https://common-lisp.net/project/alexandria/

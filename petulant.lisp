@@ -481,8 +481,8 @@ the supplied callback function."
   \"/file\" \"foo.psd\"\).  Simply place the option (no leading
   hyphens or slashes) as a string in this list.  The call below would
   recognize both \"-f\" and \"--file\" as requiring an argument.
-  \(Note that \"f\" in the list is better handled by an ALIAS below,
-  or by the use of :PARTIALS in STYLES; its presence here is merely
+  \(Note that \"f\" in the list is better handled by an alias below,
+  or by the use of :PARTIAL in STYLES; its presence here is merely
   for example.\) OPTARGS does not limit the options that PARSE-CLI
   handles, even those with arguments; it is merely a hint that
 
