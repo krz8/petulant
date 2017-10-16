@@ -560,7 +560,7 @@ running under Windows, command-line string comparisons are insensitive
 to case; however, in a Unix environment, case still matters.  This
 behavior can be modified in a few ways.
 
-**:streq** and **::str=** can be used to explicitly set the whether or
+**:streq** and **:str=** can be used to explicitly set the whether or
 not Petulant matches options in a case insensitive or sensitive
 manner, respectively.  To remember their meaning, recognize that their
 names imply the relationship between **string-equal** and **string=**.
@@ -683,15 +683,6 @@ option handler.
       (error "at least one argument must be supplied"))))))
 ```
 
-
-
-
-<a name="func"></a>
-
-A Higher Functional Interface
------------------------------
-
-foo
 
 
 
