@@ -558,7 +558,10 @@ the supplied callback function."
 	      Also implies :STREQ."
   (with-styles-canon (styles styles)
     (let ((hack-fn (hack-option-fn styles)))
-      (flet ((cb (x y z) (funcall fn x (funcall hack-fn y) z)))
+      (flet ((cb (x y z)
+	       (case x
+		 (:opt (funcall fn x (funcall hack-fn y) z))
+		 (:arg (funcall fn x y z)))))
 	(simple-parse-cli #'cb
 			  :optarg-p-fn (optarg-p-fn optargs styles)
 			  :chgname-fn (compose (aliases-fn aliases styles)
