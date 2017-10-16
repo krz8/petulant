@@ -344,3 +344,24 @@ various error situations.  Imagine that our application requires its
 first argument, but that its second one is optional; additionally, we
 want to report when unknown options are supplied.  A brutally simple
 approach might be something like this:
+
+```cl
+(defvar *verbose* nil)
+(defvar *input* nil)
+(defvar *output* nil)
+
+(defun args ()
+  (flet ((handler (kind item extra)
+           (declare (ignore extra))
+           (case kind
+             (:arg (cond
+                     ((null *input*) (setf *input* item))
+                     ((null *output*) (setf *output* item))
+                     (t (error "too many arguments"))))
+             (:opt (cond
+                     ((string= "v" item) (setf *verbose* t))
+                     (t (error "unknown option: ~a" item)))))))
+    (parse-cli #'handler)
+    (unless *input*
+      (error "at least one argument must be supplied"))))))
+```
