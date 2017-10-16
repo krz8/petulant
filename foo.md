@@ -8,7 +8,9 @@ Foo.
 (defun args ()
   (flet ((handler (kind item extra)
            t))
-    t))
+    (parse-cli #'handler)
+    (unless *input*
+      (error "at least one argument must be supplied"))))
 ```
 
 Foo.
