@@ -187,7 +187,7 @@ recognized by **parse-cli**, but processed as if “/delay” were seen.
 
 ```cl
 (parse-cli fn :aliases '(("alpha" "transparency")
-			 ("delay" "sleep" "wait")))
+                         ("delay" "sleep" "wait")))
 ```
 
 **arglist** causes **parse-cli** to parse a specified list of strings,
@@ -203,21 +203,23 @@ the command-line, each string corresponding to one “word”.
 Petulant's behavior.  Recognized keywords are as follows;
 unrecognized keywords are silently ignored.
 
-- **:nofold**  
+- **:str=**  
   String matching between **optargs**, **optflags**, **aliases**, and
   the command-line being parsed is sensitive to case.  This exists
   solely to override any folding semantics implied by **:windows**,
   **:unix**, **:up**, **:down**, **:key**, and the local Lisp
-  environment.  Overrides **:fold**.
-- **:fold**  
+  environment.  Overrides **:streq**.  Its name is meant to be
+  evocative of **string=**.
+- **:streq**  
   String matching between **optargs**, **optflags**, **aliases**, and
-  the command-line being parsed is insensitive to case.
+  the command-line being parsed is insensitive to case.  Its name is
+  meant to be evocative of **string-equal**.
 - **:up**  
   All option names presented to **fn** will be converted to upper
-  case.  Implies **:fold**.
+  case.  Implies **:streq**.
 - **:down**  
   All option names presented to **fn** will be converted to lower
-  case.  Implies **:fold**.
+  case.  Implies **:streq**.
 - **:key**  
   All option names presented to **fn** will be converted to symbols in
   the keyword package.  Implies **:up**.
@@ -235,7 +237,7 @@ unrecognized keywords are silently ignored.
   arguments as if in a Unix environment.
 - **:windows**  
   Disregard the current running system, and process the command-line
-  arguments as if in a Windows environment.  Also implies **:fold**.
+  arguments as if in a Windows environment.  Also implies **:streq**.
 
 ### Usage
 
@@ -267,7 +269,7 @@ verbosity flag in the application.
   ;; somewhere in a main function
   (parse-cli (lambda (kind item extra)
                (declare (ignore extra))
-	       (when (and (eq kind :opt) (string= item "v"))
+               (when (and (eq kind :opt) (string= item "v"))
                  (setf *verbose* t))))
 ```
 
@@ -276,225 +278,410 @@ below would work as you might expect.  Likewise, under Windows, the
 second line would be supported.
 
 ```text
-$ myapp -v file.csv
-C:\Users\krz> myapp /v file.csv
+$ myapp -v
+C:\Users\krz> myapp /v
 ```
 
-and a single command-line argument that names a file in
-an application.
-(defvar *filename* nil)
-  ;; somewhere in a main function
-  (parse-cli (lambda (kind item extra)
-               (declare (ignore extra))
-               (case kind
-	         (:opt (when (string= item "v")
-                         (setf *verbose* t)))
-                 (:arg (when (null *filename*)
-                         (setf *filename* item)))))
-
-
-<a name="basic"></a>
-
-The Basic Functional Interface
-------------------------------
-
-A simple, non-validating option and argument parser is provided
-through the `simple-parse-cli` function.  The caller provides a
-'function that is invoked with whatever Petulant finds on the command
-line.  A second _optional_ function may also be supplied, to help
-Petulant recognize more options that should take arguments.
-
-This basic function is used in the implementation of the rest of
-Petulant.  For that reason, it's documented and exported, as it might
-be used by a caller to implement other functionality.  For most option
-and argument processing, though, one of the other three interfaces are
-recommended.
-
-### API
-
-Function **simple-parse-cli** fn _&key_ arglist sw-arg-p-fn style
-
-This is the low level parser for command-lines.  If you're an end-user
-of Petulant, you might want to consider calling a higher level
-function; this one is mainly for implementation of other Petulant
-functionality.
-
-**simple-parse-cli** works through an argument list, a flat list of
-strings representing the command-line.  It parses this list according
-to the dominant style for a specific operating system (e.g.,
-slash-based switches under Windows, and hyphen-based options under
-Unix).
-
-**fn** is called for each option (with or without an argument) and
-every non-option argument identified during parsing.  Each call to
-**fn** has three arguments.  The first is always **:arg** or **:opt**.
-When **:arg**, the second argument is a non-switch argument string
-from the command line, and the third argument is **nil**.  When
-**:opt**, the second argument is a switch (a string) found on the
-command line, eliding its leading slash, and the third argument is any
-argument to that option or **nil**.
-
-Generally speaking, the calls to **fn** proceed from the head to the tail
-of the list of argument strings, and from left to right within each
-string of that list.  This is useful to know in testing, but callers
-probably should not rely on any specific ordering.
-
-**arglist**, if supplied, is a list of strings to parse.  By default,
-**simple-parse-cli** will parse a list of strings provided by the Lisp
-environment representing the command-line with which the application
-was started.
-
-**optarg-p-fn**, if supplied, is a function.  Petulant recognizes
-certain long options (`"--foo=bar"`) and switches (`"/foo:bar"`) that
-unambiguously present an option taking an argument.  However, Petulant
-cannot know for certain when a short option (`"-f" "bar"`) takes an
-option, nor can it discern when a long option (`"--foo" "bar"`) or a
-switch (`"/foo" "bar"`) lacking extra punctuation takes an argument.
-The caller can supply a function taking the name of the option as a
-string (`"f"` or `"foo"`) and returning true or false to indicate if
-it takes an argument.
-
-**style** can be used to select a particular style of command-line
-processing.  By default, **simple-parse-cli** will choose the style
-based on the current operating system environment.  However, the
-caller can force a particular style by supplying `:unix` or
-`:windows`, or by supplying a list containing `:unix` or `:windows`,
-to this argument.
-
-### Usage
-
-Here is an example showing the argument list as received in a Unix
-environment, and the simple binding for `fn` we supply to print its
-arguments.  For this example, imagine the Lisp environment is hosted
-on Unix and the argument list is
-`("-a" "--beta" "--input=file" "some" "-v" "thing")`.
+Adding two arguments (not options) to the command-line is fairly
+simple.  We will break out the lambda form into its own named function
+now, since we're going to be adding to this in later examples.
 
 ```cl
-(simple-parse-cli #'(lambda (&rest args) (print args)))
-=> NIL
-(:OPT "a" NIL)
-(:OPT "beta" NIL)
-(:OPT "input" "file")
-(:ARG "some" NIL)
-(:OPT "v" NIL)
-(:ARG "thing" NIL)
+(defvar *verbose* nil)
+(defvar *input* nil)
+(defvar *output* nil)
+
+(defun args ()
+  (flet ((handler (kind item extra)
+           (declare (ignore extra))
+           (case kind
+             (:arg (cond
+                     ((null *input*) (setf *input* item))
+                     ((null *output*) (setf *output* item))))
+             (:opt (cond
+                     ((string= "v" item) (setf *verbose* t)))))))
+    (parse-cli #'handler)))
 ```
 
-To ignore the command-line with which the application was invoked, the
-`:arglist` and `:style` keywords can be used to force a particular
-interpretation of options and arguments, no matter the current
-environment.  This would yield the same results as the previous
-example, and would do so on both Unix and Windows systems.
+And now command-lines like the following are supported.  The
+application can determine when zero, one, or both command-line
+arguments are provided, as well as (perhaps) print diagnostic
+information when extra verbosity is selected.
+
+```text
+$ myapp -v data.csv report.tex
+C:\Users\krz> myapp /v data.csv report.tex
+```
+
+Alternatively, some applications enjoy options that have opposite
+effects on each other.  Here, we can create a verbosity level for an
+application, where every instance of a **v** option increases the
+verbosity and every instance of a **q** option decreases it.
 
 ```cl
-(simple-parse-cli #'(lambda (&rest args) (print args))
-		  :arglist '("/a" "/beta" "/input:file" "some" "/v" "thing")
-		  :styles :windows)
+(defvar *verbose* 0)
+
+(defun args ()
+  (flet ((handler (kind item extra)
+           (declare (ignore extra))
+           (when (eq kind :opt)
+             (cond
+               ((string= "v" item) (incf *verbose*))
+               ((string= "q" item) (decf *verbose*))))))
+    (parse-cli #'handler)))
 ```
 
-In the early stages of development, it may not always be clear what
-options and arguments an application will need.  In order to not
-spend too much time on the problem, it's useful to adopt a simple
-approach to parsing command-lines, where anything is accepted and
-only options we recognize are processed; everything else can be
-safely ignored.  One wouldn't ship a final application in this state,
-but for exploratory programming, for early development, for private
-hacks, this proves sufficient.
-
-Imagine being at a state in an application's development where it was
-known that some sort of verbosity flag was needed.
+Though we won't spend much time on error processing in most of the
+remaining examples, it should be obvious how to detect and act on
+various error situations.  Imagine that our application requires its
+first argument, but that its second one is optional; additionally, we
+want to report when unknown options are supplied.  A brutally simple
+approach might be something like this:
 
 ```cl
-(defparameter *verbose* nil)
+(defvar *verbose* nil)
+(defvar *input* nil)
+(defvar *output* nil)
 
-(defun opts-and-args (kind name value)
-  (when (and (eq kind :opt) (string-equal name "v"))
-    (setf *verbose* t)))
+(defun args ()
+  (flet ((handler (kind item extra)
+           (declare (ignore extra))
+           (case kind
+             (:arg (cond
+                     ((null *input*) (setf *input* item))
+                     ((null *output*) (setf *output* item))
+                     (t (error "too many arguments"))))
+             (:opt (cond
+                     ((string= "v" item) (setf *verbose* t))
+                     (t (error "unknown option: ~a" item)))))))
+    (parse-cli #'handler)
+    (unless *input*
+      (error "at least one argument must be supplied"))))))
 ```
 
-Just the following call would be sufficient in such an application.
-`-v` seen under Unix, and `/v` under Windows, would lead to
-`*verbose*` becoming true.  All other options and arguments are
-silently ignored by the `opts-and-args` function, as written above.
+Now, let's update the application to take another command-line
+option called **config** which should name a configuration file.
+The basic support for a long option, using an **=** or **:**
+character under Unix or Windows, is already present in Petulant.
+Note that all we've done in this example is to start using the
+**extra** argument in the function provided to **parse-cli**.
 
 ```cl
-(simple-parse-cli #'opts-and-args)
+(defvar *verbose* nil)
+(defvar *input* nil)
+(defvar *output* nil)
+(defvar *config* nil)
+
+(defun args ()
+  (flet ((handler (kind item extra)
+           (case kind
+             (:arg (cond
+                     ((null *input*) (setf *input* item))
+                     ((null *output*) (setf *output* item))
+                     (t (error "too many arguments"))))
+             (:opt (cond
+                     ((string= "v" item) (setf *verbose* t))
+                     ((string= "config" item) (setf *config* extra))
+                     (t (error "unknown option: ~a" item)))))))
+    (parse-cli #'handler)
+    (unless *input*
+      (error "at least one argument must be supplied"))))))
 ```
 
-Some applications take multiple instances of a switch to incrememnt
-and decrement debugging verbosity.  Here, we'll implement one such
-where `v` (verbose) and `q` (quiet) are used in just that manner.
+And at this point, we can handle command-lines like the following.
+
+```text
+$ myapp -v --config=test.yml data.csv report.tex
+C:\Users\krz> myapp /config:test.yml /v data.csv report.tex
+```
+
+Here we see the problem that Petulant faces with recognizing
+options and switches that take arguments: without the **=**
+or **:** characters, as in the next example, Petulant has no
+way of knowing that **config** takes an argument but **v**
+does not.
+
+```text
+$ myapp -v --config test.yml data.csv report.tex
+C:\Users\krz> myapp /config test.yml /v data.csv report.tex
+```
+
+Dealing with this is what the **optargs** keyword argument solves.
+Petulant already knows that any option in the form **--option=foo** or
+any switch **/switch:foo** obviously takes a value **foo**.  Here, we
+use **optargs** to tell Petulant all the options that take an argument
+even when appearing without the extra decoration.  Note that the rest
+of the code is unchanged, all we've done is add an argument to
+**parse-cli**.
 
 ```cl
-(defparameter *verbose* 0)
+(defvar *verbose* nil)
+(defvar *input* nil)
+(defvar *output* nil)
+(defvar *config* nil)
 
-(defun opts-and-args (kind name value)
-  (case kind
-    (:arg t)
-    (:opt (cond
-	    ((string-equal name "q")
-	     (decf *verbose*))
-	    ((string-equal name "v")
-	     (incf *verbose*))))))
+(defun args ()
+  (flet ((handler (kind item extra)
+           (case kind
+             (:arg (cond
+                     ((null *input*) (setf *input* item))
+                     ((null *output*) (setf *output* item))
+                     (t (error "too many arguments"))))
+             (:opt (cond
+                     ((string= "v" item) (setf *verbose* t))
+                     ((string= "config" item) (setf *config* extra))
+                     (t (error "unknown option: ~a" item)))))))
+    (parse-cli #'handler :optargs '("config"))
+    (unless *input*
+      (error "at least one argument must be supplied"))))))
 ```
 
-Obviously, we are reaching the point where a few well placed macros
-would make our life much more succinct.  As our focus is on the
-functionality and not its presentation, though, we'll stick with this
-approach for just one more example.
+Another useful feature is the ability to accept options as aliases
+for one another.  Consider that the application takes some value
+specifying a delimiter of some kind; the trouble being that some
+of the app's audience thinks of it as as “delimiter” while others
+think of it as a “separator.”  Petulant allows one to be established
+as an alias of the other, so that the option processing code only
+needs to concern itself with one primary option string.
 
-Imagine our application has defined `*apphome*` as a directory where
-all of its installed data lives, including some default configuration
-file.  We will still take the `q` and `v` options from the command
-line, but we'll also process a `c` option to specify an alternative
-configuration file.  Two arguments will be taken from the command-line
-as well that specify input and output files.  A first pass at
-implementing this using the basic API might look like this:
+We'll add that to our code now, along with a second alias that allows
+the user to call the app with a “color” option, along with “rgb”
+and “hue” names as well.  It's a little contrived, sure, but it
+demonstrates the forms of multiple sets of aliases.
 
 ```cl
-(defparameter *verbose* 0)
-(defparameter *inpath* nil)
-(defparameter *outpath* nil)
-(defparameter *confpath* (merge-pathnames "config.yaml" *apphome*)
+(defvar *verbose* nil)
+(defvar *input* nil)
+(defvar *output* nil)
+(defvar *config* nil)
+(defvar *delim* ",")
+(defvar *color* nil)
 
-(defun opts-and-args (kind x y)
-  (case kind
-    (:arg (cond
-            ((null *inpath*)
-             (setf *inpath* (pathname x)))
-            ((null *outpath*)
-             (setf *outpath* (pathname x)))))
-    (:opt (cond
-            ((string-equal x "c")
-	     (setf *confpath* (pathname y)))
-	    ((string-equal x "q")
-	     (decf *verbose*))
-	    ((string-equal x "v")
-	     (incf *verbose*))))))
+(defun args ()
+  (flet ((handler (kind item extra)
+           (case kind
+             (:arg (cond
+                     ((null *input*) (setf *input* item))
+                     ((null *output*) (setf *output* item))
+                     (t (error "too many arguments"))))
+             (:opt (cond
+                     ((string= "v" item) (setf *verbose* t))
+                     ((string= "color" item) (setf *color* extra))
+                     ((string= "config" item) (setf *config* extra))
+                     ((string= "delimiter" item) (setf *delim* extra))
+                     (t (error "unknown option: ~a" item)))))))
+    (parse-cli #'handler
+               :optargs '("config" "delimiter" "color")
+               :aliases '(("delimiter" "separator")
+                          ("color" "rgb" "hue")))
+    (unless *input*
+      (error "at least one argument must be supplied"))))))
 ```
 
-The call to `simple-parse-cli` changes slightly to include a function
-for `optarg-p-fn` which recognizes `c` as taking an option:
+At this point, the supported command-line is becoming rich but
+awkward.  Not many users _want_ to type long options like
+**delimiter** and would prefer to abbreviate their option to simply
+**--delim** or perhaps even **/d** if there are no other similarly
+named options.  This is supported as well, with just a few more hints.
+
+In order to support partial unambiguous option matching, Petulant will
+need to know all the options that the application can process.  No
+longer just the argument-bearing options, but also the options that
+standalone as simple flags.  With this information, Petulant can
+determine how many letters are shared between options, and therefore
+what the minimum unique abbreviation is for each option.  We do this
+by supplying an **optflags** argument, as well as a **:partial** style
+argument.
+
+Since we'll be working with full names, and we expect the shortest
+viable abbreviations to be automatically processed, we'll rename the
+**v** option to **verbose**.
 
 ```cl
-(simple-parse-cli #'opts-and-args
-                  :optarg-p-fn #'(lambda (x) (string-equal "c" x)))
+(defvar *verbose* nil)
+(defvar *input* nil)
+(defvar *output* nil)
+(defvar *config* nil)
+(defvar *delim* ",")
+(defvar *color* nil)
+
+(defun args ()
+  (flet ((handler (kind item extra)
+           (case kind
+             (:arg (cond
+                     ((null *input*) (setf *input* item))
+                     ((null *output*) (setf *output* item))
+                     (t (error "too many arguments"))))
+             (:opt (cond
+                     ((string= "verbose" item) (setf *verbose* t))
+                     ((string= "color" item) (setf *color* extra))
+                     ((string= "config" item) (setf *config* extra))
+                     ((string= "delimiter" item) (setf *delim* extra))
+                     (t (error "unknown option: ~a" item)))))))
+    (parse-cli #'handler
+               :optargs '("config" "delimiter" "color")
+               :optflags '("verbose")
+               :aliases '(("delimiter" "separator")
+                          ("color" "rgb" "hue"))
+               :styles :partial)
+    (unless *input*
+      (error "at least one argument must be supplied"))))))
 ```
 
-Further functionality is obvious at this point.  One thing to consider
-is our use of `string-equal` above, to get case insensitivity.  This
-would be common under Windows, but it might surprise some Unix users
-that `-c` and `-C` would be the same.  If we used the `string=`
-function instead, the surprise might then be on the Windows users.
-There's no single right answer, but your author humbly suggests that
-unless you are reimplementing `ls`, case insensitivity is rarely a
-real problem.
+Alas, to reach this extra functionality, we had to give up one of
+Petulant's advantages: we can no longer skip over a specification of
+all the options to be processed.
 
-Hopefully, `opts-and-args` suggests why this is known as the _basic_
-or _simple_ API.  If you prefer it, more power to you!  But if you
-don't want to write your own implementations of common functionality
-like case-insensitivity, partial matching of options, or option
-aliases, you can use one of the other interfaces to Petulant, below.
+As written above, the application can now process command-lines like
+the following.  Note that we have options **color** and **config**
+now.  Whereas the rest of the options are unique at their very first
+letter (which means **-d:** could stand for **--delimiter=:**, as would
+**--delim=:**), it will take at least three characters in order to tell
+the **color** and **config** options apart.  For that reason, neither
+**/c** nor **/co** will be sufficient, a user would need to supply
+**/col** or **/con** to get the option recognized.
+
+These command-lines are now all valid.
+
+```text
+$ app -vd:
+$ app -v -d : --conf=foo --hue=red
+$ app -v -d: --conf foo -h red
+$ app -v --delim=: --conf foo -h red
+
+C:\Users\krz> APP /V/D:
+C:\Users\krz> APP /V /D : /CONFIG:FOO /HUE RED
+C:\Users\krz> APP /V /D:: /CONF FOO /H:RED
+C:\Users\krz> APP /V /DELIM:: /CONF FOO /H RED
+```
+
+That example demonstrates something else that Petulant handles.  When
+running under Windows, command-line string comparisons are insensitive
+to case; however, in a Unix environment, case still matters.  This
+behavior can be modified in a few ways.
+
+**:streq** and **::str=** can be used to explicitly set the whether or
+not Petulant matches options in a case insensitive or sensitive
+manner, respectively.  To remember their meaning, recognize that their
+names imply the relationship between **string-equal** and **string=**.
+
+Also, **:windows** and **:unix** can be added to the styles list to
+direct Petulant to process a command-line with Windows style switch
+syntax, or Unix style option processing.  Only when the styles list
+contains neither of these two keywords will Petulant choose a default
+based on the running system.  (Yes, this is a runtime determination,
+not performed at compilation time.)
+
+To more easily see the differences in the styles argument, an **arglist**
+argument is supported with **parse-cli** as well.  When used, Petulant
+will use its value as the list of strings to parse, rather than taking
+the strings from the Lisp environment.  A handy setup for trying
+out various calls of **parse-cli** can be seen here; it is also very
+useful when writing test cases to run in either environment.
+
+```text
+CL-USER> (parse-cli (lambda (&rest args) (format t "saw ~s~%" args))
+                    :optargs '("config" "delimiter" "color")
+                    :optflags '("verbose")
+                    :aliases '(("delimiter" "separator")
+                               ("color" "rgb" "hue"))
+                    :styles '(:partial :unix)
+                    :arglist '("-vd:" "--conf=foo" "--hue" "red" "input.csv"))
+saw (:OPT "verbose" NIL)
+saw (:OPT "delimiter" ":")
+saw (:OPT "config" "foo")
+saw (:OPT "color" "red")
+saw (:ARG "input.csv" NIL)
+T
+CL-USER>
+```
+
+In addition to the **:str=** and **:streq** styles, and the
+**:windows** and **:unix** styles that imply them, there are yet more
+common transformations that Petulant can do via the **styles**
+argument.  Two of them are case folding, where Petulant will change an
+option name to all caps or all lower case (these imply **:streq** as
+well).  As long as you aren't re-implementing **ls**(1), this is
+rarely a bad thing in practice, and helps to work around easily
+avoidable mistakes by the user.
+
+```text
+CL-USER> (parse-cli (lambda (&rest args) (format t "saw ~s~%" args))
+                    :optargs '("config" "delimiter" "color")
+                    :optflags '("verbose")
+                    :aliases '(("delimiter" "separator")
+                               ("color" "rgb" "hue"))
+                    :styles '(:partial :unix :down)
+                    :arglist '("-Vd:" "--cOnF=foo" "--Hue" "red" "input.csv"))
+saw (:OPT "verbose" NIL)
+saw (:OPT "delimiter" ":")
+saw (:OPT "config" "foo")
+saw (:OPT "color" "red")
+saw (:ARG "input.csv" NIL)
+T
+CL-USER>
+```
+
+Finally, Petulant can call the function supplied to **parse-cli** with
+its middle argument turned into a symbol in the keyword package.  This,
+too, implies case folding and case insensitivity.  Other arguments still
+need to be specified with strings; the use of **:key** only affects the
+call to the supplied function.
+
+```text
+CL-USER> (parse-cli (lambda (&rest args) (format t "saw ~s~%" args))
+                    :optargs '("config" "delimiter" "color")
+                    :optflags '("verbose")
+                    :aliases '(("delimiter" "separator")
+                               ("color" "rgb" "hue"))
+                    :styles '(:partial :unix :key)
+                    :arglist '("-Vd:" "--cOnF=foo" "--Hue" "red" "input.csv"))
+saw (:OPT :VERBOSE NIL)
+saw (:OPT :DELIMITER ":")
+saw (:OPT :CONFIG "foo")
+saw (:OPT :COLOR "red")
+saw (:ARG "input.csv" NIL)
+T
+CL-USER>
+```
+
+Including **:key** in any styles might make a handler marginally
+simpler and more efficient, but it usually won't yield tremendous
+gains unless there are _many_ string comparisons being performed in
+the supplied function.  Instead, the main advantage of **:key** is
+stylistic, enabling **case** statements and similar flexibility in an
+option handler.
+
+```cl
+(defvar *verbose* nil)
+(defvar *input* nil)
+(defvar *output* nil)
+(defvar *config* nil)
+(defvar *delim* ",")
+(defvar *color* nil)
+
+(defun args ()
+  (flet ((handler (kind item extra)
+           (case kind
+             (:arg (cond
+                     ((null *input*) (setf *input* item))
+                     ((null *output*) (setf *output* item))
+                     (t (error "too many arguments"))))
+             (:opt (case item
+                     (:verbose (setf *verbose* t))
+                     (:color (setf *color* extra))
+                     (:config (setf *config* extra))
+                     (:delimiter (setf *delim* extra))
+                     (t (error "unknown option: ~a" item)))))))
+    (parse-cli #'handler
+               :optargs '("config" "delimiter" "color")
+               :optflags '("verbose")
+               :aliases '(("delimiter" "separator")
+                          ("color" "rgb" "hue"))
+               :styles '(:partial :key))
+    (unless *input*
+      (error "at least one argument must be supplied"))))))
+```
 
 
 

@@ -42,6 +42,8 @@ Functionality
 - A data interface to CLI parsing, and
 - A specification interface to CLI parsing if you like writing those.
 
+
+
 ### What's Supported Currently
 
 - Windows
@@ -76,9 +78,11 @@ when I feel Petulant is good enough.
 
 [Quicklisp]: https://www.quicklisp.org/beta/ "The Quicklisp Project Homepage"
 
+
+
 ### Things I Don't Know
 
-- Detecting an alternative `SwitChar` (switch character) in use
+- Detecting an alternative **SwitChar** (switch character) in use
   under Windows CMD and PowerShell.
 - Accessing the actual command line string under Windows.  (More
   details on this in the manual).
