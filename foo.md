@@ -10,7 +10,8 @@ Foo.
            (declare (ignore extra))
            (case kind
 	     (:arg (cond
-	             ((null *input*) (setf *input* item))))
+	             ((null *input*) (setf *input* item))
+                     ((null *output*) (setf *output* item))))
 	     (:opt (cond
 	             ((string= "v" item) (setf *verbose* t))
 		     (t (error "too many arguments")))))))
@@ -22,6 +23,10 @@ Foo.
 Foo.
 
 ```text
+(defvar *verbose* nil)
+(defvar *input* nil)
+(defvar *output* nil)
+
 (defun args ()
   (flet ((handler (kind item extra)
            (declare (ignore extra))
