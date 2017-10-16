@@ -51,7 +51,9 @@
 	     (long (opt)
 	       (let* ((o (subseq opt 2))                    ; "--foo…"
 		      (i (position #\= o))		    ; "--foo=…"
-		      (f (chgname o)))
+		      (f (chgname (if i
+				      (subseq o 0 i)
+				      o))))
 		 (cond
 		   (i                                       ; "--foo=…"
 		    (opt! f (unless (= i (1- (length o)))   ; "--foo="
@@ -77,7 +79,8 @@
 		      (opt! f (cadr av))
 		      (advance)
 		      (finish)))))))
-      (with-chars (c0 c1 c2) (car av)
+      (with-chars (c0 c1 c2)
+	  (car av)
 	(cond
 	  ((not (and c0 c1 (is- c0)))			       ; "" "x" 
 	   (arg! (car av)))
@@ -187,8 +190,8 @@
 
   If :KEY appears in STYLES, :UP is added to STYLES as well.
 
-  If :NOFOLD does not appear in STYLES, and one of :UP, :DOWN, or :WINDOWS
-  appears, then :FOLD is added to STYLES.
+  If :STR= does not appear in STYLES, and one of :UP, :DOWN, or :WINDOWS
+  appears, then :STREQ is added to STYLES.
 
   Once processed by CANONICALIZE-STYLES, the keyword :CANON is pushed to
   the front of the resulting list.  By leaving :CANON at the front,
@@ -197,13 +200,13 @@
   than once.
 
      \(CANONICALIZE-STYLES '\(:UNIX :KEY\)\)
-  => \(:CANON :FOLD :UP :UNIX :KEY\)
+  => \(:CANON :STREQ :UP :UNIX :KEY\)
      \(CANONICALIZE-STYLES '\(:FOO :BAR\)\)
   => \(:CANON :FOO :BAR\)
      \(CANONICALIZE-STYLES :DOWN\)
-  => \(:CANON :FOLD :DOWN\)
-     \(CANONICALIZE-STYLES :FOLD\)
-  => \(:CANON :FOLD\)"
+  => \(:CANON :STREQ :DOWN\)
+     \(CANONICALIZE-STYLES :STREQ\)
+  => \(:CANON :STREQ\)"
   (let ((res (ensure-list styles)))
     ;; We're calling (MEMBER :CANON RES) here; a slightly less robust
     ;; but faster approach would be (EQ :CANON (CAR RES)) since :CANON
@@ -214,11 +217,11 @@
 	(push (if (featurep :windows) :windows :unix) res))
       (when (member :key res)
 	(push :up res))
-      (unless (member :nofold res)
+      (unless (member :str= res)
 	(when (or (member :up res)
 		  (member :down res)
 		  (member :windows res))
-	  (push :fold res)))
+	  (push :streq res)))
       (push :canon res))		; always last!
     res))
 
@@ -231,12 +234,12 @@
 
 (defun foldp (styles)
   "Returns true when STYLES indicates that case-insensitive matching
-  should be employed.  Specifically, this is described by :NOFOLD not
-  being present in STYLES and :FOLD being present.  \(:NOFOLD overrides
-  any :FOLD that might be present.\)"
+  should be employed.  Specifically, this is described by :STR= not
+  being present in STYLES and :STREQ being present.  \(:STR= overrides
+  any :STREQ that might be present.\)"
   (with-styles-canon (styles styles)
-    (and (not (member :nofold styles))
-	 (member :fold styles))))
+    (and (not (member :str= styles))
+	 (member :streq styles))))
 
 (defun simple-parse-cli (fn &key arglist optarg-p-fn chgname-fn styles)
   "This is the low level parser for command-lines.  If you're simply
@@ -306,7 +309,7 @@
   "Return a function to be used in comparing option strings for
   equality, based on FOLDP."
   (with-styles-canon (styles styles)
-    (if (member :fold styles)
+    (if (member :streq styles)
 	#'string-equal
 	#'string=)))
 
@@ -316,7 +319,7 @@
   function, this returns an equality function \(e.g., for use in hash
   tables\)."
   (with-styles-canon (styles styles)
-    (if (member :fold styles)
+    (if (member :streq styles)
 	#'equalp
 	#'equal)))
 
@@ -324,7 +327,7 @@
   "Return a function to be used in comparing option strings for
   sorting, based on FOLDP."
   (with-styles-canon (styles styles)
-    (if (member :fold styles)
+    (if (member :streq styles)
 	#'string-lessp
 	#'string<)))
 
@@ -332,7 +335,7 @@
   "Return a function to be used in comparing option strings for
   inequality, based on FOLDP."
   (with-styles-canon (styles styles)
-    (if (member :fold styles)
+    (if (member :streq styles)
 	#'string-not-equal
 	#'string/=)))
 
@@ -402,8 +405,8 @@
 
   STYLES is a keyword or list of keywords influencing the matching
   between command-line options and the list of aliases seen here.  In
-  order of priority, :NOFOLD prevents case folding, :FOLD directs
-  case-insensitive matching, :UP and :DOWN imply :FOLD.  Note that
+  order of priority, :STR= prevents case folding, :STREQ directs
+  case-insensitive matching, :UP and :DOWN imply :STREQ.  Note that
   ALIASES-FN treats :KEY as :UP \(mapping options to keyword values
   happens elsewhere\)."
   (with-styles-canon (styles styles)
@@ -430,9 +433,9 @@
 
   STYLES is a keyword or list of keywords influencing the comparison
   between options provided by the calling application and options
-  supplied by the user.  In order of priority, :NOFOLD prevents case
-  folding, :FOLD directs case-insensitive matching, and :UP :DOWN
-  and :KEY all imply :FOLD."
+  supplied by the user.  In order of priority, :STR= prevents case
+  folding, :STREQ directs case-insensitive matching, and :UP :DOWN
+  and :KEY all imply :STREQ."
   (with-styles-canon (styles styles)
     (let ((hash (build-optarg-hash optargs styles)))
       (lambda (x) (gethash x hash)))))
@@ -517,20 +520,22 @@ the supplied callback function."
   Petulant's behavior.  Recognized keywords are as follows;
   unrecognized keywords are silently ignored.
 
-     :NOFOLD  String matching between OPTARGS, OPTFLAGS, ALIASES, and
+     :STR=    String matching between OPTARGS, OPTFLAGS, ALIASES, and
 	      the command-line being parsed is sensitive to case.
 	      This exists solely to override any folding semantics
 	      implied by :WINDOWS, :UNIX, :UP, :DOWN, :KEY, and the
-	      local Lisp environment.  Overrides :FOLD.
+	      local Lisp environment.  Overrides :STREQ.  Its name is
+	      meant to be evocative of STRING=.
 
-     :FOLD    String matching between OPTARGS, OPTFLAGS, ALIASES, and
+     :STREQ   String matching between OPTARGS, OPTFLAGS, ALIASES, and
 	      the command-line being parsed is insensitive to case.
+              Its name is meant to be evocative of STRING-EQUAL.
 
      :UP      All option names presented to FN will be converted to
-	      upper case.  Implies :FOLD.
+	      upper case.  Implies :STREQ.
 
      :DOWN    All option names presented to FN will be converted to
-	      lower case.  Implies :FOLD.
+	      lower case.  Implies :STREQ.
 
      :KEY     All option names presented to FN will be converted to
 	      symbols in the keyword package.  Implies :UP.
@@ -550,7 +555,7 @@ the supplied callback function."
 
      :WINDOWS Disregard the current running system, and process the
 	      command-line arguments as if in a Windows environment.
-	      Also implies :FOLD."
+	      Also implies :STREQ."
   (with-styles-canon (styles styles)
     (let ((hack-fn (hack-option-fn styles)))
       (flet ((cb (x y z) (funcall fn x (funcall hack-fn y) z)))
