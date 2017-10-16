@@ -8,7 +8,10 @@ Foo.
 (defun args ()
   (flet ((handler (kind item extra)
            (declare (ignore extra))
-           t))
+           (case kind
+	     (:opt (cond
+	             ((string= "v" item) (setf *verbose* t))
+		     (t (error "too many arguments")))))))
     (parse-cli #'handler)
     (unless *input*
       (error "at least one argument must be supplied"))))
