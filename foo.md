@@ -9,6 +9,7 @@ Foo.
   (flet ((handler (kind item extra)
            (declare (ignore extra))
            (case kind
+	     (:arg t)
 	     (:opt (cond
 	             ((string= "v" item) (setf *verbose* t))
 		     (t (error "too many arguments")))))))
