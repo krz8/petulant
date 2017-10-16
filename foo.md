@@ -11,10 +11,11 @@ Foo.
            (case kind
 	     (:arg (cond
 	             ((null *input*) (setf *input* item))
-                     ((null *output*) (setf *output* item))))
+                     ((null *output*) (setf *output* item))
+		     (t (error "too many arguments"))))
 	     (:opt (cond
 	             ((string= "v" item) (setf *verbose* t))
-		     (t (error "too many arguments")))))))
+		     t)))))
     (parse-cli #'handler)
     (unless *input*
       (error "at least one argument must be supplied"))))
