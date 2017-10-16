@@ -345,7 +345,7 @@ first argument, but that its second one is optional; additionally, we
 want to report when unknown options are supplied.  A brutally simple
 approach might be something like this:
 
-```cl
+```text
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
