@@ -165,7 +165,7 @@ or by the use of **:partial** in **styles**; its presence here is merely
 for example.) **optargs** does not limit the options that **parse-cli**
 handles, even those with arguments; it is merely a hint that
 
-```text
+```cl
 (parse-cli fn :optargs '("delay" "file"))
 ````
 
@@ -174,7 +174,7 @@ long) that do not take an argument.  This argument has no effect on
 **parse-cli** unless **:partial** appears in **styles**.  See
 **:partial** below.
 
-```text
+```cl
 (parse-cli fn :optflags '("verbose" "debug" "trace"))
 ```
 
@@ -185,7 +185,7 @@ list naming the primary option first, followed by all aliases for it.
 For example, in the call below, both “/sleep” and “/wait” would be
 recognized by **parse-cli**, but processed as if “/delay” were seen.
 
-```text
+```cl
 (parse-cli fn :aliases '(("alpha" "transparency")
                          ("delay" "sleep" "wait")))
 ```
@@ -195,7 +195,7 @@ instead of the default command-line that was supplied to the
 application.  These strings are parsed exactly as if they appeared on
 the command-line, each string corresponding to one “word”.
 
-```text
+```cl
 (parse-cli fn :arglist '("-xv" "-f" "foo.tar"))
 ```
 
@@ -248,7 +248,7 @@ command-line, in turn, will be parsed under Unix or Windows
 conventions, according to the presence of the **:windows** feature in
 the Lisp runtime environment.
 
-```text
+```cl
 (parse-cli #'myfun)
 ```
 
@@ -263,7 +263,7 @@ convenient to just recognize the options and arguments we expect, and
 ignore the rest for the time being.  Consider supporting a traditional
 verbosity flag in the application.
 
-```text
+```cl
 (defvar *verbose* nil)
 
   ;; somewhere in a main function
@@ -286,7 +286,7 @@ Adding two arguments (not options) to the command-line is fairly
 simple.  We will break out the lambda form into its own named function
 now, since we're going to be adding to this in later examples.
 
-```text
+```cl
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -318,7 +318,7 @@ effects on each other.  Here, we can create a verbosity level for an
 application, where every instance of a **v** option increases the
 verbosity and every instance of a **q** option decreases it.
 
-```text
+```cl
 (defvar *verbose* 0)
 
 (defun args ()
@@ -338,7 +338,7 @@ first argument, but that its second one is optional; additionally, we
 want to report when unknown options are supplied.  A brutally simple
 approach might be something like this:
 
-```text
+```cl
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -356,7 +356,7 @@ approach might be something like this:
                      (t (error "unknown option: ~a" item)))))))
     (parse-cli #'handler)
     (unless *input*
-      (error "at least one argument must be supplied"))))))
+      (error "at least one argument must be supplied"))))
 ```
 
 Now, let's update the application to take another command-line
@@ -366,7 +366,7 @@ character under Unix or Windows, is already present in Petulant.
 Note that all we've done in this example is to start using the
 **extra** argument in the function provided to **parse-cli**.
 
-```text
+```cl
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -385,7 +385,7 @@ Note that all we've done in this example is to start using the
                      (t (error "unknown option: ~a" item)))))))
     (parse-cli #'handler)
     (unless *input*
-      (error "at least one argument must be supplied"))))))
+      (error "at least one argument must be supplied"))))
 ```
 
 And at this point, we can handle command-lines like the following.
@@ -414,7 +414,7 @@ even when appearing without the extra decoration.  Note that the rest
 of the code is unchanged, all we've done is add an argument to
 **parse-cli**.
 
-```text
+```cl
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -433,7 +433,7 @@ of the code is unchanged, all we've done is add an argument to
                      (t (error "unknown option: ~a" item)))))))
     (parse-cli #'handler :optargs '("config"))
     (unless *input*
-      (error "at least one argument must be supplied"))))))
+      (error "at least one argument must be supplied"))))
 ```
 
 Another useful feature is the ability to accept options as aliases
@@ -449,7 +449,7 @@ the user to call the app with a “color” option, along with “rgb”
 and “hue” names as well.  It's a little contrived, sure, but it
 demonstrates the forms of multiple sets of aliases.
 
-```text
+```cl
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -475,7 +475,7 @@ demonstrates the forms of multiple sets of aliases.
                :aliases '(("delimiter" "separator")
                           ("color" "rgb" "hue")))
     (unless *input*
-      (error "at least one argument must be supplied"))))))
+      (error "at least one argument must be supplied"))))
 ```
 
 At this point, the supported command-line is becoming rich but
@@ -497,7 +497,7 @@ Since we'll be working with full names, and we expect the shortest
 viable abbreviations to be automatically processed, we'll rename the
 **v** option to **verbose**.
 
-```text
+```cl
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -525,7 +525,7 @@ viable abbreviations to be automatically processed, we'll rename the
                           ("color" "rgb" "hue"))
                :styles :partial)
     (unless *input*
-      (error "at least one argument must be supplied"))))))
+      (error "at least one argument must be supplied"))))
 ```
 
 Alas, to reach this extra functionality, we had to give up one of
@@ -652,7 +652,7 @@ the supplied function.  Instead, the main advantage of **:key** is
 stylistic, enabling **case** statements and similar flexibility in an
 option handler.
 
-```text
+```cl
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -680,7 +680,7 @@ option handler.
                           ("color" "rgb" "hue"))
                :styles '(:partial :key))
     (unless *input*
-      (error "at least one argument must be supplied"))))))
+      (error "at least one argument must be supplied"))))
 ```
 
 
