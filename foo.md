@@ -7,6 +7,7 @@ Foo.
 
 (defun args ()
   (flet ((handler (kind item extra)
+           (declare (ignore extra))
            t))
     (parse-cli #'handler)
     (unless *input*
