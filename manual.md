@@ -165,7 +165,7 @@ or by the use of **:partial** in **styles**; its presence here is merely
 for example.) **optargs** does not limit the options that **parse-cli**
 handles, even those with arguments; it is merely a hint that
 
-```cl
+```text
 (parse-cli fn :optargs '("delay" "file"))
 ````
 
@@ -174,7 +174,7 @@ long) that do not take an argument.  This argument has no effect on
 **parse-cli** unless **:partial** appears in **styles**.  See
 **:partial** below.
 
-```cl
+```text
 (parse-cli fn :optflags '("verbose" "debug" "trace"))
 ```
 
@@ -185,7 +185,7 @@ list naming the primary option first, followed by all aliases for it.
 For example, in the call below, both “/sleep” and “/wait” would be
 recognized by **parse-cli**, but processed as if “/delay” were seen.
 
-```cl
+```text
 (parse-cli fn :aliases '(("alpha" "transparency")
                          ("delay" "sleep" "wait")))
 ```
@@ -195,7 +195,7 @@ instead of the default command-line that was supplied to the
 application.  These strings are parsed exactly as if they appeared on
 the command-line, each string corresponding to one “word”.
 
-```cl
+```text
 (parse-cli fn :arglist '("-xv" "-f" "foo.tar"))
 ```
 
@@ -248,7 +248,7 @@ command-line, in turn, will be parsed under Unix or Windows
 conventions, according to the presence of the **:windows** feature in
 the Lisp runtime environment.
 
-```cl
+```text
 (parse-cli #'myfun)
 ```
 
@@ -263,7 +263,7 @@ convenient to just recognize the options and arguments we expect, and
 ignore the rest for the time being.  Consider supporting a traditional
 verbosity flag in the application.
 
-```cl
+```text
 (defvar *verbose* nil)
 
   ;; somewhere in a main function
@@ -286,7 +286,7 @@ Adding two arguments (not options) to the command-line is fairly
 simple.  We will break out the lambda form into its own named function
 now, since we're going to be adding to this in later examples.
 
-```cl
+```text
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -318,7 +318,7 @@ effects on each other.  Here, we can create a verbosity level for an
 application, where every instance of a **v** option increases the
 verbosity and every instance of a **q** option decreases it.
 
-```cl
+```text
 (defvar *verbose* 0)
 
 (defun args ()
@@ -366,7 +366,7 @@ character under Unix or Windows, is already present in Petulant.
 Note that all we've done in this example is to start using the
 **extra** argument in the function provided to **parse-cli**.
 
-```cl
+```text
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -414,7 +414,7 @@ even when appearing without the extra decoration.  Note that the rest
 of the code is unchanged, all we've done is add an argument to
 **parse-cli**.
 
-```cl
+```text
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -449,7 +449,7 @@ the user to call the app with a “color” option, along with “rgb”
 and “hue” names as well.  It's a little contrived, sure, but it
 demonstrates the forms of multiple sets of aliases.
 
-```cl
+```text
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -497,7 +497,7 @@ Since we'll be working with full names, and we expect the shortest
 viable abbreviations to be automatically processed, we'll rename the
 **v** option to **verbose**.
 
-```cl
+```text
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
@@ -652,7 +652,7 @@ the supplied function.  Instead, the main advantage of **:key** is
 stylistic, enabling **case** statements and similar flexibility in an
 option handler.
 
-```cl
+```text
 (defvar *verbose* nil)
 (defvar *input* nil)
 (defvar *output* nil)
