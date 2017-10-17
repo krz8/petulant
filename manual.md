@@ -135,7 +135,7 @@ interfaces are built on top of this.
 
 ### API
 
-Function **parse-cli** fn _&key_ optargs optflags aliases arglist styles
+Function **parse-cli** fn _&key_ argopts flagopts aliases arglist styles
 
 **parse-cli** examines the command-line with which an application was
 invoked.  According to given styles and the local environment,
@@ -152,30 +152,30 @@ is usually a string naming an option (although see **styles** below),
 and the third argument is a string value associated with that option,
 or **nil**.
 
-**optargs**, if supplied, is a list of all options (short or long)
+**argopts**, if supplied, is a list of all options (short or long)
 that require an argument.  While Petulant can automatically
 recognize some options that explicitly take an argument (as in
 “--file=foo.psd” or “/file:foo.psd”), it needs the hint in
-**optargs** to recognize other patterns (such as “-f” “foo.psd”, or
+**argopts** to recognize other patterns (such as “-f” “foo.psd”, or
 “/file” “foo.psd”).  Simply place the option (no leading
 hyphens or slashes) as a string in this list.  The call below would
 recognize both “-f” and “--file” as requiring an argument.
 (Note that “f” in the list is better handled by an alias below,
 or by the use of **:partial** in **styles**; its presence here is merely
-for example.) **optargs** does not limit the options that **parse-cli**
+for example.) **argopts** does not limit the options that **parse-cli**
 handles, even those with arguments; it is merely a hint that
 
 ```cl
-(parse-cli fn :optargs '("delay" "file"))
+(parse-cli fn :argopts '("delay" "file"))
 ````
 
-**optflags**, if supplied, is a list of all the options (short or
+**flagopts**, if supplied, is a list of all the options (short or
 long) that do not take an argument.  This argument has no effect on
 **parse-cli** unless **:partial** appears in **styles**.  See
 **:partial** below.
 
 ```cl
-(parse-cli fn :optflags '("verbose" "debug" "trace"))
+(parse-cli fn :flagopts '("verbose" "debug" "trace"))
 ```
 
 **aliases** can be used to supply one or more alternative options
@@ -204,14 +204,14 @@ Petulant's behavior.  Recognized keywords are as follows;
 unrecognized keywords are silently ignored.
 
 - **:str=**  
-  String matching between **optargs**, **optflags**, **aliases**, and
+  String matching between **argopts**, **flagopts**, **aliases**, and
   the command-line being parsed is sensitive to case.  This exists
   solely to override any folding semantics implied by **:windows**,
   **:unix**, **:up**, **:down**, **:key**, and the local Lisp
   environment.  Overrides **:streq**.  Its name is meant to be
   evocative of **string=**.
 - **:streq**  
-  String matching between **optargs**, **optflags**, **aliases**, and
+  String matching between **argopts**, **flagopts**, **aliases**, and
   the command-line being parsed is insensitive to case.  Its name is
   meant to be evocative of **string-equal**.
 - **:up**  
@@ -226,9 +226,9 @@ unrecognized keywords are silently ignored.
 - **:partial**  
   Support partial matches of options.  When present, Petulant will
   support unambiguous partial matches of options (as they appear in
-  **optargs**, **optflags**, and **aliases**).  For example, if
-  **optargs** contained “beat”, then **:partial** would trigger
-  aliases of “b”, “be”, and “bea” for “beat”.  But, if **optflags**
+  **argopts**, **flagopts**, and **aliases**).  For example, if
+  **argopts** contained “beat”, then **:partial** would trigger
+  aliases of “b”, “be”, and “bea” for “beat”.  But, if **flagopts**
   also contained “bop” then “b” would no longer be recognized, instead
   “be” and “bo” would become the minimum length unambiguous matches
   for “beat” and “bop”.
@@ -406,10 +406,10 @@ $ myapp -v --config test.yml data.csv report.tex
 C:\Users\krz> myapp /config test.yml /v data.csv report.tex
 ```
 
-Dealing with this is what the **optargs** keyword argument solves.
+Dealing with this is what the **argopts** keyword argument solves.
 Petulant already knows that any option in the form **--option=foo** or
 any switch **/switch:foo** obviously takes a value **foo**.  Here, we
-use **optargs** to tell Petulant all the options that take an argument
+use **argopts** to tell Petulant all the options that take an argument
 even when appearing without the extra decoration.  Note that the rest
 of the code is unchanged, all we've done is add an argument to
 **parse-cli**.
@@ -431,7 +431,7 @@ of the code is unchanged, all we've done is add an argument to
                      ((string= "v" item) (setf *verbose* t))
                      ((string= "config" item) (setf *config* extra))
                      (t (error "unknown option: ~a" item)))))))
-    (parse-cli #'handler :optargs '("config"))
+    (parse-cli #'handler :argopts '("config"))
     (unless *input*
       (error "at least one argument must be supplied"))))
 ```
@@ -471,7 +471,7 @@ demonstrates the forms of multiple sets of aliases.
                      ((string= "delimiter" item) (setf *delim* extra))
                      (t (error "unknown option: ~a" item)))))))
     (parse-cli #'handler
-               :optargs '("config" "delimiter" "color")
+               :argopts '("config" "delimiter" "color")
                :aliases '(("delimiter" "separator")
                           ("color" "rgb" "hue")))
     (unless *input*
@@ -490,7 +490,7 @@ longer just the argument-bearing options, but also the options that
 standalone as simple flags.  With this information, Petulant can
 determine how many letters are shared between options, and therefore
 what the minimum unique abbreviation is for each option.  We do this
-by supplying an **optflags** argument, as well as a **:partial** style
+by supplying an **flagopts** argument, as well as a **:partial** style
 argument.
 
 Since we'll be working with full names, and we expect the shortest
@@ -519,8 +519,8 @@ viable abbreviations to be automatically processed, we'll rename the
                      ((string= "delimiter" item) (setf *delim* extra))
                      (t (error "unknown option: ~a" item)))))))
     (parse-cli #'handler
-               :optargs '("config" "delimiter" "color")
-               :optflags '("verbose")
+               :argopts '("config" "delimiter" "color")
+               :flagopts '("verbose")
                :aliases '(("delimiter" "separator")
                           ("color" "rgb" "hue"))
                :styles :partial)
@@ -581,8 +581,8 @@ useful when writing test cases to run in either environment.
 
 ```cl
 CL-USER> (parse-cli (lambda (&rest args) (format t "saw ~s~%" args))
-                    :optargs '("config" "delimiter" "color")
-                    :optflags '("verbose")
+                    :argopts '("config" "delimiter" "color")
+                    :flagopts '("verbose")
                     :aliases '(("delimiter" "separator")
                                ("color" "rgb" "hue"))
                     :styles '(:partial :unix)
@@ -607,8 +607,8 @@ avoidable mistakes by the user.
 
 ```cl
 CL-USER> (parse-cli (lambda (&rest args) (format t "saw ~s~%" args))
-                    :optargs '("config" "delimiter" "color")
-                    :optflags '("verbose")
+                    :argopts '("config" "delimiter" "color")
+                    :flagopts '("verbose")
                     :aliases '(("delimiter" "separator")
                                ("color" "rgb" "hue"))
                     :styles '(:partial :unix :down)
@@ -630,8 +630,8 @@ call to the supplied function.
 
 ```cl
 CL-USER> (parse-cli (lambda (&rest args) (format t "saw ~s~%" args))
-                    :optargs '("config" "delimiter" "color")
-                    :optflags '("verbose")
+                    :argopts '("config" "delimiter" "color")
+                    :flagopts '("verbose")
                     :aliases '(("delimiter" "separator")
                                ("color" "rgb" "hue"))
                     :styles '(:partial :unix :key)
@@ -674,8 +674,8 @@ option handler.
                      (:delimiter (setf *delim* extra))
                      (t (error "unknown option: ~a" item)))))))
     (parse-cli #'handler
-               :optargs '("config" "delimiter" "color")
-               :optflags '("verbose")
+               :argopts '("config" "delimiter" "color")
+               :flagopts '("verbose")
                :aliases '(("delimiter" "separator")
                           ("color" "rgb" "hue"))
                :styles '(:partial :key))
@@ -719,8 +719,8 @@ Or, it can be fully specified, with all the keyword arguments we've
 seen so far as well:
 
 ```cl
-(get-cli :optargs '("config" "delimiter" "color")
-         :optflags '("verbose")
+(get-cli :argopts '("config" "delimiter" "color")
+         :flagopts '("verbose")
          :aliases '(("delimiter" "separator")
                     ("color" "rgb" "hue"))
          :styles '(:partial :key))
@@ -729,8 +729,8 @@ seen so far as well:
 **get-cli** returns an easy-to-parse data structure.
 
 ```cl
-CL-USER> (get-cli :optargs '("config" "delimiter" "color")
-                  :optflags '("verbose")
+CL-USER> (get-cli :argopts '("config" "delimiter" "color")
+                  :flagopts '("verbose")
                   :aliases '(("delimiter" "separator")
                              ("color" "rgb" "hue"))
                   :styles '(:partial :unix :key)
@@ -760,6 +760,8 @@ is returned as in **get-cli**.
 
 ### API
 
+9,000
+9,126.12
 
 
 ### Usage
