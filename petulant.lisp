@@ -569,3 +569,13 @@ the supplied callback function."
 							    aliases styles))
 			  :arglist arglist
 			  :styles styles)))))
+
+(defun get-cli (&key optargs optflags aliases arglist styles)
+  "GET-CLI takes the same keyword arguments, and offers the same
+  functionality, as the function it wraps, PARSE-CLI.  See that
+  function for complete documentation."
+  (let (results)
+    (parse-cli (lambda (x y z) (push (list x y z) results))
+	       :optargs optargs :optflags optflags :aliases aliases
+	       :arglist arglist :styles styles)
+    (nreverse results)))

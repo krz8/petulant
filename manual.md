@@ -10,7 +10,7 @@ Petulant is a command-line parser that can be used when delivering
 Common Lisp applications under both Windows and Unix, supporting
 _native_ CLI styles.  That means:
 
-- Windows users don't have to learn GNU or POSIX hyphen-based options,
+- Windows users don't have to learn GNU or POSIX hyphen-based option syntax,
 - Unix users don't need to worry about Windows slash-based switches, and
 - Developers only need one body of code to support both environments.
 
@@ -93,10 +93,9 @@ some very different contexts in which it could be used.
 
 - [The Data-Oriented Interface](#data)
 
-  Here you can simply call Petulant and get back one easy-to-read data
-  structure representing the entire command-line.  Small to medium
-  sized applications will probably use this most, as it's the simplest
-  to work with for most projects.
+  Here you can simply call Petulant as with the functional interface,
+  but instead you get back one easy-to-read data structure
+  representing the entire command-line.
 
 - [The Specification-Driven Interface](#spec)
 
@@ -119,6 +118,7 @@ some very different contexts in which it could be used.
 Also, after working through the available functionality below, if
 there's something that you'd like to see added to Petulant, feel free
 to write me and ask.
+
 
 
 <a name="func"></a>
@@ -685,13 +685,61 @@ option handler.
 
 
 
-
 <a name="data"></a>
 
 The Data-Oriented Interface
 ---------------------------
 
-foo
+### API
+
+The api is a single function, **get-cli**.  It takes the same keyword
+arguments as **parse-cli**, and offers the same parsing functionality.
+The difference is that there is no **fn** argument, and the return
+value is a structured list of the options and arguments found on the
+command-line.c
+
+### Usage
+
+This wrapper almost suggests itself after working with the functional
+interface for a while.  It omits the **fn** argument, but takes all
+the other arguments that **parse-cli** does.  In return, you get a
+single list of events as they were encountered on the command line.
+Each element of the list is the same three-item list that the **fn**
+is called with in **parse-cli**.
+
+A call to this wrapper can be minimal for simple command-line
+interfaces, just as in the functional interface of the previous
+section.
+
+```cl
+(get-cli)
+```
+
+Or, it can be fully specified, with all the keyword arguments we've
+seen so far as well:
+
+```cl
+(get-cli :optargs '("config" "delimiter" "color")
+         :optflags '("verbose")
+         :aliases '(("delimiter" "separator")
+                    ("color" "rgb" "hue"))
+         :styles '(:partial :key))
+```
+
+**get-cli** returns an easy-to-parse data structure.
+
+```cl
+CL-USER> (get-cli :optargs '("config" "delimiter" "color")
+                  :optflags '("verbose")
+                  :aliases '(("delimiter" "separator")
+                             ("color" "rgb" "hue"))
+                  :styles '(:partial :unix :key)
+                  :arglist '("-Vd:" "--cOnF=foo" "--Hue" "red" "input.csv"))
+((:OPT :VERBOSE NIL) (:OPT :DELIMITER ":") (:OPT :CONFIG "foo")
+ (:OPT :COLOR "red") (:ARG "input.csv" NIL))
+CL-USER>
+```
+
 
 
 

@@ -10,7 +10,7 @@ Petulant is a command-line parser that can be used when delivering
 Common Lisp applications under both Windows and Unix, supporting
 _native_ CLI styles.  That means:
 
-- Windows users don't have to learn GNU or POSIX hyphen-based options,
+- Windows users don't have to learn GNU or POSIX hyphen-based option syntax,
 - Unix users don't need to worry about Windows slash-based switches, and
 - Developers only need one body of code to support both environments.
 
