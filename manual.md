@@ -579,7 +579,7 @@ the strings from the Lisp environment.  A handy setup for trying
 out various calls of **parse-cli** can be seen here; it is also very
 useful when writing test cases to run in either environment.
 
-```text
+```cl
 CL-USER> (parse-cli (lambda (&rest args) (format t "saw ~s~%" args))
                     :optargs '("config" "delimiter" "color")
                     :optflags '("verbose")
@@ -605,7 +605,7 @@ well).  As long as you aren't re-implementing **ls**(1), this is
 rarely a bad thing in practice, and helps to work around easily
 avoidable mistakes by the user.
 
-```text
+```cl
 CL-USER> (parse-cli (lambda (&rest args) (format t "saw ~s~%" args))
                     :optargs '("config" "delimiter" "color")
                     :optflags '("verbose")
@@ -628,7 +628,7 @@ too, implies case folding and case insensitivity.  Other arguments still
 need to be specified with strings; the use of **:key** only affects the
 call to the supplied function.
 
-```text
+```cl
 CL-USER> (parse-cli (lambda (&rest args) (format t "saw ~s~%" args))
                     :optargs '("config" "delimiter" "color")
                     :optflags '("verbose")
