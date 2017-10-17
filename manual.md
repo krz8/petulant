@@ -748,4 +748,20 @@ CL-USER>
 The Specification-Driven Interface
 ----------------------------------
 
-foo
+This interface is intended for developers who are used to
+specification-driven interfaces, such as **getopt**(3) and its many
+descendents.  In this approach, the relaxed “accept anything” approach
+seen in **parse-cli** and **get-cli** is replaced with a rigid
+error-detecting framework.  All options and arguments must be
+anticipated by the developer and provided to **get-cli-spec**.  Help
+text, usage messages, and error messages are automatically provided
+for the user.  A fully parsed structure representing the command-line
+is returned as in **get-cli**.
+
+### API
+
+
+
+### Usage
+
+

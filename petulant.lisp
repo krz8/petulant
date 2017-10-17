@@ -575,7 +575,7 @@ the supplied callback function."
   functionality, as the function it wraps, PARSE-CLI.  See that
   function for complete documentation."
   (let (results)
-    (parse-cli (lambda (x y z) (push (list x y z) results))
+    (parse-cli (lambda (&rest args) (push args results))
 	       :optargs optargs :optflags optflags :aliases aliases
 	       :arglist arglist :styles styles)
     (nreverse results)))
