@@ -573,9 +573,128 @@ the supplied callback function."
 (defun get-cli (&key argopts flagopts aliases arglist styles)
   "GET-CLI takes the same keyword arguments, and offers the same
   functionality, as the function it wraps, PARSE-CLI.  See that
-  function for complete documentation."
+  function for complete documentation.  Unlike PARSE-CLI, however,
+  it returns a single list of things found on the command-line, in
+  the order that they were found.  Each element of this list is,
+  itself, a list of two or three values.  If the first element is
+  :ARG, then the second argument is a string naming an argument
+  not associated with an option on the command-line.  Otherwise,
+  the first element is :OPT, the second argument is the option \(as
+  a string or keyword symbol, according to the STYLES argument\),
+  and if the option has an argument, that string appears as the
+  third element.
+
+  All arguments and options to GET-CLI share the same name and carry
+  the same functionality as they appear in PARSE-CLI."
   (let (results)
     (parse-cli (lambda (&rest args) (push args results))
 	       :argopts argopts :flagopts flagopts :aliases aliases
 	       :arglist arglist :styles styles)
     (nreverse results)))
+
+(defun hanging-par (stream label
+		    &optional format-string &rest other-format-args)
+  "Format a hanging paragraph onto the supplied STREAM.  LABEL is a
+  simple string that is the hang, it appears at the left margin and
+  will be suffixed with a colon and a space.  At that resulting
+  column, text is generated using FORMAT-STRING and any
+  OTHER-FORMAT-ARGS. That text is then justified across as many lines
+  as necessary to present it to the user.  The overall effect is that
+  output to STREAM is generated that resembles
+
+     label: text text text text text text text text text text text
+            and even more text text text text text text text text
+"
+  (let* ((words (split '(#\Space #\Tab #\Return #\Newline #\Page)
+		       (apply #'format nil format-string other-format-args)))
+	 (spaces (make-string (+ (length label) 2) :initial-element #\Space))
+	 (format (concatenate 'string "~a: ~{~<~%" spaces "~1:;~a~>~^ ~}~%")))
+    (format stream format label words)))
+
+(defun usage-header (stream label
+		     &optional format-string &rest other-format-args)
+  (cond
+    (format-string
+     (hanging-par stream label format-string other-format-args))
+    (t
+     (princ label stream)
+     (terpri stream))))
+
+(defun usage-footer (stream &optional format-string &rest other-format-args)
+  (format stream "~%~{~<~%~1:;~a~>~^ ~}~%"
+	  (split '(#\Space #\Tab #\Return #\Newline #\Page)
+		      (apply #'format nil format-string other-format-args))))
+
+(defun spec-cli* (&rest forms)
+  "A series of forms... see SPEC-CLI."
+  (let ((name "app")
+	(desc (make-hash-table))
+	summary tail argopts flagopts aliases arglist styles)
+    (iterate (for f in forms)
+	     (unless (listp f)
+	       (error "SPEC-CLI needs a list of forms"))
+	     (case (car f)
+	       (:summary (setf summary (cdr f)))
+	       (:name (setf name (cadr f)))
+	       (:tail (setf tail (cdr f)))
+	       (:alias (push (cdr f) aliases))
+	       ((:arg :args) (iterate (for x in (cdr f))
+				 (collect x into y)
+				 (finally (setf arglist y))))
+	       ((:style :styles)
+		(iterate (for x in (cdr f))
+			 (collect x into y)
+			 (finally (setf styles y))))
+	       (:flagopt (push (cadr f) flagopts)
+			 (setf (gethash (cadr f) desc) (cddr f)))
+	       (:argopt (push (cadr f) argopts)
+			(setf (gethash (cadr f) desc) (cddr f)))
+	       ))
+    (format *error-output* "name ~s~%summary ~s~%tail ~s~%~
+                            flagopts ~s~%argopts ~s~%aliases ~s~%~
+                            styles ~s~%arglist ~s~%"
+	    name summary tail flagopts argopts aliases styles arglist)
+    (maphash (lambda (k v) (format *error-output* "desc of ~s is ~s~%" k v)) 
+	     desc)
+    (apply #'usage-header *error-output* name summary)
+    (when tail
+      (apply #'usage-footer *error-output* tail))))
+
+(defmacro spec-cli (&rest forms)
+  "Using a series of forms specifying a complete command-line interface
+  presented to the user, blah blah blah...
+
+  \(:NAME \"…\"\) provides a name for the application.  Eventually,
+  we might tease the name under which we were invoked out of the running
+  Lisp environment, but for now, every well-behaved application should
+  supply its name
+
+  \(:SUMMARY \"…\" …\) provides a short summary of the application.
+  The first string and any subsequent arguments are applied to the
+  FORMAT function (those arguments are only evaluated when a suitable
+  help message is generated).  The resulting summary text will be
+  further reformatted and justified to take as many lines as necessary
+  on output; breaking will occur on any whitespace characters embedded
+  within the result of the call to FORMAT.  Whitespace includes
+  spaces, tabs, newlines, and carriage returns, so don't bother using
+  them, they will be silently disregarded when usage messages are
+  generated.  Examples:
+
+     \(:SUMMARY \"stimulate the beaded hamster\"\)
+
+     \(:SUMMARY \"do the thing with the thing and the other things ~
+               and report things found \(version ~a, ~a\)\"
+               \(get-version-string\) \(get-release-date\)\)
+
+  Combined with \(:NAME …\), the use of \(:SUMMARY \"…\" …\) will generate
+  text formatted in the following way:
+
+     name: summary text summary text summary text summary text
+	   and even more summary text summary text summary text
+	   as little or as much as it takes…
+
+  \(:TAIL \"…\" …\) provides further text to appear at the bottom of a
+  usage page, perhaps supplying copyright, author information, or anything
+  else that isn't important enough to appear in the summary."
+  (apply #'spec-cli* (iterate (for f in forms)
+			      (collect f))))

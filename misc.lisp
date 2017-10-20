@@ -332,3 +332,27 @@ them as they are.
 		   (collect sw))))
 	    strings))
     (nreverse result)))
+
+(defun split (char-bag string)
+  "Return a list of strings that are subsequences of STRING, split up
+  on boundaries where any character in the list CHAR-BAG match.  This
+  is a lot like SPLIT-SEQUENCE, possibly faster but at the cost of some
+  bells and whistles.
+
+  \(SPLIT '\(#\Space #\Tab #\Newline #\Return\) \"  hello,  world  \"\)
+  => \(\"hello,\" \"world\"\)"
+  (flet ((bagp (ch) (member ch char-bag)))
+    (cond
+      ((zerop (length string))
+       '(""))
+      ((not (position-if #'bagp string))
+       (list string))
+      (t
+       (let ((str (string-trim char-bag string))
+	     (i 0) (res))
+	 (awhile (position-if #'bagp str :start i)
+	   (push (subseq str i it) res)
+	   (setq i (position-if (lambda (ch) (not (bagp ch))) str :start it)))
+	 (when i
+	   (push (subseq str i) res))
+	 (nreverse res))))))
