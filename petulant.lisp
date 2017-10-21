@@ -603,19 +603,17 @@ the supplied callback function."
   output to STREAM is generated that resembles
 
      label: text text text text text text text text text text text
-            and even more text text text text text text text text
-"
+            and even more text text text text text text text text"
   (let* ((words (split '(#\Space #\Tab #\Return #\Newline #\Page)
 		       (apply #'format nil format-string other-format-args)))
 	 (spaces (make-string (+ (length label) 2) :initial-element #\Space))
 	 (format (concatenate 'string "~a: ~{~<~%" spaces "~1:;~a~>~^ ~}~%")))
     (format stream format label words)))
 
-(defun usage-header (stream label
-		     &optional format-string &rest other-format-args)
+(defun usage-header (stream label &optional summary)
   (cond
-    (format-string
-     (hanging-par stream label format-string other-format-args))
+    (summary
+     (apply #'hanging-par stream label (car summary) (cdr summary)))
     (t
      (princ label stream)
      (terpri stream))))
@@ -623,7 +621,69 @@ the supplied callback function."
 (defun usage-footer (stream &optional format-string &rest other-format-args)
   (format stream "~%~{~<~%~1:;~a~>~^ ~}~%"
 	  (split '(#\Space #\Tab #\Return #\Newline #\Page)
-		      (apply #'format nil format-string other-format-args))))
+		 (apply #'format nil format-string other-format-args))))
+
+(defun describe-type (type)
+  "A limited bit of type parsing."
+  (format t "want to describe ~s~%" type)
+  "This option takes some type.")
+  ;; (let ((type (if (listp type) type (list type))))
+;;   (cond )))
+
+(defun describe-aliases (option aliases styles)
+  (apply #'format nil
+	 "~#[~;An alias for this option is ~s.~
+             ~;Aliases for this option are ~s and ~s.~
+             ~;Aliases for this option are ~@{~#[~; and~] ~S~^,~}.~]"
+	 (cdr (assoc option aliases :test (str=-fn styles)))))
+
+(defun usage (stream name summary tail flagopts argopts aliases styles deschash)
+  "Formats a complete usage description for an application onto the
+  supplied STREAM."
+  (with-styles-canon (styles styles)
+    (labels
+	((make-option-tag (option)
+	   (concatenate 'string "  " (cond ((member :windows styles) #\/)
+					   ((< (length option) 2) #\-)
+					   (t "--"))
+			option))
+	 (usage-option (option)
+	   (let* ((tag (make-option-tag option))
+		  (desc (gethash option deschash))
+		  (hastype (stringp (car desc)))
+		  (type (if hastype (car desc) nil))
+		  (fmt (if hastype (cdr desc) desc))
+		  (text (concatenate 'string
+				     (if fmt (apply #'format nil fmt) "")
+				     " "
+				     (describe-type type)
+				     " "
+				     (describe-aliases option aliases styles))))
+	     (hanging-par stream tag text))))
+      (usage-header stream name summary)
+      (mapc #'usage-option
+	    (sort (copy-seq (append flagopts argopts)) #'string<))
+      (when tail
+	(apply #'usage-footer stream tail)))))
+
+;; 1. Find kill current bug
+;; 2. Get rid of the embedded ": " in hanging tag, move its use to the
+;;    header where it's wanted.
+;; 3. Change option printing then to just put "  " after an option, instead
+;;    of ": ".  This will be less confusing for Windows users.
+;; 4. If a flag opt, add something like --foo=VAL instead of --foo
+
+#+nil
+(spec-cli (:name "foobar")
+	  (:summary "hello, world! this is a long chunk of text that contains the number ~d which ought to be ~a if everything is working as planned" 42 "forty-two")
+	  (:tail "some extra text at the very bottom, okay? not okay? a problem? who cares.")
+	  (:arg "v")
+	  (:args "file" "foo.data")
+	  (:styles :foo :bar :baz :unix)
+	  (:argopt "file" string "something something about a file")
+	  (:flagopt "verbose" "something about more data")
+	  (:argopt "conf")
+	  (:alias "alpha" "fade" "transparency"))
 
 (defun spec-cli* (&rest forms)
   "A series of forms... see SPEC-CLI."
@@ -632,33 +692,35 @@ the supplied callback function."
 	summary tail argopts flagopts aliases arglist styles)
     (iterate (for f in forms)
 	     (unless (listp f)
-	       (error "SPEC-CLI needs a list of forms"))
+	       (error "Each SPEC-CLI form must be a list."))
 	     (case (car f)
 	       (:summary (setf summary (cdr f)))
 	       (:name (setf name (cadr f)))
 	       (:tail (setf tail (cdr f)))
-	       (:alias (push (cdr f) aliases))
-	       ((:arg :args) (iterate (for x in (cdr f))
-				 (collect x into y)
-				 (finally (setf arglist y))))
-	       ((:style :styles)
-		(iterate (for x in (cdr f))
-			 (collect x into y)
-			 (finally (setf styles y))))
 	       (:flagopt (push (cadr f) flagopts)
 			 (setf (gethash (cadr f) desc) (cddr f)))
 	       (:argopt (push (cadr f) argopts)
 			(setf (gethash (cadr f) desc) (cddr f)))
+	       ((:alias :aliases) (push (cdr f) aliases))
+	       ((:arg :args) (iterate (for x in (cdr f))
+				      (collect x into y)
+				      (finally (setf arglist y))))
+	       ((:style :styles) (iterate (for x in (cdr f))
+					  (collect x into y)
+					  (finally (setf styles y))))
 	       ))
-    (format *error-output* "name ~s~%summary ~s~%tail ~s~%~
-                            flagopts ~s~%argopts ~s~%aliases ~s~%~
-                            styles ~s~%arglist ~s~%"
-	    name summary tail flagopts argopts aliases styles arglist)
-    (maphash (lambda (k v) (format *error-output* "desc of ~s is ~s~%" k v)) 
-	     desc)
-    (apply #'usage-header *error-output* name summary)
-    (when tail
-      (apply #'usage-footer *error-output* tail))))
+    ;; (format *error-output* "name ~s~%summary ~s~%tail ~s~%~
+    ;;                         flagopts ~s~%argopts ~s~%aliases ~s~%~
+    ;;                         styles ~s~%arglist ~s~%"
+    ;; 	    name summary tail flagopts argopts aliases styles arglist)
+    ;; (maphash (lambda (k v) (format *error-output* "desc of ~s is ~s~%" k v)) 
+    ;; 	     desc)
+    ;; (usage-header *error-output* name summary)
+    ;; (when tail
+    ;;   (apply #'usage-footer *error-output* tail))
+    (usage *error-output* name summary tail flagopts argopts aliases
+	   styles desc)
+    ))
 
 (defmacro spec-cli (&rest forms)
   "Using a series of forms specifying a complete command-line interface
@@ -691,10 +753,60 @@ the supplied callback function."
 
      name: summary text summary text summary text summary text
 	   and even more summary text summary text summary text
-	   as little or as much as it takes…
+	   summary text as little or as much as it takes…
 
   \(:TAIL \"…\" …\) provides further text to appear at the bottom of a
   usage page, perhaps supplying copyright, author information, or anything
-  else that isn't important enough to appear in the summary."
+  else that isn't important enough to appear in the summary text at the
+  start of the usage page.
+
+  \(:FLAGOPT \"option\" [\"text description\" …]\) names a single option
+  that is taken as a flag (that is, it is not expected to take an
+  argument value).  If a text description is provided, it and subsequent
+  arguments are evaluated at that time, sent through FORMAT, and placed
+  in usage messages, re-justified as necessary.
+
+      \(:FLAGOPT \"verbose\" \"increase the detail in trace messages\"\)
+      \(:FLAGOPT \"quiet\" \"decrease the detail in trace messages\"\)
+
+  \(:ARGOPT \"option\" [type-spec] [\"text description\" …]\) is
+  similar to :FLAGOPT, except that it names an option that takes an
+  argument, and provides type specification and conversion of that
+  argument.  Type specifications are a subset of known Lisp types
+  \(limited by the Lisp environment itself \(e.g., not all Lisp
+  systems equally support short, single, double, and long floats\)\).
+  A TYPE-SPEC can simply be INTEGER, or could be something fancy like
+  \(RATIONAL -3/5 11/5\).  The subset of recognized type specifiers
+  are INTEGER, NUMBER, RATIONAL, RATIO, REAL, and STRING.  Yes,
+  including RATIONAL and RATIO means a user can specify --foo=1/3 or
+  /bar:-11/3 on the command-line, and your application can do the
+  right thing. Nifty!
+
+     \(:ARGOPT \"file\"\)
+     \(:ARGOPT \"file\" \"The name of the file to be scanned for ~
+                      vulnerabilities\"\)
+     \(:ARGOPT \"config\" string\)
+     \(:ARGOPT \"delay\" \(integer 0 10\) \"The number of seconds to ~
+                                      pause between iterations.\"\)
+     
+
+  \(:ALIAS \"option\" \"alias\" [\"alias\" …]\) establishes one or
+  more aliases for a given option. \(aka :ALIASES\)
+
+     \(:ALIAS \"dry-run\" \"n\"\)
+     \(:ALIAS \"alpha\" \"fade\" \"transparency\"\)
+
+  \(:STYLE style [style …]\) supplies one or more style options, as
+  documented in PARSE-CLI, to influence the parsing of the
+  command-line. \(aka :STYLES\)
+
+     \(:STYLE :KEY :UNIX\)
+
+  \(:ARG \"command-line-arg\" [\"command-line-arg\"]\) supplies one or
+  more strings to be used instead of the application's actual
+  command-line.  Note that multiple instances of :ARG are accumulated,
+  they do not supercede each other. \(aka :ARGS\)
+
+ "
   (apply #'spec-cli* (iterate (for f in forms)
 			      (collect f))))
