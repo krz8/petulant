@@ -595,25 +595,26 @@ the supplied callback function."
 (defun hanging-par (stream label
 		    &optional format-string &rest other-format-args)
   "Format a hanging paragraph onto the supplied STREAM.  LABEL is a
-  simple string that is the hang, it appears at the left margin and
-  will be suffixed with a colon and a space.  At that resulting
-  column, text is generated using FORMAT-STRING and any
-  OTHER-FORMAT-ARGS. That text is then justified across as many lines
-  as necessary to present it to the user.  The overall effect is that
-  output to STREAM is generated that resembles
+  simple string that is the hang, it appears at the leftmost margin,
+  and should include any necessary puncuation \(e.g., \"foo: \", not
+  \"foo\"\).  At that resulting column, text is generated using
+  FORMAT-STRING and any OTHER-FORMAT-ARGS. That text is then justified
+  across as many lines as necessary to present it to the user.  The
+  overall effect is that output to STREAM is generated that resembles
 
      label: text text text text text text text text text text text
             and even more text text text text text text text text"
   (let* ((words (split '(#\Space #\Tab #\Return #\Newline #\Page)
 		       (apply #'format nil format-string other-format-args)))
-	 (spaces (make-string (+ (length label) 2) :initial-element #\Space))
-	 (format (concatenate 'string "~a: ~{~<~%" spaces "~1:;~a~>~^ ~}~%")))
+	 (spaces (make-string (length label) :initial-element #\Space))
+	 (format (strcat "~a~{~<~%" spaces "~1:;~a~>~^ ~}~%")))
     (format stream format label words)))
 
 (defun usage-header (stream label &optional summary)
   (cond
     (summary
-     (apply #'hanging-par stream label (car summary) (cdr summary)))
+     (apply #'hanging-par stream
+	    (strcat label ": ") (car summary) (cdr summary)))
     (t
      (princ label stream)
      (terpri stream))))
@@ -623,12 +624,36 @@ the supplied callback function."
 	  (split '(#\Space #\Tab #\Return #\Newline #\Page)
 		 (apply #'format nil format-string other-format-args))))
 
-(defun describe-type (type)
-  "A limited bit of type parsing."
-  (format t "want to describe ~s~%" type)
-  "This option takes some type.")
-  ;; (let ((type (if (listp type) type (list type))))
-;;   (cond )))
+(defun describe-type (desc)
+  "A limited bit of type parsing.  DESC might be NIL, it might be a
+  single type specifier like INTEGER or STRING, or it might be a
+  qualified type type specifier like \(REAL 0 *\).  We don't bother
+  telling the user when the option takes a string \(aren't they all
+  strings?\), but describe the other types."
+  (let* ((desc (ensure-list desc))
+	 (d0 (car desc)) (d1 (cadr desc)) (d2 (caddr desc)))
+    (let (strings)
+      (unless (or (null d0) (eq d0 'string))
+	(push "This option takes" strings)
+	(push (if (eq d0 'integer) " an " " a ") strings)
+	(push (string-downcase (symbol-name d0)) strings)
+	(cond
+	  ((or (and (eq d1 '*) (eq d2 '*))
+	       (null d1))
+	   t)
+	  ((or (null d2) (eq d2 '*))
+	   (push (format nil " no less than ~a" d1) strings))
+	  ((eq d1 '*)
+	   (push (format nil " no more than ~a" d2) strings))
+	  (t
+	   (push (format nil " between ~a and ~a" d1 d2) strings)))
+	(push "." strings))
+      (reduce (lambda (&optional x y)
+		(cond
+		  ((null x) "")
+		  ((null y) x)
+		  (t (strcat y x))))
+	      strings))))
 
 (defun describe-aliases (option aliases styles)
   (apply #'format nil
@@ -643,23 +668,22 @@ the supplied callback function."
   (with-styles-canon (styles styles)
     (labels
 	((make-option-tag (option)
-	   (concatenate 'string "  " (cond ((member :windows styles) #\/)
-					   ((< (length option) 2) #\-)
-					   (t "--"))
+	   (strcat "  " (cond ((member :windows styles) #\/)
+			      ((< (length option) 2) #\-)
+			      (t "--"))
 			option))
 	 (usage-option (option)
 	   (let* ((tag (make-option-tag option))
 		  (desc (gethash option deschash))
-		  (hastype (stringp (car desc)))
+		  (hastype (not (stringp (car desc))))
 		  (type (if hastype (car desc) nil))
 		  (fmt (if hastype (cdr desc) desc))
-		  (text (concatenate 'string
-				     (if fmt (apply #'format nil fmt) "")
-				     " "
-				     (describe-type type)
-				     " "
-				     (describe-aliases option aliases styles))))
-	     (hanging-par stream tag text))))
+		  (text (strcat (if fmt (apply #'format nil fmt) "")
+				" "
+				(describe-type type)
+				" "
+				(describe-aliases option aliases styles))))
+	     (hanging-par stream (strcat tag "  ") text))))
       (usage-header stream name summary)
       (mapc #'usage-option
 	    (sort (copy-seq (append flagopts argopts)) #'string<))
@@ -671,6 +695,7 @@ the supplied callback function."
 ;;    header where it's wanted.
 ;; 3. Change option printing then to just put "  " after an option, instead
 ;;    of ": ".  This will be less confusing for Windows users.
+
 ;; 4. If a flag opt, add something like --foo=VAL instead of --foo
 
 #+nil

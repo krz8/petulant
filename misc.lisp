@@ -9,6 +9,10 @@ is evaluated in that context."
        ((not it))
      ,@body))
 
+(defun strcat (&rest strings)
+  "Concatenates all arguments together, returning a new string."
+  (apply #'concatenate 'string strings))
+
 #+nil
 (defun fold? (flavor)
   "In a few different places, we need to know if we should be folding
