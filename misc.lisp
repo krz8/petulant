@@ -360,3 +360,33 @@ them as they are.
 	 (when i
 	   (push (subseq str i) res))
 	 (nreverse res))))))
+
+;;; Using reduce felt clever, but it creates too many intermediate
+;;; strings, we can be faster than this.
+
+#+nil
+(defun revstrcat (strings)
+  "Given a list of strings, concatenate them together in reverse order.
+  Due to the reversal, this is particularly useful for lists of strings
+  built up by PUSH and friends.
+
+  \(REVSTRCAT '(\"world\" \", \" \"hello\"\)\)
+  => \"hello, world\""
+  (reduce (lambda (&optional x y)
+	    (cond
+	      ((null x) "")
+	      ((null y) x)
+	      (t (strcat y x))))
+	  strings))
+
+(defun revstrcat (strings &key copy)
+  "Given a list of STRINGS, concatenate them together in reverse order.
+  Due to the reversal, this is particularly useful for lists of strings
+  built up by PUSH and friends.  This function MODIFIES the STRINGS
+  list; set COPY if the original STRINGS argument should not be changed.
+
+  \(REVSTRCAT '(\"world\" \", \" \"hello\"\)\)
+  => \"hello, world\""
+  (apply #'concatenate 'string
+	 (funcall (if copy #'reverse #'nreverse) strings)))
+

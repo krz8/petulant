@@ -616,8 +616,8 @@ the supplied callback function."
      (apply #'hanging-par stream
 	    (strcat label ": ") (car summary) (cdr summary)))
     (t
-     (princ label stream)
-     (terpri stream))))
+     (princ label stream)))
+  (terpri stream))
 
 (defun usage-footer (stream &optional format-string &rest other-format-args)
   (format stream "~%~{~<~%~1:;~a~>~^ ~}~%"
@@ -648,12 +648,7 @@ the supplied callback function."
 	  (t
 	   (push (format nil " between ~a and ~a" d1 d2) strings)))
 	(push "." strings))
-      (reduce (lambda (&optional x y)
-		(cond
-		  ((null x) "")
-		  ((null y) x)
-		  (t (strcat y x))))
-	      strings))))
+      (revstrcat strings))))
 
 (defun describe-aliases (option aliases styles)
   (apply #'format nil
@@ -666,36 +661,45 @@ the supplied callback function."
   "Formats a complete usage description for an application onto the
   supplied STREAM."
   (with-styles-canon (styles styles)
-    (labels
-	((make-option-tag (option)
-	   (strcat "  " (cond ((member :windows styles) #\/)
-			      ((< (length option) 2) #\-)
-			      (t "--"))
-			option))
-	 (usage-option (option)
-	   (let* ((tag (make-option-tag option))
-		  (desc (gethash option deschash))
-		  (hastype (not (stringp (car desc))))
-		  (type (if hastype (car desc) nil))
-		  (fmt (if hastype (cdr desc) desc))
-		  (text (strcat (if fmt (apply #'format nil fmt) "")
-				" "
-				(describe-type type)
-				" "
-				(describe-aliases option aliases styles))))
-	     (hanging-par stream (strcat tag "  ") text))))
-      (usage-header stream name summary)
-      (mapc #'usage-option
-	    (sort (copy-seq (append flagopts argopts)) #'string<))
-      (when tail
-	(apply #'usage-footer stream tail)))))
+    (let ((winp (member :windows styles)))
+      (labels
+	  ((make-option-tag (option)
+	     (let ((argp (member option argopts :test #'string=))
+		   (l<2 (< (length option) 2))
+		   (strings '("  ")))
+	       (push (cond (winp "/")
+			   (l<2  "-")
+			   (t    "--")) strings)
+	       (push option strings)
+	       (push (cond ((not argp) "")
+			   (winp       ":VAL")
+			   (l<2        " VAL")
+			   (t          "=VAL")) strings)
+	       (push "  " strings)
+	       (revstrcat strings :copy t)))
+	   (usage-option (option)
+	     (let* ((tag (make-option-tag option))
+		    (desc (gethash option deschash))
+		    (hastype (not (stringp (car desc))))
+		    (type (if hastype (car desc) nil))
+		    (fmt (if hastype (cdr desc) desc))
+		    (text (strcat (if fmt (apply #'format nil fmt) "")
+				  " "
+				  (describe-type type)
+				  " "
+				  (describe-aliases option aliases styles))))
+	       (hanging-par stream tag text))))
+	(usage-header stream name summary)
+	(mapc #'usage-option
+	      (sort (copy-seq (append flagopts argopts)) #'string<))
+	(when tail
+	  (apply #'usage-footer stream tail))))))
 
 ;; 1. Find kill current bug
 ;; 2. Get rid of the embedded ": " in hanging tag, move its use to the
 ;;    header where it's wanted.
 ;; 3. Change option printing then to just put "  " after an option, instead
 ;;    of ": ".  This will be less confusing for Windows users.
-
 ;; 4. If a flag opt, add something like --foo=VAL instead of --foo
 
 #+nil
