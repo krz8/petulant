@@ -592,6 +592,174 @@ the supplied callback function."
 	       :arglist arglist :styles styles)
     (nreverse results)))
 
+(defun label-option (option argopts styles &optional (padding "  "))
+  "Given a string naming an OPTION, the list of options that take
+  arguments, and a styles list, return a string to be used in a usage
+  message for this option.  The string is always padded with two
+  spaces at its beginning.
+
+  \(LABEL-OPTION \"beta\" '\(\"a\" \"beta\"\) :UNIX\)
+  => \"  --beta=VAL  \"
+  \(LABEL-OPTION \"beta\" '\(\"a\" \"beta\"\) :WINDOWS\)
+  => \"  /beta:VAL  \"
+  \(LABEL-OPTION \"alpha\" '\(\"a\" \"beta\"\) :UNIX\)
+  => \"  --alpha  \"
+  \(LABEL-OPTION \"alpha\" '\(\"a\" \"beta\"\) :WINDOWS\)
+  => \"  /alpha  \"
+  \(LABEL-OPTION \"c\" '\(\"a\" \"beta\"\) :UNIX\)
+  => \"  -c  \"
+  \(LABEL-OPTION \"a\" '\(\"a\" \"beta\"\) :UNIX\)
+  => \"  -a VAL  \""
+  (with-styles-canon (styles styles)
+    (let ((winp (member :windows styles))
+	  (shortp (< (length option) 2))
+	  (argp (member option argopts :test #'string=)))
+      (strcat padding
+	      (cond (winp   "/")
+		    (shortp "-")
+		    (t      "--"))
+	      option
+	      (cond ((not argp) "")
+		    (winp       ":VAL")
+		    (shortp     " VAL")
+		    (t          "=VAL"))
+	      #+nil padding))))
+
+(defun fmt (format-args)
+  "Format the list FORMAT-ARGS as if they were arguments to the FORMAT
+  utility, returning the resulting string.  The first element of
+  FORMAT-ARGS must be a string, and any subsequent elements are as
+  called for in the first string."
+  (apply #'format nil format-args))
+
+(defun canonicalize-type (type-spec)
+  "Try to put TYPE-SPEC into a canonical form, undoing the abbreviations
+  and shortcuts that are commonly accepted.  If TYPE-SPEC is a keyword,
+  then it is reformed to a list with * in the position of its arguments.
+  If it is a list, but it takes more arguments than are provided, * is
+  appended for each of the missing arguments."
+  (destructuring-bind (x &optional y z)
+      (ensure-list type-spec)
+    (case x
+      ((:integer :float :ratio :rational) ; two arguments
+       (list x (or y '*) (or z '*)))
+      (:string				  ; one argument
+       (list x (or y '*)))
+      (otherwise
+       (list x)))))
+
+(defun describe-type (type-spec)
+  "This function returns text that at least somewhat describes the
+  supplied type for use in a help or usage message.
+
+  In addition to the types :INTEGER :FLOAT :RATIO :RATIONAL and
+  :NUMBER, there are some pseudo-types as well:
+
+  :KEY is not really a type, but instead, represents the intent to take
+  the supplied string, trim whitespace from either end, convert it to
+  upper case, and intern the result as a symbol in the keyword
+  package.
+
+  :READ is not really a type, but instead, represents the desire to
+  call the Lisp READ-FROM-STRING on the supplied argument and take the
+  result as-is.  This could be used for reading lists from the
+  command-line or other weirdness.  This could lead to very unexpected
+  behavior \(you know how users are\), so use this pseudo-type with
+  great care.
+
+  :STRING is slightly different than the built-in Lisp STRING type.
+  When its single optional argument appears, it is taken as a maximum
+  length for the string."
+  (destructuring-bind (&optional d0 d1 d2)
+      (canonicalize-type type-spec)
+    (apply #'strcat
+	   (case d0
+	     ((:integer :float :rational)
+	      (list "This option takes"
+		    (case d0
+		      (:integer " an integer")
+		      (:float " a floating point value")
+		      (:rational " a rational number (like 6 or 11/3)"))
+		    (cond
+		      ((and (eq d1 '*) (eq d2 '*))
+		       "")
+		      ((eq d2 '*)
+		       (format nil ", no less than ~a" d1))
+		      ((eq d1 '*)
+		       (format nil ", no more than ~a" d2))
+		      (t
+		       (format nil ", between ~a and ~a" d1 d2)))
+		    "."))
+	     ((:string :read)
+	      '(""))
+	     (:key
+	      '("This option takes a single short alphanumeric word, starting"
+		"with a letter, containing no whitespace or other symbols."))
+	     (otherwise
+	      '(""))))))
+
+(defun widest-option-label (argopts flagopts styles)
+  "Given a list of strings that are options taking arguments, and a
+  list of strings that are options not taking arguments, format each
+  of them as they would appear in a usage message via LABEL-OPTION,
+  and return the longest string.
+  
+  \(WIDEST-OPTION-LABEL '\(\"file\" \"config\"\) '\(\"verbose\"\) :unix\)
+  => \"  --config=VAL\""
+  (with-styles-canon (styles styles)
+    (reduce (lambda (x y) (cond
+			    ((or (null x) (zerop (length x))) y)
+			    ((or (null y) (zerop (length y))) x)
+			    ((> (length x) (length y)) x)
+			    (t y)))
+	    (mapcar (lambda (option) (if (and option
+					      (not (zerop (length option))))
+					 (label-option option argopts styles)
+					 ""))
+		    (append argopts flagopts))
+	    :initial-value "")))
+
+(defparameter *ws* '(#\Space #\Tab #\Newline #\Return #\Page)
+  "A list of common whitespace characters.")
+
+(defun pad (string minlength)
+  "Return a new string that is STRING but with spaces appended in
+  order to make its length equal to MINLENGTH.  At least two spaces
+  appears at the right of STRING, no matter how long the resulting
+  string is.  This is used to set off an option in a usage message.
+
+  \(PAD \"foo\" 8) => \"foo     \"
+  \(PAD \"foo\" 5) => \"foo  \"
+  \(PAD \"foo\" 2) => \"foo  \""
+  (let ((str (string-right-trim *ws* string)))
+    (strcat str (make-string (max 2 (- minlength (length str)))
+			     :initial-element #\Space))))
+
+(defun hanging-par (label text &optional stream indentlength)
+  "Presents a hanging paragraph onto STREAM or *STANDARD-OUTPUT* if
+  STREAM is not provided.  The exdented text, starting at the
+  beginning of the first line, is supplied by the LABEL string.  The
+  TEXT string is broken up on whitespace boundaries and flowed onto
+  the remainder of the line until the right margin is encountered.
+  Remaining words are placed on as many subsequent lines as necessary,
+  each of those lines indented by spaces.  The number of spaces used
+  to indent all remaining lines is given by INDENTLENGTH; if that
+  argument is not provided, the width of LABEL is used instead."
+  (let* ((spaces (make-string (or indentlength (length label))
+			      :initial-element #\Space))
+	 (words (split '(#\Space #\Tab #\Return #\Newline #\Page) text))
+	 (format (strcat "~a~{~<~%" spaces "~1:;~a~>~^ ~}~%")))
+    (format (or stream *standard-output*) format label words)))
+
+(defun usage-option (option argopts flagopts styles)
+  "Given "
+  )
+
+
+;;; xxx left off here
+
+
+
 (defun hanging-par (stream label
 		    &optional format-string &rest other-format-args)
   "Format a hanging paragraph onto the supplied STREAM.  LABEL is a
@@ -694,25 +862,6 @@ the supplied callback function."
 	      (sort (copy-seq (append flagopts argopts)) #'string<))
 	(when tail
 	  (apply #'usage-footer stream tail))))))
-
-;; 1. Find kill current bug
-;; 2. Get rid of the embedded ": " in hanging tag, move its use to the
-;;    header where it's wanted.
-;; 3. Change option printing then to just put "  " after an option, instead
-;;    of ": ".  This will be less confusing for Windows users.
-;; 4. If a flag opt, add something like --foo=VAL instead of --foo
-
-#+nil
-(spec-cli (:name "foobar")
-	  (:summary "hello, world! this is a long chunk of text that contains the number ~d which ought to be ~a if everything is working as planned" 42 "forty-two")
-	  (:tail "some extra text at the very bottom, okay? not okay? a problem? who cares.")
-	  (:arg "v")
-	  (:args "file" "foo.data")
-	  (:styles :foo :bar :baz :unix)
-	  (:argopt "file" string "something something about a file")
-	  (:flagopt "verbose" "something about more data")
-	  (:argopt "conf")
-	  (:alias "alpha" "fade" "transparency"))
 
 (defun spec-cli* (&rest forms)
   "A series of forms... see SPEC-CLI."
