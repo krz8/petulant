@@ -5,41 +5,41 @@
 			 (argoptp-fn (constantly nil))
 			 (chgname-fn #'identity))
   "This is the low level parser for Unix-style command lines.  If
-  you're an end-user of Petulant, you might want to consider calling a
-  higher level function; this one is mostly for implementation of
-  other Petulant functionality.
+you're an end-user of Petulant, you might want to consider calling a
+higher level function; this one is mostly for implementation of other
+Petulant functionality.
 
-  PARSE-UNIX-CLI works through ARGLIST, a flat list of strings from a
-  command line, parsing it according to most POSIX and GNU behaviors.
-  As options are identified, ARGOPTP-FN is called to determine if that
-  option takes an argument.
+PARSE-UNIX-CLI works through ARGLIST, a flat list of strings from a
+command line, parsing it according to most POSIX and GNU behaviors.
+As options are identified, ARGOPTP-FN is called to determine if that
+option takes an argument.
 
-  FN is called for each option \(with or without an argument\) and every
-  non-option argument.  Each call has three arguments.  The first is
-  always :ARG or :OPT.  When :ARG, the second argument is a non-option
-  argument string from the command line, and the third argument is
-  NIL.  When :OPT, the second argument is an option \(a string\) found
-  on the command line, eliding any leading dashes, and the third
-  argument is any argument to that option or NIL.
+FN is called for each option \(with or without an argument\) and every
+non-option argument.  Each call has three arguments.  The first is
+always :ARG or :OPT.  When :ARG, the second argument is a non-option
+argument string from the command line, and the third argument is NIL.
+When :OPT, the second argument is an option \(a string\) found on the
+command line, eliding any leading dashes, and the third argument is
+any argument to that option or NIL.
 
-  ARGOPTP-FN, if supplied, is a mechanism for the caller to indicate
-  when an option, long or short, should take the next word in ARGLIST
-  as an argument.  The default binding of ARGOPTP-FN always returns
-  NIL, indicating that any ambiguous option is assumed not to take an
-  argument.  The only non-ambiguous option with an argument are long
-  options that use the \"=\" character \(e.g., \"--foo=bar\"\).
+ARGOPTP-FN, if supplied, is a mechanism for the caller to indicate
+when an option, long or short, should take the next word in ARGLIST as
+an argument.  The default binding of ARGOPTP-FN always returns NIL,
+indicating that any ambiguous option is assumed not to take an
+argument.  The only non-ambiguous option with an argument are long
+options that use the \"=\" character \(e.g., \"--foo=bar\"\).
 
-  CHGNAME-FN, if supplied, can be used to change a detected option
-  from one value to another, taking a string and returning a string to
-  use in its place.  It could be used to implement aliases or partial
-  matching, for example.  Every detected option, long or short, is
-  passed through this function before processing continues; it is
-  called before ARGOPTP-FN, for example.
+CHGNAME-FN, if supplied, can be used to change a detected option from
+one value to another, taking a string and returning a string to use in
+its place.  It could be used to implement aliases or partial matching,
+for example.  Every detected option, long or short, is passed through
+this function before processing continues; it is called before
+ARGOPTP-FN, for example.
 
-  Generally speaking, the calls to FN proceed from the head to the
-  tail of ARGLIST, and from left to right within each string of
-  ARGLIST.  This is useful to know in testing, but callers probably
-  should not rely on any specific ordering."
+Generally speaking, the calls to FN proceed from the head to the tail
+of ARGLIST, and from left to right within each string of ARGLIST.
+This is useful to know in testing, but callers probably should not
+rely on any specific ordering."
   (do ((av arglist))
       ((null av) t)
     (labels ((argoptp (x) (funcall argoptp-fn x))
@@ -99,41 +99,41 @@
 			    (swargp-fn (constantly nil))
 			    (chgname-fn #'identity))
   "This is the low level parser for Windows-style command lines.  If
-  you're an end-user of Petulant, you might want to consider calling a
-  higher level function; this one is mostly for implementation of
-  other Petulant functionality.
+you're an end-user of Petulant, you might want to consider calling a
+higher level function; this one is mostly for implementation of other
+Petulant functionality.
 
-  PARSE-WINDOWS-CLI works through ARGLIST, a flat list of strings
-  delivered from some OS-specific wrapper in the Lisp environment
-  parsing it according to most Windows behaviors.  As switches are
-  identified, SWARGP-FN is called to determine if that switch takes an
-  argument.
+PARSE-WINDOWS-CLI works through ARGLIST, a flat list of strings
+delivered from some OS-specific wrapper in the Lisp environment
+parsing it according to most Windows behaviors.  As switches are
+identified, SWARGP-FN is called to determine if that switch takes an
+argument.
 
-  FN is called for each switch \(with or without an argument\) and every
-  non-switch argument.  Each call has three arguments.  The first is
-  always :ARG or :OPT.  When :ARG, the second argument is a non-switch
-  argument string from the command line, and the third argument is
-  NIL.  When :OPT, the second argument is a switch \(a string\) found on
-  the command line, eliding its leading slash, and the third argument
-  is any argument to that option or NIL.
+FN is called for each switch \(with or without an argument\) and every
+non-switch argument.  Each call has three arguments.  The first is
+always :ARG or :OPT.  When :ARG, the second argument is a non-switch
+argument string from the command line, and the third argument is NIL.
+When :OPT, the second argument is a switch \(a string\) found on the
+command line, eliding its leading slash, and the third argument is any
+argument to that option or NIL.
 
-  SWARGP-FN, if supplied, is a mechanism for the caller to indicate
-  when a switch should take an argument.  The default binding of
-  SWARGP-FN always returns NIL, indicating that any ambiguous switch
-  is assumed not to take an argument.  A non-ambiguous switch with an
-  argument is one that uses the colon character \(e.g., \"/foo:bar\"\).
+SWARGP-FN, if supplied, is a mechanism for the caller to indicate when
+a switch should take an argument.  The default binding of SWARGP-FN
+always returns NIL, indicating that any ambiguous switch is assumed
+not to take an argument.  A non-ambiguous switch with an argument is
+one that uses the colon character \(e.g., \"/foo:bar\"\).
 
-  CHGNAME-FN, if supplied, can be used to change a detected switch
-  from one value to another, taking a string and returning a string to
-  use in its place.  It could be used to implement aliases or partial
-  matching, for example.  Every detected switch is passed through this
-  function before processing continues; it is called before SWARGP-FN,
-  for example.
+CHGNAME-FN, if supplied, can be used to change a detected switch from
+one value to another, taking a string and returning a string to use in
+its place.  It could be used to implement aliases or partial matching,
+for example.  Every detected switch is passed through this function
+before processing continues; it is called before SWARGP-FN, for
+example.
 
-  Generally speaking, the calls to FN proceed from the head to the
-  tail of ARGLIST, and from left to right within each string of
-  ARGLIST.  This is useful to know in testing, but callers probably
-  should not rely on any specific ordering."
+Generally speaking, the calls to FN proceed from the head to the tail
+of ARGLIST, and from left to right within each string of ARGLIST.
+This is useful to know in testing, but callers probably should not
+rely on any specific ordering."
   (do ((av (canonicalize-windows-args arglist)))
       ((null av) t)
     (labels ((swargp (x) (funcall swargp-fn x))
@@ -168,9 +168,9 @@
 
 (defun argv ()
   "Returns a list of strings representing the command-line from the
-  environment.  This is necessarily OS specific.  It's assumed that
-  the list returned by ARGV does not include the executable name,
-  image name, argv[0], or other non-argument information."
+environment.  This is necessarily OS specific.  It's assumed that the
+list returned by ARGV does not include the executable name, image
+name, argv[0], or other non-argument information."
   #+ccl ccl:*command-line-argument-list*
   #+sbcl sb-ext:*posix-argv*
   #+clisp ext:*args*
@@ -180,33 +180,33 @@
 
 (defun canonicalize-styles (styles)
   "Given STYLES, which might be a keyword or a list of keywords,
-  return a complete list of keywords and any other keywords they imply.
+return a complete list of keywords and any other keywords they imply.
 
-  If :UNIX or :WINDOWS appears in styles, it is left as-is.
-  Otherwise, CL:*FEATURES* is consulted, and if :WINDOWS appears
-  there, it is added to STYLES.  In this way, we support a default
-  based on the local operating system, but make it easy for clients of
-  Petulant to override this forcing one or the other behavior.
+If :UNIX or :WINDOWS appears in styles, it is left as-is.  Otherwise,
+CL:*FEATURES* is consulted, and if :WINDOWS appears there, it is added
+to STYLES.  In this way, we support a default based on the local
+operating system, but make it easy for clients of Petulant to override
+this forcing one or the other behavior.
 
-  If :KEY appears in STYLES, :UP is added to STYLES as well.
+If :KEY appears in STYLES, :UP is added to STYLES as well.
 
-  If :STR= does not appear in STYLES, and one of :UP, :DOWN, or :WINDOWS
-  appears, then :STREQ is added to STYLES.
+If :STR= does not appear in STYLES, and one of :UP, :DOWN, or :WINDOWS
+appears, then :STREQ is added to STYLES.
 
-  Once processed by CANONICALIZE-STYLES, the keyword :CANON is pushed to
-  the front of the resulting list.  By leaving :CANON at the front,
-  future calls of CANONICALIZE-STYLES can quickly detect when they've
-  already run on a list, and avoid duplicating work when called more
-  than once.
+Once processed by CANONICALIZE-STYLES, the keyword :CANON is pushed to
+the front of the resulting list.  By leaving :CANON at the front,
+future calls of CANONICALIZE-STYLES can quickly detect when they've
+already run on a list, and avoid duplicating work when called more
+than once.
 
-     \(CANONICALIZE-STYLES '\(:UNIX :KEY\)\)
-  => \(:CANON :STREQ :UP :UNIX :KEY\)
-     \(CANONICALIZE-STYLES '\(:FOO :BAR\)\)
-  => \(:CANON :FOO :BAR\)
-     \(CANONICALIZE-STYLES :DOWN\)
-  => \(:CANON :STREQ :DOWN\)
-     \(CANONICALIZE-STYLES :STREQ\)
-  => \(:CANON :STREQ\)"
+   \(CANONICALIZE-STYLES '\(:UNIX :KEY\)\)
+=> \(:CANON :STREQ :UP :UNIX :KEY\)
+   \(CANONICALIZE-STYLES '\(:FOO :BAR\)\)
+=> \(:CANON :FOO :BAR\)
+   \(CANONICALIZE-STYLES :DOWN\)
+=> \(:CANON :STREQ :DOWN\)
+   \(CANONICALIZE-STYLES :STREQ\)
+=> \(:CANON :STREQ\)"
   (let ((res (ensure-list styles)))
     ;; We're calling (MEMBER :CANON RES) here; a slightly less robust
     ;; but faster approach would be (EQ :CANON (CAR RES)) since :CANON
@@ -227,74 +227,74 @@
 
 (defmacro with-styles-canon ((var val) &body body)
   "Evaluate BODY in a context where VAR is bound to the canonicalized
-  styles based on VAL.  This macro can be used more than once;
-  CANONICALIZE-STYLES is written to make that situation harmless."
+styles based on VAL.  This macro can be used more than once;
+CANONICALIZE-STYLES is written to make that situation harmless."
   `(let ((,var (canonicalize-styles ,val)))
      ,@body))
 
 (defun foldp (styles)
   "Returns true when STYLES indicates that case-insensitive matching
-  should be employed.  Specifically, this is described by :STR= not
-  being present in STYLES and :STREQ being present.  \(:STR= overrides
-  any :STREQ that might be present.\)"
+should be employed.  Specifically, this is described by :STR= not
+being present in STYLES and :STREQ being present.  \(:STR= overrides
+any :STREQ that might be present.\)"
   (with-styles-canon (styles styles)
     (and (not (member :str= styles))
 	 (member :streq styles))))
 
 (defun simple-parse-cli (fn &key arglist argopt-p-fn chgname-fn styles)
   "This is the low level parser for command-lines.  If you're simply
-  using Petulant in your application \(i.e., you aren't developing
-  Petulant\), you might want to consider calling a higher level function;
-  SIMPLE-PARSE-CLI is mainly for implementation of other Petulant
-  functionality.
+using Petulant in your application \(i.e., you aren't developing
+Petulant\), you might want to consider calling a higher level
+function; SIMPLE-PARSE-CLI is mainly for implementation of other
+Petulant functionality.
 
-  SIMPLE-PARSE-CLI works through an argument list, a flat list of
-  strings representing the command-line.  It parses this list according
-  to the dominant style for a specific operating system \(e.g.,
-  hyphen-based options under Unix, or slash-based switches under
-  Windows\).
+SIMPLE-PARSE-CLI works through an argument list, a flat list of
+strings representing the command-line.  It parses this list according
+to the dominant style for a specific operating system \(e.g.,
+hyphen-based options under Unix, or slash-based switches under
+Windows\).
 
-  FN is called for each option \(with or without an argument\) and every
-  non-option argument identified during parsing.  Each call to FN has
-  three arguments.  The first is always :ARG or :OPT.  When :ARG, the
-  second argument is a non-switch argument string from the command line,
-  and the third argument is NIL.  When :OPT, the second argument is a
-  switch (a string) found on the command line, eliding its leading
-  slash, and the third argument is any argument to that option or NIL.
+FN is called for each option \(with or without an argument\) and every
+non-option argument identified during parsing.  Each call to FN has
+three arguments.  The first is always :ARG or :OPT.  When :ARG, the
+second argument is a non-switch argument string from the command line,
+and the third argument is NIL.  When :OPT, the second argument is a
+switch (a string) found on the command line, eliding its leading
+slash, and the third argument is any argument to that option or NIL.
 
-  Generally speaking, the calls to FN proceed from the head to the tail
-  of the list of argument strings, and from left to right within each
-  string of that list.  This is useful to know in testing, but callers
-  probably should not rely on any specific ordering.
+Generally speaking, the calls to FN proceed from the head to the tail
+of the list of argument strings, and from left to right within each
+string of that list.  This is useful to know in testing, but callers
+probably should not rely on any specific ordering.
 
-  ARGLIST, if supplied, is a list of strings to parse.  By default,
-  SIMPLE-PARSE-CLI will parse a list of strings provided by the Lisp
-  environment representing the command-line with which the application
-  was started.
+ARGLIST, if supplied, is a list of strings to parse.  By default,
+SIMPLE-PARSE-CLI will parse a list of strings provided by the Lisp
+environment representing the command-line with which the application
+was started.
 
-  ARGOPT-P-FN, if supplied, is a function.  Petulant recognizes certain
-  long options (\"--foo=bar\") and switches (\"/foo:bar\") that
-  unambiguously present an option taking an argument.  However, Petulant
-  cannot know for certain when a short option (\"-f\" \"bar\") takes an
-  option, nor can it discern when a long option (\"--foo\" \"bar\") or a
-  switch (\"/foo\" \"bar\") lacking extra punctuation takes an argument.
-  The caller can supply a function taking the name of the option as a
-  string (\"f\" or \"foo\") and returning true or false to indicate if
-  it takes an argument.
+ARGOPT-P-FN, if supplied, is a function.  Petulant recognizes certain
+long options (\"--foo=bar\") and switches (\"/foo:bar\") that
+unambiguously present an option taking an argument.  However, Petulant
+cannot know for certain when a short option (\"-f\" \"bar\") takes an
+option, nor can it discern when a long option (\"--foo\" \"bar\") or a
+switch (\"/foo\" \"bar\") lacking extra punctuation takes an argument.
+The caller can supply a function taking the name of the option as a
+string (\"f\" or \"foo\") and returning true or false to indicate if
+it takes an argument.
 
-  CHGNAME-FN, if supplied, can be used to change a detected switch
-  from one value to another, taking a string and returning a string to
-  use in its place.  It could be used to implement aliases or partial
-  matching, for example.  Every detected switch is passed through this
-  function before processing continues; it is called before ARGOPT-P-FN,
-  for example.
+CHGNAME-FN, if supplied, can be used to change a detected switch from
+one value to another, taking a string and returning a string to use in
+its place.  It could be used to implement aliases or partial matching,
+for example.  Every detected switch is passed through this function
+before processing continues; it is called before ARGOPT-P-FN, for
+example.
 
-  STYLES can be used to select a particular style of command-line
-  processing.  By default, SIMPLE-PARSE-CLI will choose the style based
-  on the current operating system environment \(using *FEATURES*\).
-  However, the caller can force a particular style by supplying :UNIX
-  or :WINDOWS, or by supplying a list containing :UNIX or :WINDOWS, to
-  this argument."
+STYLES can be used to select a particular style of command-line
+processing.  By default, SIMPLE-PARSE-CLI will choose the style based
+on the current operating system environment \(using *FEATURES*\).
+However, the caller can force a particular style by supplying :UNIX
+or :WINDOWS, or by supplying a list containing :UNIX or :WINDOWS, to
+this argument."
   (with-styles-canon (styles styles)
     (funcall (if (member :windows styles) #'parse-windows-cli #'parse-unix-cli)
 	     (or arglist (argv))
@@ -307,7 +307,7 @@
 
 (defun str=-fn (styles)
   "Return a function to be used in comparing option strings for
-  equality, based on FOLDP."
+equality, based on FOLDP."
   (with-styles-canon (styles styles)
     (if (member :streq styles)
 	#'string-equal
@@ -315,9 +315,9 @@
 
 (defun eq=-fn (styles)
   "Return a function to be used in comparing option strings for
-  equality, based on FOLDP.  Where STR=-FN returns a string comparison
-  function, this returns an equality function \(e.g., for use in hash
-  tables\)."
+equality, based on FOLDP.  Where STR=-FN returns a string comparison
+function, this returns an equality function \(e.g., for use in hash
+tables\)."
   (with-styles-canon (styles styles)
     (if (member :streq styles)
 	#'equalp
@@ -325,7 +325,7 @@
 
 (defun str<-fn (styles)
   "Return a function to be used in comparing option strings for
-  sorting, based on FOLDP."
+sorting, based on FOLDP."
   (with-styles-canon (styles styles)
     (if (member :streq styles)
 	#'string-lessp
@@ -333,7 +333,7 @@
 
 (defun str/=-fn (styles)
   "Return a function to be used in comparing option strings for
-  inequality, based on FOLDP."
+inequality, based on FOLDP."
   (with-styles-canon (styles styles)
     (if (member :streq styles)
 	#'string-not-equal
@@ -341,17 +341,17 @@
 
 (defun partials-fn (argopts flagopts aliases styles)
   "When STYLES contains :PARTIAL, return a function that implements
-  partial matching for all the options seen in ARGOPTS, FLAGOPTS, and
-  ALIASES; otherwise, #'IDENTITY is returned and no partial matching
-  is supported.
+partial matching for all the options seen in ARGOPTS, FLAGOPTS, and
+ALIASES; otherwise, #'IDENTITY is returned and no partial matching is
+supported.
 
-  When partial matching is desired, ARGOPTS FLAGOPTS ALIASES and
-  STYLES are taken in the same format as PARSE-CLI.  A function is
-  returned that takes a single string as an option or argument
-  appearing on a command-line, recognizing unambiguous partial matches
-  of options as they appear in the three supplied lists, and returning
-  a possibly new string that PARSE-CLI should process as if it were
-  the original word from the command-line."
+When partial matching is desired, ARGOPTS FLAGOPTS ALIASES and STYLES
+are taken in the same format as PARSE-CLI.  A function is returned
+that takes a single string as an option or argument appearing on a
+command-line, recognizing unambiguous partial matches of options as
+they appear in the three supplied lists, and returning a possibly new
+string that PARSE-CLI should process as if it were the original word
+from the command-line."
   (with-styles-canon (styles styles)
     (cond
       ((member :partial styles)
@@ -380,9 +380,9 @@
 
 (defun build-alias-hash (aliases styles)
   "Returns a hash table initialized with the option alias list ALIASES.
-  In that alist, the CDR of each element are all the strings that are
-  mapped to the CAR of the element.  STYLES is used to determine how to
-  compare strings within the hash table."
+In that alist, the CDR of each element are all the strings that are
+mapped to the CAR of the element.  STYLES is used to determine how to
+compare strings within the hash table."
   (with-styles-canon (styles styles)
     (let ((hash (make-hash-table :test (eq=-fn styles))))
       (mapc (lambda (entry)
@@ -395,20 +395,20 @@
 
 (defun aliases-fn (aliases styles)
   "Given ALIASES, a list that maps one or more strings to an intended
-  option, this creates the function that performs that mapping according
-  to STYLES.  The returns function takes an option string as parsed by
-  SIMPLE-PARSE-CLI, and returns a string to use in its stead.
+option, this creates the function that performs that mapping according
+to STYLES.  The returns function takes an option string as parsed by
+SIMPLE-PARSE-CLI, and returns a string to use in its stead.
 
-  ALIASES is an association list of strings, where the CAR of each entry
-  is an intended option, and the CDR is a list of strings that are
-  mapped to the intended option.
+ALIASES is an association list of strings, where the CAR of each entry
+is an intended option, and the CDR is a list of strings that are
+mapped to the intended option.
 
-  STYLES is a keyword or list of keywords influencing the matching
-  between command-line options and the list of aliases seen here.  In
-  order of priority, :STR= prevents case folding, :STREQ directs
-  case-insensitive matching, :UP and :DOWN imply :STREQ.  Note that
-  ALIASES-FN treats :KEY as :UP \(mapping options to keyword values
-  happens elsewhere\)."
+STYLES is a keyword or list of keywords influencing the matching
+between command-line options and the list of aliases seen here.  In
+order of priority, :STR= prevents case folding, :STREQ directs
+case-insensitive matching, :UP and :DOWN imply :STREQ.  Note that
+ALIASES-FN treats :KEY as :UP \(mapping options to keyword values
+happens elsewhere\)."
   (with-styles-canon (styles styles)
     (let ((hash (build-alias-hash aliases styles)))
       (lambda (x) (aif (gethash x hash)
@@ -417,9 +417,9 @@
 
 (defun build-argopt-hash (argopts styles)
   "Returns a hash table initialized with the options listed in
-  ARGOPTS.  Each key simply maps to T; this hash is treated as a set
-  function.  STYLES is used to initialize the hash table's equality
-  test."
+ARGOPTS.  Each key simply maps to T; this hash is treated as a set
+function.  STYLES is used to initialize the hash table's equality
+test."
   (with-styles-canon (styles styles)
     (let ((hash (make-hash-table :test (eq=-fn styles))))
       (mapc (lambda (argopt) (setf (gethash argopt hash) t))
@@ -428,14 +428,14 @@
 
 (defun argopt-p-fn (argopts styles)
   "Given ARGOPTS, a list of strings denoting options that take
-  arguments, this returns a function that can be used by Petulant to
-  test if an ambiguous option consumes arguments or not.
+arguments, this returns a function that can be used by Petulant to
+test if an ambiguous option consumes arguments or not.
 
-  STYLES is a keyword or list of keywords influencing the comparison
-  between options provided by the calling application and options
-  supplied by the user.  In order of priority, :STR= prevents case
-  folding, :STREQ directs case-insensitive matching, and :UP :DOWN
-  and :KEY all imply :STREQ."
+STYLES is a keyword or list of keywords influencing the comparison
+between options provided by the calling application and options
+supplied by the user.  In order of priority, :STR= prevents case
+folding, :STREQ directs case-insensitive matching, and :UP :DOWN
+and :KEY all imply :STREQ."
   (with-styles-canon (styles styles)
     (let ((hash (build-argopt-hash argopts styles)))
       (lambda (x) (gethash x hash)))))
@@ -463,99 +463,98 @@ the supplied callback function."
 
 (defun parse-cli (fn &key argopts flagopts aliases arglist styles)
   "PARSE-CLI examines the command-line with which an application was
-  invoked.  According to given styles and the local environment,
-  options (aka switches) and arguments are recognized.
+invoked.  According to given styles and the local environment,
+options (aka switches) and arguments are recognized.
 
-  FN is a function supplied by the caller, which is called for each
-  option or argument identified by PARSE-CLI.  Each call to FN has
-  three arguments.  The first is the keyword :OPT or :ARG, indicating
-  whether an option \(aka switch\) or an non-option argument was
-  found.  When :ARG, the second argument is a string, an argument from
-  the command-line that was not associated with an option, and the
-  third argument is NIL.  When :OPT, the second argument is usually a
-  string naming an option \(although see STYLES below\), and the third
-  argument is a string value associated with that option, or NIL.
+FN is a function supplied by the caller, which is called for each
+option or argument identified by PARSE-CLI.  Each call to FN has three
+arguments.  The first is the keyword :OPT or :ARG, indicating whether
+an option \(aka switch\) or an non-option argument was found.
+When :ARG, the second argument is a string, an argument from the
+command-line that was not associated with an option, and the third
+argument is NIL.  When :OPT, the second argument is usually a string
+naming an option \(although see STYLES below\), and the third argument
+is a string value associated with that option, or NIL.
 
-  ARGOPTS, if supplied, is a list of all options \(short or long\)
-  that require an argument.  While Petulant can automatically
-  recognize some options that explicitly take an argument \(as in
-  \"--file=foo.psd\" or \"/file:foo.psd\"\), it needs the hint in
-  ARGOPTS to recognize other patterns \(such as \"-f\" \"foo.psd\", or
-  \"/file\" \"foo.psd\"\).  Simply place the option (no leading
-  hyphens or slashes) as a string in this list.  The call below would
-  recognize both \"-f\" and \"--file\" as requiring an argument.
-  \(Note that \"f\" in the list is better handled by an alias below,
-  or by the use of :PARTIAL in STYLES; its presence here is merely
-  for example.\) ARGOPTS does not limit the options that PARSE-CLI
-  handles, even those with arguments; it is merely a hint that
+ARGOPTS, if supplied, is a list of all options \(short or long\) that
+require an argument.  While Petulant can automatically recognize some
+options that explicitly take an argument \(as in \"--file=foo.psd\" or
+\"/file:foo.psd\"\), it needs the hint in ARGOPTS to recognize other
+patterns \(such as \"-f\" \"foo.psd\", or \"/file\" \"foo.psd\"\).
+Simply place the option (no leading hyphens or slashes) as a string in
+this list.  The call below would recognize both \"-f\" and \"--file\"
+as requiring an argument.  \(Note that \"f\" in the list is better
+handled by an alias below, or by the use of :PARTIAL in STYLES; its
+presence here is merely for example.\) ARGOPTS does not limit the
+options that PARSE-CLI handles, even those with arguments; it is
+merely a hint that
 
-     \(parse-cli … :argopts '\(\"f\" \"file\"\) … \)
+   \(parse-cli … :argopts '\(\"f\" \"file\"\) … \)
 
-  FLAGOPTS, if supplied, is a list of all the options \(short or
-  long\) that do not take an argument.  This argument has no effect on
-  PARSE-CLI unless :PARTIAL appears in STYLES.  See :PARTIAL below.
+FLAGOPTS, if supplied, is a list of all the options \(short or long\)
+that do not take an argument.  This argument has no effect on
+PARSE-CLI unless :PARTIAL appears in STYLES.  See :PARTIAL below.
 
-     \(parse-cli … :flagopts '\(\"verbose\" \"debug\" \"trace\"\) … \)
+   \(parse-cli … :flagopts '\(\"verbose\" \"debug\" \"trace\"\) … \)
 
-  ALIASES can be used to supply one or more alternative options that,
-  when encountered, are considered aliases for another option.
-  ALIASES is a list of lists.  Every element of ALIASES is a list
-  naming the primary option first, followed by all aliases for it.
-  For example, in the call below, both \"/sleep\" and \"/wait\" would
-  be recognized by PARSE-CLI, but processed as if \"/delay\" were
-  seen.
+ALIASES can be used to supply one or more alternative options that,
+when encountered, are considered aliases for another option.  ALIASES
+is a list of lists.  Every element of ALIASES is a list naming the
+primary option first, followed by all aliases for it.  For example, in
+the call below, both \"/sleep\" and \"/wait\" would be recognized by
+PARSE-CLI, but processed as if \"/delay\" were seen.
 
-    \(parse-cli … :aliases '\(\(\"alpha\" \"transparency\"\)
-			     \(\"delay\" \"sleep\" \"wait\"\)
-			     \(\"file\" \"f\"\)\) … \)
+  \(parse-cli … :aliases '\(\(\"alpha\" \"transparency\"\)
+			   \(\"delay\" \"sleep\" \"wait\"\)
+			   \(\"file\" \"f\"\)\) … \)
 
-  ARGLIST causes PARSE-CLI to parse a specified list of strings,
-  instead of the default command-line that was supplied to the
-  application.  These strings are parsed exactly as if they appeared
-  on the command-line, each string corresponding to one \"word\".
+ARGLIST causes PARSE-CLI to parse a specified list of strings, instead
+of the default command-line that was supplied to the application.
+These strings are parsed exactly as if they appeared on the
+command-line, each string corresponding to one \"word\".
 
-     \(parse-cli … :arglist '\(\"-xv\" \"-f\" \"foo.tar\"\) … \)
+   \(parse-cli … :arglist '\(\"-xv\" \"-f\" \"foo.tar\"\) … \)
 
-  STYLES is a keyword, or a list of keywords, that influence
-  Petulant's behavior.  Recognized keywords are as follows;
-  unrecognized keywords are silently ignored.
+STYLES is a keyword, or a list of keywords, that influence Petulant's
+behavior.  Recognized keywords are as follows; unrecognized keywords
+are silently ignored.
 
-     :STR=    String matching between ARGOPTS, FLAGOPTS, ALIASES, and
-	      the command-line being parsed is sensitive to case.
-	      This exists solely to override any folding semantics
-	      implied by :WINDOWS, :UNIX, :UP, :DOWN, :KEY, and the
-	      local Lisp environment.  Overrides :STREQ.  Its name is
-	      meant to be evocative of STRING=.
+   :STR=    String matching between ARGOPTS, FLAGOPTS, ALIASES, and
+	    the command-line being parsed is sensitive to case.  This
+	    exists solely to override any folding semantics implied
+	    by :WINDOWS, :UNIX, :UP, :DOWN, :KEY, and the local Lisp
+	    environment.  Overrides :STREQ.  Its name is meant to be
+	    evocative of STRING=.
 
-     :STREQ   String matching between ARGOPTS, FLAGOPTS, ALIASES, and
-	      the command-line being parsed is insensitive to case.
-              Its name is meant to be evocative of STRING-EQUAL.
+   :STREQ   String matching between ARGOPTS, FLAGOPTS, ALIASES, and
+	    the command-line being parsed is insensitive to case.  Its
+	    name is meant to be evocative of STRING-EQUAL.
 
-     :UP      All option names presented to FN will be converted to
-	      upper case.  Implies :STREQ.
+   :UP      All option names presented to FN will be converted to
+	    upper case.  Implies :STREQ.
 
-     :DOWN    All option names presented to FN will be converted to
-	      lower case.  Implies :STREQ.
+   :DOWN    All option names presented to FN will be converted to
+	    lower case.  Implies :STREQ.
 
-     :KEY     All option names presented to FN will be converted to
-	      symbols in the keyword package.  Implies :UP.
+   :KEY     All option names presented to FN will be converted to
+	    symbols in the keyword package.  Implies :UP.
 
-     :PARTIAL Support partial matches of options.  When present,
-              Petulant will support unambiguous partial matches of
-	      options \(as they appear in ARGOPTS, FLAGOPTS, and
-	      ALIASES\).  For example, if ARGOPTS contained \"beat\",
-	      then :PARTIAL would trigger aliases of \"b\", \"be\",
-	      and \"bea\" for \"beat\".  But, if FLAGOPTS also
-	      contained \"bop\" then \"b\" would no longer be
-	      automatically created as an alias, and \"bo\" would be
-	      added as an alias for \"bop\".
+   :PARTIAL Support partial matches of options.  When present,
+	    Petulant will support unambiguous partial matches of
+	    options \(as they appear in ARGOPTS, FLAGOPTS, and
+	    ALIASES\).  For example, if ARGOPTS contained \"beat\",
+	    then :PARTIAL would trigger aliases of \"b\", \"be\", and
+	    \"bea\" for \"beat\".  But, if FLAGOPTS also contained
+	    \"bop\" then \"b\" would no longer be automatically
+	    created as an alias, and \"bo\" would be added as an alias
+	    for \"bop\".
 
-     :UNIX    Disregard the current running system, and process the
-	      command-line arguments as if in a Unix environment.
+   :UNIX    Disregard the current running system, and process the
+	    command-line arguments as if in a Unix environment.
 
-     :WINDOWS Disregard the current running system, and process the
-	      command-line arguments as if in a Windows environment.
-	      Also implies :STREQ."
+   :WINDOWS Disregard the current running system, and process the
+	    command-line arguments as if in a Windows environment.
+	    Also implies :STREQ."
   (with-styles-canon (styles styles)
     (let ((hack-fn (hack-option-fn styles)))
       (flet ((cb (x y z)
@@ -572,20 +571,19 @@ the supplied callback function."
 
 (defun get-cli (&key argopts flagopts aliases arglist styles)
   "GET-CLI takes the same keyword arguments, and offers the same
-  functionality, as the function it wraps, PARSE-CLI.  See that
-  function for complete documentation.  Unlike PARSE-CLI, however,
-  it returns a single list of things found on the command-line, in
-  the order that they were found.  Each element of this list is,
-  itself, a list of two or three values.  If the first element is
-  :ARG, then the second argument is a string naming an argument
-  not associated with an option on the command-line.  Otherwise,
-  the first element is :OPT, the second argument is the option \(as
-  a string or keyword symbol, according to the STYLES argument\),
-  and if the option has an argument, that string appears as the
-  third element.
+functionality, as the function it wraps, PARSE-CLI.  See that
+function for complete documentation.  Unlike PARSE-CLI, however,
+it returns a single list of things found on the command-line, in
+the order that they were found.  Each element of this list is,
+itself, a list of two or three values.  If the first element is
+:ARG, then the second argument is a string naming an argument not
+associated with an option on the command-line.  Otherwise, the first
+element is :OPT, the second argument is the option \(as a string or
+keyword symbol, according to the STYLES argument\), and if the option
+has an argument, that string appears as the third element.
 
-  All arguments and options to GET-CLI share the same name and carry
-  the same functionality as they appear in PARSE-CLI."
+All arguments and options to GET-CLI share the same name and carry the
+same functionality as they appear in PARSE-CLI."
   (let (results)
     (parse-cli (lambda (&rest args) (push args results))
 	       :argopts argopts :flagopts flagopts :aliases aliases
@@ -594,22 +592,22 @@ the supplied callback function."
 
 (defun label-option (option argopts styles &optional (padding "  "))
   "Given a string naming an OPTION, the list of options that take
-  arguments, and a styles list, return a string to be used in a usage
-  message for this option.  The string is always padded with two
-  spaces at its beginning.
+arguments, and a styles list, return a string to be used in a usage
+message for this option.  The string is always padded with two spaces
+at its beginning.
 
-  \(LABEL-OPTION \"beta\" '\(\"a\" \"beta\"\) :UNIX\)
-  => \"  --beta=VAL\"
-  \(LABEL-OPTION \"beta\" '\(\"a\" \"beta\"\) :WINDOWS\)
-  => \"  /beta:VAL\"
-  \(LABEL-OPTION \"alpha\" '\(\"a\" \"beta\"\) :UNIX\)
-  => \"  --alpha\"
-  \(LABEL-OPTION \"alpha\" '\(\"a\" \"beta\"\) :WINDOWS\)
-  => \"  /alpha\"
-  \(LABEL-OPTION \"c\" '\(\"a\" \"beta\"\) :UNIX\)
-  => \"  -c\"
-  \(LABEL-OPTION \"a\" '\(\"a\" \"beta\"\) :UNIX\)
-  => \"  -a VAL\""
+   \(LABEL-OPTION \"beta\" '\(\"a\" \"beta\"\) :UNIX\)
+=> \"  --beta=VAL\"
+   \(LABEL-OPTION \"beta\" '\(\"a\" \"beta\"\) :WINDOWS\)
+=> \"  /beta:VAL\"
+   \(LABEL-OPTION \"alpha\" '\(\"a\" \"beta\"\) :UNIX\)
+=> \"  --alpha\"
+   \(LABEL-OPTION \"alpha\" '\(\"a\" \"beta\"\) :WINDOWS\)
+=> \"  /alpha\"
+   \(LABEL-OPTION \"c\" '\(\"a\" \"beta\"\) :UNIX\)
+=> \"  -c\"
+   \(LABEL-OPTION \"a\" '\(\"a\" \"beta\"\) :UNIX\)
+=> \"  -a VAL\""
   (with-styles-canon (styles styles)
     (let ((winp (member :windows styles))
 	  (shortp (< (length option) 2))
@@ -627,17 +625,17 @@ the supplied callback function."
 
 (defun fmt (format-args)
   "Format the list FORMAT-ARGS as if they were arguments to the FORMAT
-  utility, returning the resulting string.  The first element of
-  FORMAT-ARGS must be a string, and any subsequent elements are as
-  called for in the first string."
+utility, returning the resulting string.  The first element of
+FORMAT-ARGS must be a string, and any subsequent elements are as
+called for in the first string."
   (apply #'format nil format-args))
 
 (defun canonicalize-type (type-spec)
-  "Try to put TYPE-SPEC into a canonical form, undoing the abbreviations
-  and shortcuts that are commonly accepted.  If TYPE-SPEC is a keyword,
-  then it is reformed to a list with * in the position of its arguments.
-  If it is a list, but it takes more arguments than are provided, * is
-  appended for each of the missing arguments."
+  "Try to put TYPE-SPEC into a canonical form, undoing the
+abbreviations and shortcuts that are commonly accepted.  If TYPE-SPEC
+is a keyword, then it is reformed to a list with * in the position of
+its arguments.  If it is a list, but it takes more arguments than are
+provided, * is appended for each of the missing arguments."
   (when type-spec
     (destructuring-bind (&optional x y z)
 	(ensure-list type-spec)
@@ -651,26 +649,24 @@ the supplied callback function."
 
 (defun describe-type (type-spec)
   "This function returns text that at least somewhat describes the
-  supplied type for use in a help or usage message.
+supplied type for use in a help or usage message.
 
-  In addition to the types :INTEGER :FLOAT :RATIO :RATIONAL and
-  :NUMBER, there are some pseudo-types as well:
+In addition to the types :INTEGER :FLOAT :RATIO :RATIONAL and
+:NUMBER, there are some pseudo-types as well:
 
-  :KEY is not really a type, but instead, represents the intent to take
-  the supplied string, trim whitespace from either end, convert it to
-  upper case, and intern the result as a symbol in the keyword
-  package.
+:KEY is not really a type, but instead, represents the intent to take
+the supplied string, trim whitespace from either end, convert it to
+upper case, and intern the result as a symbol in the keyword package.
 
-  :READ is not really a type, but instead, represents the desire to
-  call the Lisp READ-FROM-STRING on the supplied argument and take the
-  result as-is.  This could be used for reading lists from the
-  command-line or other weirdness.  This could lead to very unexpected
-  behavior \(you know how users are\), so use this pseudo-type with
-  great care.
+:READ is not really a type, but instead, represents the desire to call
+the Lisp READ-FROM-STRING on the supplied argument and take the result
+as-is.  This could be used for reading lists from the command-line or
+other weirdness.  This could lead to very unexpected behavior \(you
+know how users are\), so use this pseudo-type with great care.
 
-  :STRING is slightly different than the built-in Lisp STRING type.
-  When its single optional argument appears, it is taken as a maximum
-  length for the string."
+:STRING is slightly different than the built-in Lisp STRING type.
+When its single optional argument appears, it is taken as a maximum
+length for the string."
   (destructuring-bind (&optional d0 d1 d2)
       (canonicalize-type type-spec)
     (apply #'strcat
@@ -701,12 +697,12 @@ the supplied callback function."
 
 (defun widest-option-label (argopts flagopts styles)
   "Given a list of strings that are options taking arguments, and a
-  list of strings that are options not taking arguments, format each
-  of them as they would appear in a usage message via LABEL-OPTION,
-  and return the longest string.
-  
-  \(WIDEST-OPTION-LABEL '\(\"file\" \"config\"\) '\(\"verbose\"\) :unix\)
-  => \"  --config=VAL\""
+list of strings that are options not taking arguments, format each of
+them as they would appear in a usage message via LABEL-OPTION, and
+return the longest string.
+
+   \(WIDEST-OPTION-LABEL '\(\"file\" \"config\"\) '\(\"verbose\"\) :unix\)
+=> \"  --config=VAL\""
   (with-styles-canon (styles styles)
     (reduce (lambda (x y) (cond
 			    ((or (null x) (zerop (length x))) y)
@@ -725,41 +721,41 @@ the supplied callback function."
 
 (defun pad (string minlength &optional (minpad 2))
   "Return a new string that is STRING but with spaces appended in
-  order to make its length equal to MINLENGTH.  At least MINPAD spaces
-  appears at the right of STRING, no matter how long the resulting
-  string is.  This is used to set off a tag in a paragraph with a
-  hanging tag, as in an option in a usage message.
+order to make its length equal to MINLENGTH.  At least MINPAD spaces
+appears at the right of STRING, no matter how long the resulting
+string is.  This is used to set off a tag in a paragraph with a
+hanging tag, as in an option in a usage message.
 
-  \(PAD \"foo\" 8) => \"foo     \"
-  \(PAD \"foo\" 5) => \"foo  \"
-  \(PAD \"foo\" 2) => \"foo  \"
+   \(PAD \"foo\" 8) => \"foo     \"
+   \(PAD \"foo\" 5) => \"foo  \"
+   \(PAD \"foo\" 2) => \"foo  \"
 
-  \(PAD \"blah\" 3 0\) => \"blah\" 
-  \(PAD \"blah\" 3 1\) => \"blah \" 
-  \(PAD \"blah\" 3 2\) => \"blah  \" 
-  \(PAD \"blah\" 4 0\) => \"blah\" 
-  \(PAD \"blah\" 4 1\) => \"blah \" 
-  \(PAD \"blah\" 4 2\) => \"blah  \" 
-  \(PAD \"blah\" 5 0\) => \"blah \" 
-  \(PAD \"blah\" 5 1\) => \"blah \" 
-  \(PAD \"blah\" 5 2\) => \"blah  \" 
-  \(PAD \"blah\" 6 0\) => \"blah  \" 
-  \(PAD \"blah\" 6 1\) => \"blah  \" 
-  \(PAD \"blah\" 6 2\) => \"blah  \""
+   \(PAD \"blah\" 3 0\) => \"blah\" 
+   \(PAD \"blah\" 3 1\) => \"blah \" 
+   \(PAD \"blah\" 3 2\) => \"blah  \" 
+   \(PAD \"blah\" 4 0\) => \"blah\" 
+   \(PAD \"blah\" 4 1\) => \"blah \" 
+   \(PAD \"blah\" 4 2\) => \"blah  \" 
+   \(PAD \"blah\" 5 0\) => \"blah \" 
+   \(PAD \"blah\" 5 1\) => \"blah \" 
+   \(PAD \"blah\" 5 2\) => \"blah  \" 
+   \(PAD \"blah\" 6 0\) => \"blah  \" 
+   \(PAD \"blah\" 6 1\) => \"blah  \" 
+   \(PAD \"blah\" 6 2\) => \"blah  \""
   (let ((str (string-right-trim *ws* string)))
     (strcat str (make-string (max minpad (- minlength (length str)))
 			     :initial-element #\Space))))
 
 (defun hanging-par (label text &optional stream indentlength)
   "Presents a hanging paragraph onto STREAM or *STANDARD-OUTPUT* if
-  STREAM is not provided.  The exdented text, starting at the
-  beginning of the first line, is supplied by the LABEL string.  The
-  TEXT string is broken up on whitespace boundaries and flowed onto
-  the remainder of the line until the right margin is encountered.
-  Remaining words are placed on as many subsequent lines as necessary,
-  each of those lines indented by spaces.  The number of spaces used
-  to indent all remaining lines is given by INDENTLENGTH; if that
-  argument is not provided, the width of LABEL is used instead."
+STREAM is not provided.  The exdented text, starting at the beginning
+of the first line, is supplied by the LABEL string.  The TEXT string
+is broken up on whitespace boundaries and flowed onto the remainder of
+the line until the right margin is encountered.  Remaining words are
+placed on as many subsequent lines as necessary, each of those lines
+indented by spaces.  The number of spaces used to indent all remaining
+lines is given by INDENTLENGTH; if that argument is not provided, the
+width of LABEL is used instead."
   (let* ((spaces (make-string (or indentlength (length label))
 			      :initial-element #\Space))
 	 (words (split *ws* text))
@@ -768,8 +764,8 @@ the supplied callback function."
 
 (defun option-text (option deschash)
   "Retrieve any descriptive information for OPTION out of the
-  description hash, and if textual information can be found, pass it
-  through FORMAT and return it."
+description hash, and if textual information can be found, pass it
+through FORMAT and return it."
   (acond
     ((gethash option deschash)
      (fmt (if (stringp (car it)) it (cdr it))))
@@ -778,8 +774,8 @@ the supplied callback function."
 
 (defun option-type (option deschash)
   "If there is type information to be presented to a user for the
-  named option present in the description hash, return it; othewise,
-  return an empty string."
+named option present in the description hash, return it; othewise,
+return an empty string."
   (let ((d (gethash option deschash)))
     (cond
       ((not (listp d))
@@ -789,30 +785,34 @@ the supplied callback function."
       (t
        (describe-type (car d))))))
 
-(defun usage-option (option argopts deschash styles
-		     &key (tagwidth 16) (stream *standard-output*))
+(defun option-aliases (option aliases styles)
+  (with-styles-canon (styles styles)
+    (apply #'format nil
+	   "~#[~;An alias for this option is ~s.~
+             ~;Aliases for this option are ~s and ~s.~
+             ~;Aliases for this option are ~@{~#[~; and~] ~s~^,~}.~]"
+	   (cdr (assoc option aliases :test (str=-fn styles))))))
+
+(defun usage-option (option argopts aliases deschash styles tagwidth stream)
   "Given an OPTION string, as well as the list of options with
-  arguments, the hash containing all descriptions of the options,
-  along with the influencing styles for this session, format a full
-  description of the option onto STREAM or *STANDARD-OUTPUT*.
-  TAGWIDTH can be specified in order to provide a specific width for
-  the lefthand column in which the options appear."
-  (let ((label (pad (label-option option argopts styles) tagwidth))
-	(desc (option-text option deschash))
-	(type (option-type option deschash)))
-    (hanging-par label (strcat desc type) stream tagwidth)
-    #+nil (terpri stream)))
+arguments, the hash containing all descriptions of the options, along
+with the influencing styles for this session, format a full
+description of the option onto STREAM.  TAGWIDTH provides a specific
+width for the lefthand column in which the options appear."
+  (with-styles-canon (styles styles)
+    (let ((label (pad (label-option option argopts styles) tagwidth))
+	  (desc (option-text option deschash))
+	  (type (option-type option deschash))
+	  (alis (option-aliases option aliases styles)))
+      (hanging-par label (strcat desc " " type " " alis) stream tagwidth)
+      #+nil (terpri stream))))
 
-(defun usage-header (appname
-		     &key summary (namewidth 16) (stream *standard-output*))
-  "Given an string APPNAME and its optional, possibly long SUMMARY
-  string, format the pair as a hanging paragraph onto STREAM.  Use an
-  eight space indent for the SUMMARY, after the APPNAME, unless
-  NAMEWIDTH is specified.
-
-  SUMMARY can simply be a string, or it can be a list of strings; it
-  is rendered through FORMAT before being rejustified to appear in the
-  header."
+(defun usage-header (appname summary namewidth stream)
+  "Given an string APPNAME and its possibly long SUMMARY string (which
+can be NIL), format the pair as a hanging paragraph onto STREAM.
+SUMMARY can simply be a string, or it can be a list of strings; it is
+rendered through FORMAT before being rejustified to appear in the
+header."
   (let ((namewidth (min namewidth (+ 3 (length appname)))))
     (cond
       ((null summary)
@@ -823,131 +823,48 @@ the supplied callback function."
 		    stream namewidth))))
   (terpri stream))
 
-(defun usage-footer (text &key (stream *standard-output*))
+(defun usage-footer (text styles stream)
   "Render TEXT onto the named output stream or *STANDARD-OUTPUT*,
-  wrapping the text at the margins to match USAGE-HEADER and
-  USAGE-OPTION.  A blank line is alway printed before any text."  
-  (terpri stream)
-  (when text
-    (format stream "~%~{~<~%~1:;~a~>~^ ~}~%"
-	    (apply #'split *ws* (ensure-list text)))))
+wrapping the text at the margins to match USAGE-HEADER and
+USAGE-OPTION.  A blank line is alway printed before any text."
+  (with-styles-canon (styles styles)
+    (flet ((par (txt)
+	     (format stream "~%~{~<~%~1:;~a~>~^ ~}~%"
+		     (split *ws* (fmt (ensure-list txt))))))
+      (let ((extra (strcat (if (and (member :unix styles)
+				    (foldp styles))
+			       "Options are case-insensitive (-x and -X are ~
+                                equivalent). "
+			       "")
+			   (if (and (member :windows styles)
+				    (not (foldp styles)))
+			       "Options are case sensitive (/x and /X are ~
+                                different). "
+			       "")
+			   (if (member :partial styles)
+			       "Options may be abbreviated to their shortest ~
+                                unique specifier. "
+			       ""))))
+	(when (not (zerop (length extra)))
+	  (par extra)))
+      (par text))))
 
 (defun usage (appname summary tail argopts flagopts aliases deschash styles
-	      &key (stream *standard-output*))
+	      &key (stream *standard-output*) (maxappwidth 18) (maxoptwidth 16))
+  "Display a usage message on the supplied stream, describing all the
+options the application supports on its command-line.  MAXAPPWIDTH and
+MAXOPTWIDTH can be used to supply maximum indentation of the SUMMARY
+and each option's description \(though longer texts will be formatted
+reasonably\); use those keywords to change the default sizes."
   (with-styles-canon (styles styles)
-    (let ((optwidth (min 16 (+ 2 (length (widest-option-label argopts flagopts
-							      styles))))))
-      (usage-header appname :summary summary :stream stream)
+    (let ((optwidth (min maxoptwidth (+ 2 (length (widest-option-label
+						   argopts flagopts styles))))))
+      (usage-header appname summary maxappwidth stream)
       (mapc (lambda (opt)
-	      (usage-option opt argopts deschash styles
-			    :tagwidth optwidth
-			    :stream stream))
+	      (usage-option opt argopts aliases deschash styles
+			    optwidth stream))
 	    (sort (copy-seq (append argopts flagopts)) #'string<))
-      (usage-footer tail :stream stream))))
-
-
-;; (defun hanging-par (stream label
-;; 		    &optional format-string &rest other-format-args)
-;;   "Format a hanging paragraph onto the supplied STREAM.  LABEL is a
-;;   simple string that is the hang, it appears at the leftmost margin,
-;;   and should include any necessary puncuation \(e.g., \"foo: \", not
-;;   \"foo\"\).  At that resulting column, text is generated using
-;;   FORMAT-STRING and any OTHER-FORMAT-ARGS. That text is then justified
-;;   across as many lines as necessary to present it to the user.  The
-;;   overall effect is that output to STREAM is generated that resembles
-
-;;      label: text text text text text text text text text text text
-;;             and even more text text text text text text text text"
-;;   (let* ((words (split '(#\Space #\Tab #\Return #\Newline #\Page)
-;; 		       (apply #'format nil format-string other-format-args)))
-;; 	 (spaces (make-string (length label) :initial-element #\Space))
-;; 	 (format (strcat "~a~{~<~%" spaces "~1:;~a~>~^ ~}~%")))
-;;     (format stream format label words)))
-
-;; (defun usage-header (stream label &optional summary)
-;;   (cond
-;;     (summary
-;;      (apply #'hanging-par stream
-;; 	    (strcat label ": ") (car summary) (cdr summary)))
-;;     (t
-;;      (princ label stream)))
-;;   (terpri stream))
-
-;; (defun usage-footer (stream &optional format-string &rest other-format-args)
-;;   (format stream "~%~{~<~%~1:;~a~>~^ ~}~%"
-;; 	  (split '(#\Space #\Tab #\Return #\Newline #\Page)
-;; 		 (apply #'format nil format-string other-format-args))))
-
-;; (defun describe-type (desc)
-;;   "A limited bit of type parsing.  DESC might be NIL, it might be a
-;;   single type specifier like INTEGER or STRING, or it might be a
-;;   qualified type type specifier like \(REAL 0 *\).  We don't bother
-;;   telling the user when the option takes a string \(aren't they all
-;;   strings?\), but describe the other types."
-;;   (let* ((desc (ensure-list desc))
-;; 	 (d0 (car desc)) (d1 (cadr desc)) (d2 (caddr desc)))
-;;     (let (strings)
-;;       (unless (or (null d0) (eq d0 'string))
-;; 	(push "This option takes" strings)
-;; 	(push (if (eq d0 'integer) " an " " a ") strings)
-;; 	(push (string-downcase (symbol-name d0)) strings)
-;; 	(cond
-;; 	  ((or (and (eq d1 '*) (eq d2 '*))
-;; 	       (null d1))
-;; 	   t)
-;; 	  ((or (null d2) (eq d2 '*))
-;; 	   (push (format nil " no less than ~a" d1) strings))
-;; 	  ((eq d1 '*)
-;; 	   (push (format nil " no more than ~a" d2) strings))
-;; 	  (t
-;; 	   (push (format nil " between ~a and ~a" d1 d2) strings)))
-;; 	(push "." strings))
-;;       (revstrcat strings))))
-
-;; (defun describe-aliases (option aliases styles)
-;;   (apply #'format nil
-;; 	 "~#[~;An alias for this option is ~s.~
-;;              ~;Aliases for this option are ~s and ~s.~
-;;              ~;Aliases for this option are ~@{~#[~; and~] ~S~^,~}.~]"
-;; 	 (cdr (assoc option aliases :test (str=-fn styles)))))
-
-;; (defun usage (stream name summary tail flagopts argopts aliases styles deschash)
-;;   "Formats a complete usage description for an application onto the
-;;   supplied STREAM."
-;;   (with-styles-canon (styles styles)
-;;     (let ((winp (member :windows styles)))
-;;       (labels
-;; 	  ((make-option-tag (option)
-;; 	     (let ((argp (member option argopts :test #'string=))
-;; 		   (l<2 (< (length option) 2))
-;; 		   (strings '("  ")))
-;; 	       (push (cond (winp "/")
-;; 			   (l<2  "-")
-;; 			   (t    "--")) strings)
-;; 	       (push option strings)
-;; 	       (push (cond ((not argp) "")
-;; 			   (winp       ":VAL")
-;; 			   (l<2        " VAL")
-;; 			   (t          "=VAL")) strings)
-;; 	       (push "  " strings)
-;; 	       (revstrcat strings :copy t)))
-;; 	   (usage-option (option)
-;; 	     (let* ((tag (make-option-tag option))
-;; 		    (desc (gethash option deschash))
-;; 		    (hastype (not (stringp (car desc))))
-;; 		    (type (if hastype (car desc) nil))
-;; 		    (fmt (if hastype (cdr desc) desc))
-;; 		    (text (strcat (if fmt (apply #'format nil fmt) "")
-;; 				  " "
-;; 				  (describe-type type)
-;; 				  " "
-;; 				  (describe-aliases option aliases styles))))
-;; 	       (hanging-par stream tag text))))
-;; 	(usage-header stream name summary)
-;; 	(mapc #'usage-option
-;; 	      (sort (copy-seq (append flagopts argopts)) #'string<))
-;; 	(when tail
-;; 	  (apply #'usage-footer stream tail))))))
+      (usage-footer tail styles stream))))
 
 (defun spec-cli* (&rest forms)
   "A series of forms... see SPEC-CLI."
@@ -973,106 +890,93 @@ the supplied callback function."
 					  (collect x into y)
 					  (finally (setf styles y))))
 	       ))
-    ;; (format *error-output* "name ~s~%summary ~s~%tail ~s~%~
-    ;;                         flagopts ~s~%argopts ~s~%aliases ~s~%~
-    ;;                         styles ~s~%arglist ~s~%"
-    ;; 	    name summary tail flagopts argopts aliases styles arglist)
-    ;; (maphash (lambda (k v) (format *error-output* "desc of ~s is ~s~%" k v)) 
-    ;; 	     desc)
-    ;; (usage-header *error-output* name summary)
-    ;; (when tail
-    ;;   (apply #'usage-footer *error-output* tail))
-    ;; (usage *error-output* name summary tail flagopts argopts aliases
-    ;; 	   styles desc)
     (usage name summary tail argopts flagopts aliases desc styles
 	   :stream *error-output*)
     ))
 
+;; I think we should return NIL or a hash filled with the values?
+;; But we need to return three values
+;; success (the hash)
+;; pseudo-success (please print the usage)
+;; failure (a message was generated)
+
 (defmacro spec-cli (&rest forms)
-  "Using a series of forms specifying a complete command-line interface
-  presented to the user, blah blah blah...
+  "Using a series of forms specifying a complete command-line
+interface presented to the user, blah blah blah...
 
-  \(:NAME \"…\"\) provides a name for the application.  Eventually,
-  we might tease the name under which we were invoked out of the running
-  Lisp environment, but for now, every well-behaved application should
-  supply its name
+\(:NAME \"…\"\) provides a name for the application.  Eventually, we
+might tease the name under which we were invoked out of the running
+Lisp environment, but for now, every well-behaved application should
+supply its name
 
-  \(:SUMMARY \"…\" …\) provides a short summary of the application.
-  The first string and any subsequent arguments are applied to the
-  FORMAT function (those arguments are only evaluated when a suitable
-  help message is generated).  The resulting summary text will be
-  further reformatted and justified to take as many lines as necessary
-  on output; breaking will occur on any whitespace characters embedded
-  within the result of the call to FORMAT.  Whitespace includes
-  spaces, tabs, newlines, and carriage returns, so don't bother using
-  them, they will be silently disregarded when usage messages are
-  generated.  Examples:
+   \(:name \"sharpen\"\)
 
-     \(:SUMMARY \"stimulate the beaded hamster\"\)
+\(:SUMMARY \"…\" …\) provides a short summary of the application.  The
+first string and any subsequent arguments are applied to the FORMAT
+function (those arguments are only evaluated when a suitable help
+message is generated).  The resulting summary text will be further
+reformatted and justified to take as many lines as necessary on
+output; breaking will occur on any whitespace characters embedded
+within the result of the call to FORMAT.  Whitespace includes spaces,
+tabs, newlines, and carriage returns, so don't bother using them, they
+will be silently disregarded when usage messages are generated.
+Examples:
 
-     \(:SUMMARY \"do the thing with the thing and the other things ~
-               and report things found \(version ~a, ~a\)\"
-               \(get-version-string\) \(get-release-date\)\)
+   \(:summary \"stimulate the beaded hamster\"\)
 
-  Combined with \(:NAME …\), the use of \(:SUMMARY \"…\" …\) will generate
-  text formatted in the following way:
+   \(:summary \"do the thing with the thing and the other things ~
+	     and report things found \(version ~a, ~a\)\"
+	     \(get-version-string\) \(get-release-date\)\)
 
-     name: summary text summary text summary text summary text
-	   and even more summary text summary text summary text
-	   summary text as little or as much as it takes…
+\(:TAIL \"…\" …\) provides further text to appear at the bottom of a
+usage page, perhaps supplying copyright, author information, or
+anything else that isn't important enough to appear in the summary
+text at the start of the usage page.
 
-  \(:TAIL \"…\" …\) provides further text to appear at the bottom of a
-  usage page, perhaps supplying copyright, author information, or anything
-  else that isn't important enough to appear in the summary text at the
-  start of the usage page.
+\(:FLAGOPT \"option\" [\"text description\" …]\) names a single option
+that is taken as a flag (that is, it is not expected to take an
+argument value).  If a text description is provided, it and subsequent
+arguments are evaluated at that time, sent through FORMAT, and placed
+in usage messages, re-justified as necessary.
 
-  \(:FLAGOPT \"option\" [\"text description\" …]\) names a single option
-  that is taken as a flag (that is, it is not expected to take an
-  argument value).  If a text description is provided, it and subsequent
-  arguments are evaluated at that time, sent through FORMAT, and placed
-  in usage messages, re-justified as necessary.
+    \(:flagopt \"verbose\" \"increase the detail in trace messages\"\)
+    \(:flagopt \"quiet\" \"decrease the detail in trace messages\"\)
 
-      \(:FLAGOPT \"verbose\" \"increase the detail in trace messages\"\)
-      \(:FLAGOPT \"quiet\" \"decrease the detail in trace messages\"\)
+\(:ARGOPT \"option\" [type-spec] [\"text description\" …]\) is similar
+to :FLAGOPT, except that it names an option that takes an argument,
+and provides type specification and conversion of that argument.  Type
+specifications are a subset of known Lisp types \(limited by the Lisp
+environment itself \(e.g., not all Lisp systems equally support short,
+single, double, and long floats\)\).  A TYPE-SPEC can simply be
+INTEGER, or could be something fancy like \(RATIONAL -3/5 11/5\).  The
+subset of recognized type specifiers are INTEGER, NUMBER, RATIONAL,
+RATIO, REAL, and STRING.  Yes, including RATIONAL and RATIO means a
+user can specify --foo=1/3 or /bar:-11/3 on the command-line, and your
+application can do the right thing. Nifty!
 
-  \(:ARGOPT \"option\" [type-spec] [\"text description\" …]\) is
-  similar to :FLAGOPT, except that it names an option that takes an
-  argument, and provides type specification and conversion of that
-  argument.  Type specifications are a subset of known Lisp types
-  \(limited by the Lisp environment itself \(e.g., not all Lisp
-  systems equally support short, single, double, and long floats\)\).
-  A TYPE-SPEC can simply be INTEGER, or could be something fancy like
-  \(RATIONAL -3/5 11/5\).  The subset of recognized type specifiers
-  are INTEGER, NUMBER, RATIONAL, RATIO, REAL, and STRING.  Yes,
-  including RATIONAL and RATIO means a user can specify --foo=1/3 or
-  /bar:-11/3 on the command-line, and your application can do the
-  right thing. Nifty!
+   \(:argopt \"file\"\)
+   \(:argopt \"file\" \"The name of the file to be scanned for ~
+		    vulnerabilities\"\)
+   \(:argopt \"config\" :string\)
+   \(:argopt \"delay\" \(:integer 0 10\) \"The number of seconds to ~
+				     pause between iterations.\"\)
 
-     \(:ARGOPT \"file\"\)
-     \(:ARGOPT \"file\" \"The name of the file to be scanned for ~
-                      vulnerabilities\"\)
-     \(:ARGOPT \"config\" string\)
-     \(:ARGOPT \"delay\" \(integer 0 10\) \"The number of seconds to ~
-                                      pause between iterations.\"\)
-     
+\(:ALIAS \"option\" \"alias\" [\"alias\" …]\) establishes one or more
+aliases for a given option. \(aka :ALIASES\)
 
-  \(:ALIAS \"option\" \"alias\" [\"alias\" …]\) establishes one or
-  more aliases for a given option. \(aka :ALIASES\)
+   \(:alias \"dry-run\" \"n\"\)
+   \(:alias \"alpha\" \"fade\" \"transparency\"\)
 
-     \(:ALIAS \"dry-run\" \"n\"\)
-     \(:ALIAS \"alpha\" \"fade\" \"transparency\"\)
+\(:STYLE style [style …]\) supplies one or more style options, as
+documented in PARSE-CLI, to influence the parsing of the
+command-line. \(aka :STYLES\)
 
-  \(:STYLE style [style …]\) supplies one or more style options, as
-  documented in PARSE-CLI, to influence the parsing of the
-  command-line. \(aka :STYLES\)
+   \(:style :key :unix\)
 
-     \(:STYLE :KEY :UNIX\)
-
-  \(:ARG \"command-line-arg\" [\"command-line-arg\"]\) supplies one or
-  more strings to be used instead of the application's actual
-  command-line.  Note that multiple instances of :ARG are accumulated,
-  they do not supercede each other. \(aka :ARGS\)
-
- "
-  (apply #'spec-cli* (iterate (for f in forms)
+\(:ARG \"command-line-arg\" [\"command-line-arg\"]\) supplies one or
+more strings to be used instead of the application's actual
+command-line.  Note that multiple instances of :ARG are accumulated,
+they do not supercede each other. \(aka :ARGS\)"
+  `(spec-cli* ,@forms)
+  #+nil(apply #'spec-cli* (iterate (for f in forms)
 			      (collect f))))
