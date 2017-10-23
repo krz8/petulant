@@ -599,17 +599,17 @@ the supplied callback function."
   spaces at its beginning.
 
   \(LABEL-OPTION \"beta\" '\(\"a\" \"beta\"\) :UNIX\)
-  => \"  --beta=VAL  \"
+  => \"  --beta=VAL\"
   \(LABEL-OPTION \"beta\" '\(\"a\" \"beta\"\) :WINDOWS\)
-  => \"  /beta:VAL  \"
+  => \"  /beta:VAL\"
   \(LABEL-OPTION \"alpha\" '\(\"a\" \"beta\"\) :UNIX\)
-  => \"  --alpha  \"
+  => \"  --alpha\"
   \(LABEL-OPTION \"alpha\" '\(\"a\" \"beta\"\) :WINDOWS\)
-  => \"  /alpha  \"
+  => \"  /alpha\"
   \(LABEL-OPTION \"c\" '\(\"a\" \"beta\"\) :UNIX\)
-  => \"  -c  \"
+  => \"  -c\"
   \(LABEL-OPTION \"a\" '\(\"a\" \"beta\"\) :UNIX\)
-  => \"  -a VAL  \""
+  => \"  -a VAL\""
   (with-styles-canon (styles styles)
     (let ((winp (member :windows styles))
 	  (shortp (< (length option) 2))
@@ -638,15 +638,16 @@ the supplied callback function."
   then it is reformed to a list with * in the position of its arguments.
   If it is a list, but it takes more arguments than are provided, * is
   appended for each of the missing arguments."
-  (destructuring-bind (x &optional y z)
-      (ensure-list type-spec)
-    (case x
-      ((:integer :float :ratio :rational) ; two arguments
-       (list x (or y '*) (or z '*)))
-      (:string				  ; one argument
-       (list x (or y '*)))
-      (otherwise
-       (list x)))))
+  (when type-spec
+    (destructuring-bind (&optional x y z)
+	(ensure-list type-spec)
+      (case x
+	((:integer :float :ratio :rational) ; two arguments
+	 (list x (or y '*) (or z '*)))
+	(:string			; one argument
+	 (list x (or y '*)))
+	(otherwise
+	 (list x))))))
 
 (defun describe-type (type-spec)
   "This function returns text that at least somewhat describes the
@@ -722,17 +723,31 @@ the supplied callback function."
 (defparameter *ws* '(#\Space #\Tab #\Newline #\Return #\Page)
   "A list of common whitespace characters.")
 
-(defun pad (string minlength)
+(defun pad (string minlength &optional (minpad 2))
   "Return a new string that is STRING but with spaces appended in
-  order to make its length equal to MINLENGTH.  At least two spaces
+  order to make its length equal to MINLENGTH.  At least MINPAD spaces
   appears at the right of STRING, no matter how long the resulting
-  string is.  This is used to set off an option in a usage message.
+  string is.  This is used to set off a tag in a paragraph with a
+  hanging tag, as in an option in a usage message.
 
   \(PAD \"foo\" 8) => \"foo     \"
   \(PAD \"foo\" 5) => \"foo  \"
-  \(PAD \"foo\" 2) => \"foo  \""
+  \(PAD \"foo\" 2) => \"foo  \"
+
+  \(PAD \"blah\" 3 0\) => \"blah\" 
+  \(PAD \"blah\" 3 1\) => \"blah \" 
+  \(PAD \"blah\" 3 2\) => \"blah  \" 
+  \(PAD \"blah\" 4 0\) => \"blah\" 
+  \(PAD \"blah\" 4 1\) => \"blah \" 
+  \(PAD \"blah\" 4 2\) => \"blah  \" 
+  \(PAD \"blah\" 5 0\) => \"blah \" 
+  \(PAD \"blah\" 5 1\) => \"blah \" 
+  \(PAD \"blah\" 5 2\) => \"blah  \" 
+  \(PAD \"blah\" 6 0\) => \"blah  \" 
+  \(PAD \"blah\" 6 1\) => \"blah  \" 
+  \(PAD \"blah\" 6 2\) => \"blah  \""
   (let ((str (string-right-trim *ws* string)))
-    (strcat str (make-string (max 2 (- minlength (length str)))
+    (strcat str (make-string (max minpad (- minlength (length str)))
 			     :initial-element #\Space))))
 
 (defun hanging-par (label text &optional stream indentlength)
@@ -747,121 +762,192 @@ the supplied callback function."
   argument is not provided, the width of LABEL is used instead."
   (let* ((spaces (make-string (or indentlength (length label))
 			      :initial-element #\Space))
-	 (words (split '(#\Space #\Tab #\Return #\Newline #\Page) text))
+	 (words (split *ws* text))
 	 (format (strcat "~a~{~<~%" spaces "~1:;~a~>~^ ~}~%")))
     (format (or stream *standard-output*) format label words)))
 
-(defun usage-option (option argopts flagopts styles)
-  "Given "
-  )
-
-
-;;; xxx left off here
-
-
-
-(defun hanging-par (stream label
-		    &optional format-string &rest other-format-args)
-  "Format a hanging paragraph onto the supplied STREAM.  LABEL is a
-  simple string that is the hang, it appears at the leftmost margin,
-  and should include any necessary puncuation \(e.g., \"foo: \", not
-  \"foo\"\).  At that resulting column, text is generated using
-  FORMAT-STRING and any OTHER-FORMAT-ARGS. That text is then justified
-  across as many lines as necessary to present it to the user.  The
-  overall effect is that output to STREAM is generated that resembles
-
-     label: text text text text text text text text text text text
-            and even more text text text text text text text text"
-  (let* ((words (split '(#\Space #\Tab #\Return #\Newline #\Page)
-		       (apply #'format nil format-string other-format-args)))
-	 (spaces (make-string (length label) :initial-element #\Space))
-	 (format (strcat "~a~{~<~%" spaces "~1:;~a~>~^ ~}~%")))
-    (format stream format label words)))
-
-(defun usage-header (stream label &optional summary)
-  (cond
-    (summary
-     (apply #'hanging-par stream
-	    (strcat label ": ") (car summary) (cdr summary)))
+(defun option-text (option deschash)
+  "Retrieve any descriptive information for OPTION out of the
+  description hash, and if textual information can be found, pass it
+  through FORMAT and return it."
+  (acond
+    ((gethash option deschash)
+     (fmt (if (stringp (car it)) it (cdr it))))
     (t
-     (princ label stream)))
+     "")))
+
+(defun option-type (option deschash)
+  "If there is type information to be presented to a user for the
+  named option present in the description hash, return it; othewise,
+  return an empty string."
+  (let ((d (gethash option deschash)))
+    (cond
+      ((not (listp d))
+       "")
+      ((stringp (car d))
+       "")
+      (t
+       (describe-type (car d))))))
+
+(defun usage-option (option argopts deschash styles
+		     &key (tagwidth 16) (stream *standard-output*))
+  "Given an OPTION string, as well as the list of options with
+  arguments, the hash containing all descriptions of the options,
+  along with the influencing styles for this session, format a full
+  description of the option onto STREAM or *STANDARD-OUTPUT*.
+  TAGWIDTH can be specified in order to provide a specific width for
+  the lefthand column in which the options appear."
+  (let ((label (pad (label-option option argopts styles) tagwidth))
+	(desc (option-text option deschash))
+	(type (option-type option deschash)))
+    (hanging-par label (strcat desc type) stream tagwidth)
+    #+nil (terpri stream)))
+
+(defun usage-header (appname
+		     &key summary (namewidth 16) (stream *standard-output*))
+  "Given an string APPNAME and its optional, possibly long SUMMARY
+  string, format the pair as a hanging paragraph onto STREAM.  Use an
+  eight space indent for the SUMMARY, after the APPNAME, unless
+  NAMEWIDTH is specified.
+
+  SUMMARY can simply be a string, or it can be a list of strings; it
+  is rendered through FORMAT before being rejustified to appear in the
+  header."
+  (let ((namewidth (min namewidth (+ 3 (length appname)))))
+    (cond
+      ((null summary)
+       (princ appname stream))
+      (t
+       (hanging-par (pad (strcat appname ":") namewidth)
+		    (fmt (ensure-list summary))
+		    stream namewidth))))
   (terpri stream))
 
-(defun usage-footer (stream &optional format-string &rest other-format-args)
-  (format stream "~%~{~<~%~1:;~a~>~^ ~}~%"
-	  (split '(#\Space #\Tab #\Return #\Newline #\Page)
-		 (apply #'format nil format-string other-format-args))))
+(defun usage-footer (text &key (stream *standard-output*))
+  "Render TEXT onto the named output stream or *STANDARD-OUTPUT*,
+  wrapping the text at the margins to match USAGE-HEADER and
+  USAGE-OPTION.  A blank line is alway printed before any text."  
+  (terpri stream)
+  (when text
+    (format stream "~%~{~<~%~1:;~a~>~^ ~}~%"
+	    (apply #'split *ws* (ensure-list text)))))
 
-(defun describe-type (desc)
-  "A limited bit of type parsing.  DESC might be NIL, it might be a
-  single type specifier like INTEGER or STRING, or it might be a
-  qualified type type specifier like \(REAL 0 *\).  We don't bother
-  telling the user when the option takes a string \(aren't they all
-  strings?\), but describe the other types."
-  (let* ((desc (ensure-list desc))
-	 (d0 (car desc)) (d1 (cadr desc)) (d2 (caddr desc)))
-    (let (strings)
-      (unless (or (null d0) (eq d0 'string))
-	(push "This option takes" strings)
-	(push (if (eq d0 'integer) " an " " a ") strings)
-	(push (string-downcase (symbol-name d0)) strings)
-	(cond
-	  ((or (and (eq d1 '*) (eq d2 '*))
-	       (null d1))
-	   t)
-	  ((or (null d2) (eq d2 '*))
-	   (push (format nil " no less than ~a" d1) strings))
-	  ((eq d1 '*)
-	   (push (format nil " no more than ~a" d2) strings))
-	  (t
-	   (push (format nil " between ~a and ~a" d1 d2) strings)))
-	(push "." strings))
-      (revstrcat strings))))
-
-(defun describe-aliases (option aliases styles)
-  (apply #'format nil
-	 "~#[~;An alias for this option is ~s.~
-             ~;Aliases for this option are ~s and ~s.~
-             ~;Aliases for this option are ~@{~#[~; and~] ~S~^,~}.~]"
-	 (cdr (assoc option aliases :test (str=-fn styles)))))
-
-(defun usage (stream name summary tail flagopts argopts aliases styles deschash)
-  "Formats a complete usage description for an application onto the
-  supplied STREAM."
+(defun usage (appname summary tail argopts flagopts aliases deschash styles
+	      &key (stream *standard-output*))
   (with-styles-canon (styles styles)
-    (let ((winp (member :windows styles)))
-      (labels
-	  ((make-option-tag (option)
-	     (let ((argp (member option argopts :test #'string=))
-		   (l<2 (< (length option) 2))
-		   (strings '("  ")))
-	       (push (cond (winp "/")
-			   (l<2  "-")
-			   (t    "--")) strings)
-	       (push option strings)
-	       (push (cond ((not argp) "")
-			   (winp       ":VAL")
-			   (l<2        " VAL")
-			   (t          "=VAL")) strings)
-	       (push "  " strings)
-	       (revstrcat strings :copy t)))
-	   (usage-option (option)
-	     (let* ((tag (make-option-tag option))
-		    (desc (gethash option deschash))
-		    (hastype (not (stringp (car desc))))
-		    (type (if hastype (car desc) nil))
-		    (fmt (if hastype (cdr desc) desc))
-		    (text (strcat (if fmt (apply #'format nil fmt) "")
-				  " "
-				  (describe-type type)
-				  " "
-				  (describe-aliases option aliases styles))))
-	       (hanging-par stream tag text))))
-	(usage-header stream name summary)
-	(mapc #'usage-option
-	      (sort (copy-seq (append flagopts argopts)) #'string<))
-	(when tail
-	  (apply #'usage-footer stream tail))))))
+    (let ((optwidth (min 16 (+ 2 (length (widest-option-label argopts flagopts
+							      styles))))))
+      (usage-header appname :summary summary :stream stream)
+      (mapc (lambda (opt)
+	      (usage-option opt argopts deschash styles
+			    :tagwidth optwidth
+			    :stream stream))
+	    (sort (copy-seq (append argopts flagopts)) #'string<))
+      (usage-footer tail :stream stream))))
+
+
+;; (defun hanging-par (stream label
+;; 		    &optional format-string &rest other-format-args)
+;;   "Format a hanging paragraph onto the supplied STREAM.  LABEL is a
+;;   simple string that is the hang, it appears at the leftmost margin,
+;;   and should include any necessary puncuation \(e.g., \"foo: \", not
+;;   \"foo\"\).  At that resulting column, text is generated using
+;;   FORMAT-STRING and any OTHER-FORMAT-ARGS. That text is then justified
+;;   across as many lines as necessary to present it to the user.  The
+;;   overall effect is that output to STREAM is generated that resembles
+
+;;      label: text text text text text text text text text text text
+;;             and even more text text text text text text text text"
+;;   (let* ((words (split '(#\Space #\Tab #\Return #\Newline #\Page)
+;; 		       (apply #'format nil format-string other-format-args)))
+;; 	 (spaces (make-string (length label) :initial-element #\Space))
+;; 	 (format (strcat "~a~{~<~%" spaces "~1:;~a~>~^ ~}~%")))
+;;     (format stream format label words)))
+
+;; (defun usage-header (stream label &optional summary)
+;;   (cond
+;;     (summary
+;;      (apply #'hanging-par stream
+;; 	    (strcat label ": ") (car summary) (cdr summary)))
+;;     (t
+;;      (princ label stream)))
+;;   (terpri stream))
+
+;; (defun usage-footer (stream &optional format-string &rest other-format-args)
+;;   (format stream "~%~{~<~%~1:;~a~>~^ ~}~%"
+;; 	  (split '(#\Space #\Tab #\Return #\Newline #\Page)
+;; 		 (apply #'format nil format-string other-format-args))))
+
+;; (defun describe-type (desc)
+;;   "A limited bit of type parsing.  DESC might be NIL, it might be a
+;;   single type specifier like INTEGER or STRING, or it might be a
+;;   qualified type type specifier like \(REAL 0 *\).  We don't bother
+;;   telling the user when the option takes a string \(aren't they all
+;;   strings?\), but describe the other types."
+;;   (let* ((desc (ensure-list desc))
+;; 	 (d0 (car desc)) (d1 (cadr desc)) (d2 (caddr desc)))
+;;     (let (strings)
+;;       (unless (or (null d0) (eq d0 'string))
+;; 	(push "This option takes" strings)
+;; 	(push (if (eq d0 'integer) " an " " a ") strings)
+;; 	(push (string-downcase (symbol-name d0)) strings)
+;; 	(cond
+;; 	  ((or (and (eq d1 '*) (eq d2 '*))
+;; 	       (null d1))
+;; 	   t)
+;; 	  ((or (null d2) (eq d2 '*))
+;; 	   (push (format nil " no less than ~a" d1) strings))
+;; 	  ((eq d1 '*)
+;; 	   (push (format nil " no more than ~a" d2) strings))
+;; 	  (t
+;; 	   (push (format nil " between ~a and ~a" d1 d2) strings)))
+;; 	(push "." strings))
+;;       (revstrcat strings))))
+
+;; (defun describe-aliases (option aliases styles)
+;;   (apply #'format nil
+;; 	 "~#[~;An alias for this option is ~s.~
+;;              ~;Aliases for this option are ~s and ~s.~
+;;              ~;Aliases for this option are ~@{~#[~; and~] ~S~^,~}.~]"
+;; 	 (cdr (assoc option aliases :test (str=-fn styles)))))
+
+;; (defun usage (stream name summary tail flagopts argopts aliases styles deschash)
+;;   "Formats a complete usage description for an application onto the
+;;   supplied STREAM."
+;;   (with-styles-canon (styles styles)
+;;     (let ((winp (member :windows styles)))
+;;       (labels
+;; 	  ((make-option-tag (option)
+;; 	     (let ((argp (member option argopts :test #'string=))
+;; 		   (l<2 (< (length option) 2))
+;; 		   (strings '("  ")))
+;; 	       (push (cond (winp "/")
+;; 			   (l<2  "-")
+;; 			   (t    "--")) strings)
+;; 	       (push option strings)
+;; 	       (push (cond ((not argp) "")
+;; 			   (winp       ":VAL")
+;; 			   (l<2        " VAL")
+;; 			   (t          "=VAL")) strings)
+;; 	       (push "  " strings)
+;; 	       (revstrcat strings :copy t)))
+;; 	   (usage-option (option)
+;; 	     (let* ((tag (make-option-tag option))
+;; 		    (desc (gethash option deschash))
+;; 		    (hastype (not (stringp (car desc))))
+;; 		    (type (if hastype (car desc) nil))
+;; 		    (fmt (if hastype (cdr desc) desc))
+;; 		    (text (strcat (if fmt (apply #'format nil fmt) "")
+;; 				  " "
+;; 				  (describe-type type)
+;; 				  " "
+;; 				  (describe-aliases option aliases styles))))
+;; 	       (hanging-par stream tag text))))
+;; 	(usage-header stream name summary)
+;; 	(mapc #'usage-option
+;; 	      (sort (copy-seq (append flagopts argopts)) #'string<))
+;; 	(when tail
+;; 	  (apply #'usage-footer stream tail))))))
 
 (defun spec-cli* (&rest forms)
   "A series of forms... see SPEC-CLI."
@@ -896,8 +982,10 @@ the supplied callback function."
     ;; (usage-header *error-output* name summary)
     ;; (when tail
     ;;   (apply #'usage-footer *error-output* tail))
-    (usage *error-output* name summary tail flagopts argopts aliases
-	   styles desc)
+    ;; (usage *error-output* name summary tail flagopts argopts aliases
+    ;; 	   styles desc)
+    (usage name summary tail argopts flagopts aliases desc styles
+	   :stream *error-output*)
     ))
 
 (defmacro spec-cli (&rest forms)
