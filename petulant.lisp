@@ -962,21 +962,145 @@ application can do the right thing. Nifty!
 				     pause between iterations.\"\)
 
 \(:ALIAS \"option\" \"alias\" [\"alias\" …]\) establishes one or more
-aliases for a given option. \(aka :ALIASES\)
+aliases for a given option. Multiple instances of :ALIAS for the same
+option accumulate. \(aka :ALIASES\)
 
    \(:alias \"dry-run\" \"n\"\)
    \(:alias \"alpha\" \"fade\" \"transparency\"\)
 
 \(:STYLE style [style …]\) supplies one or more style options, as
 documented in PARSE-CLI, to influence the parsing of the
-command-line. \(aka :STYLES\)
+command-line. Multiple instances of :STYLE accumulate. \(aka :STYLES\)
 
    \(:style :key :unix\)
 
 \(:ARG \"command-line-arg\" [\"command-line-arg\"]\) supplies one or
 more strings to be used instead of the application's actual
-command-line.  Note that multiple instances of :ARG are accumulated,
-they do not supercede each other. \(aka :ARGS\)"
-  `(spec-cli* ,@forms)
-  #+nil(apply #'spec-cli* (iterate (for f in forms)
-			      (collect f))))
+command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
+  ;; The main point of this macro is to make it easy for the caller to
+  ;; specify forms, which we'll lightly parse, calling the real
+  ;; SPEC-CLI* function with regular forms and lambdas encapsulating
+  ;; the arguments SPEC-CLI was called with.  E.g., for options,
+  ;; element 0 is always the kind of option, element 1 is always the
+  ;; option string, element 2 is always a type (even for flag option),
+  ;; and element 3 is always a closure to be invoked later when we
+  ;; need the string to document the option.
+  ;;
+  ;; Also, SPEC-CLI provides hand-holding.  So much hand-holding.  I
+  ;; figure if someone is using SPEC-CLI and not GET-CLI or PARSE-CLI,
+  ;; they want all the functionality (including the kitchen sink).
+  ;; So, we'll give it to them, catching as many problem situations as
+  ;; we can.  If the caller can get through SPEC-CLI without warnings
+  ;; or errors, there's no reason for them to expect anything but
+  ;; success.
+  (let ((keypkg (find-package 'keyword))
+	(name "nemo") summary tail argopts flagopts aliases styles args)
+    ;; We shouldn't need stringify, but I can't explain why I get different
+    ;; results if I don't use it.
+    (flet ((stringify (x) (if (stringp x) x (format nil "~a" x))))
+      (mapc (lambda (form)
+	      (unless (listp form)
+		(error "SPEC-CLI: ~s is not a list." form))
+	      (case (car form)
+		(:name
+		 (cond
+		   ((cddr form)
+		    (error "SPEC-CLI: (:NAME ...) must have two elements."))
+		   ((not (stringp (cadr form)))
+		    (error "SPEC-CLI: In (:NAME ...) the second element must ~
+                          be a string.")))
+		 (when name
+		   (warn "SPEC-CLI: (:NAME ...) should only appear once."))
+		 (setf name (cadr form)))
+
+		(:summary
+		 (when summary
+		   (warn "SPEC-CLI: (:SUMMARY ...) should only appear once."))
+		 (when (not (stringp (cadr form)))
+		   (error "SPEC-CLI: In (:SUMMARY ...), the first argument ~
+                           must be a FORMAT string."))
+		 (setf summary (lambda () (apply #'format nil (cdr form)))))
+
+		(:tail
+		 (when tail
+		   (warn "SPEC-CLI: (:TAIL ...) should only appear once."))
+		 (when (not (stringp (cadr form)))
+		   (error "SPEC-CLI: In (:TAIL ...), the first argument must ~
+                                     be a FORMAT string."))
+		 (setf tail (lambda () (apply #'format nil (cdr form)))))
+
+		(:flagopt
+		 (if (or (null (cadr form))
+			 (not (stringp (cadr form))))
+		     (error "SPEC-CLI: In (:FLAGOPT ...), the second element ~
+                             must be a string naming the option.")
+		     (push (destructuring-bind (key opt &optional x &rest y)
+			       form
+			     (declare (ignore y))
+			     (cond
+			       ((null x)
+				(list key opt nil nil))
+			       ((stringp x)
+				(list key opt nil
+				      (lambda () (apply #'format nil
+							(cddr form)))))
+			       (t
+				(error "SPEC-CLI: In (~s ~s ...), ~
+                                        the third element must be a FORMAT ~
+                                        string." key opt))))
+			   flagopts)))
+		(:argopt
+		 (if (or (null (cadr form))
+			 (not (stringp (cadr form))))
+		     (error "SPEC-CLI: In (:ARGOPT ...), the second element ~
+                             must be a string naming the option.")
+		     (push (destructuring-bind (key opt &optional x y &rest z)
+			       form
+			     (declare (ignore z))
+			     (cond
+			       ((and (null x) (null y))
+				(list key opt nil nil))
+			       ((and (not (stringp x)) (null y))
+				(list key opt x nil))
+			       ((stringp x)
+				(list key opt nil
+				      (lambda ()
+					(apply #'format nil (cddr form)))))
+			       ((not (stringp (cadddr form)))
+				(error "SPEC-CLI: In (~s ~s ~s ...), ~
+                                        the fourth element must be a FORMAT ~
+                                        string." key opt x))
+			       (t
+				(list key opt x
+				      (lambda ()
+					(apply #'format nil (cdddr form)))))))
+			   argopts)))
+
+		((:arg :args)
+		 (mapc (lambda (x) (push (stringify x) args))
+		       (cdr form)))
+
+		((:style :styles)
+		 (mapc (lambda (x)
+			 (unless (and (symbolp x)
+				      (eq keypkg (symbol-package x)))
+			   (error "SPEC-CLI: In (~a ...), all arguments ~
+                                   must be keyword symbols." (car form)))
+			 (push x styles))
+		       (cdr form)))
+
+		((:alias :aliases)
+		 (mapc (lambda (x)
+			 (unless (stringp x)
+			   (error "SPEC-CLI: In (~a ...), all arguments ~
+                                   must be strings." (car form))))
+		       (cdr form))
+		 (push (cdr form) aliases))
+
+		(otherwise
+		 (error "SPEC-CLI: (~s ...) is not a recognized form."
+			(car form)))))
+	    forms))
+    `(spec-cli* ,name ,summary ,tail
+		,argopts ,flagopts ,aliases ,styles
+		,(nreverse args))))
