@@ -590,38 +590,49 @@ same functionality as they appear in PARSE-CLI."
 	       :arglist arglist :styles styles)
     (nreverse results)))
 
-(defun label-option (option arghash styles &optional (padding "  "))
-  "Given a string naming an OPTION, the list of options that take
-arguments, and a styles list, return a string to be used in a usage
-message for this option.  The string is always padded with two spaces
-at its beginning.
+(defun label-option (option type styles &optional (padding "  "))
+  "Given a string naming an OPTION, some kind of type specification
+going with it (:FLAG appearing for plain options, and something else
+for options that take arguments), and a styles list, return a string
+to be used in a usage message for this option.  The string is always
+padded with two spaces at its beginning.
 
-   \(LABEL-OPTION \"beta\" '\(\"a\" \"beta\"\) :UNIX\)
-=> \"  --beta=VAL\"
-   \(LABEL-OPTION \"beta\" '\(\"a\" \"beta\"\) :WINDOWS\)
+   \(label-option \"alpha\" :string :unix\)
+=> \"  --alpha=VAL\"
+   \(label-option \"beta\" :string :windows\)
 => \"  /beta:VAL\"
-   \(LABEL-OPTION \"alpha\" '\(\"a\" \"beta\"\) :UNIX\)
-=> \"  --alpha\"
-   \(LABEL-OPTION \"alpha\" '\(\"a\" \"beta\"\) :WINDOWS\)
-=> \"  /alpha\"
-   \(LABEL-OPTION \"c\" '\(\"a\" \"beta\"\) :UNIX\)
-=> \"  -c\"
-   \(LABEL-OPTION \"a\" '\(\"a\" \"beta\"\) :UNIX\)
-=> \"  -a VAL\""
+   \(label-option \"gamma\" :flag :unix\)
+=> \"  --gamma\"
+   \(label-option \"delta\" :flag :windows\)
+=> \"  /delta\"
+   \(label-option \"e\" :flag :unix\)
+=> \"  -e\"
+   \(label-option \"z\" :string :unix\)
+=> \"  -z VAL\""
   (with-styles-canon (styles styles)
     (let ((winp (member :windows styles))
 	  (shortp (< (length option) 2))
-	  (argp (gethash option arghash)))
+	  (flagp (eq :flag type)))
       (strcat padding
 	      (cond (winp   "/")
 		    (shortp "-")
 		    (t      "--"))
 	      option
-	      (cond ((not argp) "")
-		    (winp       ":VAL")
-		    (shortp     " VAL")
-		    (t          "=VAL"))
-	      #+nil padding))))
+	      (cond (flagp  "")
+		    (winp   ":VAL")
+		    (shortp " VAL")
+		    (t      "=VAL"))))))
+
+(defun widest-option-label (opthash styles)
+  "Given the type hash of all options to our application, a hash
+containing only those options that take arguments, and the influencing
+styles of our application, format each of them as they would appear in
+a usage message via LABEL-OPTION, and return the length of the longest
+string \(e.g., \" --config=VAL\"\)."
+  (with-styles-canon (styles styles)
+    (reduce #'max
+	    (maphash/c (lambda (k v) (length (label-option k v styles)))
+		       opthash))))
 
 (defun fmt (format-args)
   "Format the list FORMAT-ARGS as if they were arguments to the FORMAT
@@ -640,19 +651,18 @@ provided, * is appended for each of the missing arguments."
     (destructuring-bind (&optional x y z)
 	(ensure-list type-spec)
       (case x
-	((:integer :float :ratio :rational) ; two arguments
+	((:integer :float :ratio :rational :real) ; two arguments
 	 (list x (or y '*) (or z '*)))
 	(:string			; one argument
 	 (list x (or y '*)))
 	(otherwise
 	 (list x))))))
 
-(defun describe-type (type-spec)
+(defun option-type (type-spec)
   "This function returns text that at least somewhat describes the
-supplied type for use in a help or usage message.
-
-In addition to the types :INTEGER :FLOAT :RATIO :RATIONAL and
-:NUMBER, there are some pseudo-types as well:
+supplied type for use in a help or usage message.  In addition to
+obvious types like :FLOAT, :INTEGER, :RATIO, :RATIONAL, and :REAL, the
+following pseudo-types are supported:
 
 :KEY is not really a type, but instead, represents the intent to take
 the supplied string, trim whitespace from either end, convert it to
@@ -671,47 +681,34 @@ length for the string."
       (canonicalize-type type-spec)
     (apply #'strcat
 	   (case d0
-	     ((:integer :float :rational)
+	     ((:float :integer :ratio :rational :real)
 	      (list "This option takes"
 		    (case d0
 		      (:integer " an integer")
 		      (:float " a floating point value")
-		      (:rational " a rational number (like 6 or 11/3)"))
+		      (:rational " a rational number (like 6 or 11/3)")
+		      (:ratio " a ratio (like -1/3 or 11/3)")
+		      (:real " a number"))
 		    (cond
 		      ((and (eq d1 '*) (eq d2 '*))
 		       "")
 		      ((eq d2 '*)
-		       (format nil ", no less than ~a" d1))
+		       (format nil " no less than ~a" d1))
 		      ((eq d1 '*)
-		       (format nil ", no more than ~a" d2))
+		       (format nil " no more than ~a" d2))
 		      (t
-		       (format nil ", between ~a and ~a" d1 d2)))
-		    "."))
-	     ((:string :read)
-	      '(""))
+		       (format nil " between ~a and ~a" d1 d2)))
+		    ". "))
+	     (:string
+	      (if (eq '* d1)
+		  '("")
+		  (list (format nil "This option takes a string no more than ~
+                                     ~d characters in length." d1))))
 	     (:key
 	      '("This option takes a single short alphanumeric word, starting"
-		"with a letter, containing no whitespace or other symbols."))
+		"with a letter, containing no whitespace or other symbols. "))
 	     (otherwise
 	      '(""))))))
-
-(defun widest-option-label (allopts arghash styles)
-  "Given a list of strings that are all the options to our application,
-a hash containing only those options that take arguments, and the
-influencing styles of our application, format each of them as they
-would appear in a usage message via LABEL-OPTION, and return the
-longest string \(e.g., \"  --config=VAL\"\)."
-  ;; Yeah, we could do this by sussing out lengths and such, but this
-  ;; only happens once in an application's lifetime.
-  (with-styles-canon (styles styles)
-    (reduce (lambda (x y) (cond
-			    ((or (null x) (zerop (length x))) y)
-			    ((or (null y) (zerop (length y))) x)
-			    ((> (length x) (length y)) x)
-			    (t y)))
-	    (mapcar (lambda (option) (label-option option arghash styles))
-		    allopts)
-	    :initial-value "")))
 
 (defparameter *ws* '(#\Space #\Tab #\Newline #\Return #\Page)
   "A list of common whitespace characters.")
@@ -759,28 +756,13 @@ width of LABEL is used instead."
 	 (format (strcat "~a~{~<~%" spaces "~1:;~a~>~^ ~}~%")))
     (format (or stream *standard-output*) format label words)))
 
-(defun option-text (option deschash)
-  "Retrieve any descriptive information for OPTION out of the
-description hash, and if textual information can be found, pass it
-through FORMAT and return it."
-  (acond
-    ((gethash option deschash)
-     t #+nil (fmt (if (stringp (car it)) it (cdr it))))
-    (t
-     "")))
-
-(defun option-type (option deschash)
-  "If there is type information to be presented to a user for the
-named option present in the description hash, return it; othewise,
-return an empty string."
-  (let ((d (gethash option deschash)))
-    (cond
-      ((not (listp d))
-       "")
-      ((stringp (car d))
-       "")
-      (t
-       (describe-type (car d))))))
+(defun option-text (option dochash)
+  "Return a string that may be empty describing OPTION.  Looks for a
+closure in the dochash, and if one exists, executes it (we assume it
+came from SPEC-CLI, and therefore returns a string).  Otherwise,
+returns an empty string."
+  (or (aand (gethash option dochash) (funcall it))
+      ""))
 
 (defun option-aliases (option aliases styles)
   (with-styles-canon (styles styles)
@@ -790,19 +772,20 @@ return an empty string."
              ~;Aliases for this option are ~@{~#[~; and~] ~s~^,~}.~]"
 	   (cdr (assoc option aliases :test (str=-fn styles))))))
 
-(defun usage-option (option argopts aliases deschash styles tagwidth stream)
-  "Given an OPTION string, as well as the list of options with
-arguments, the hash containing all descriptions of the options, along
-with the influencing styles for this session, format a full
-description of the option onto STREAM.  TAGWIDTH provides a specific
-width for the lefthand column in which the options appear."
+(defun usage-option (option opthash dochash aliases styles tagwidth stream)
+  "Format a full description of the string named OPTION onto the
+supplied STREAM.  OPTHASH is the hash mapping options to their types,
+and DOCHASH is the hash mapping options to closures that provide
+descriptions.  TAGWIDTH provides a specific width for the lefthand
+column in which the options appear."
   (with-styles-canon (styles styles)
-    (let ((label (pad (label-option option argopts styles) tagwidth))
-	  (desc (option-text option deschash))
-	  (type (option-type option deschash))
-	  (alis (option-aliases option aliases styles)))
-      (hanging-par label (strcat desc " " type " " alis) stream tagwidth)
-      #+nil (terpri stream))))
+    (let* ((type (gethash option opthash))
+	   (label (pad (label-option option type styles) tagwidth)))
+      (hanging-par label
+		   (strcat (option-text option dochash)
+			   " " (option-type type)
+			   " " (option-aliases option aliases styles))
+		   stream tagwidth))))
 
 (defun usage-header (appname summary namewidth stream)
   "Given an string APPNAME and its possibly long SUMMARY (which can be
@@ -819,34 +802,27 @@ a closure that generates the text to be formatted, or NIL."
 (defun usage-footer (tail styles stream)
   "If TAIL is not NIL, call it to obtain text, and render it onto the
 named output stream or *STANDARD-OUTPUT*, wrapping the text at the
-margins to match USAGE-HEADER and USAGE-OPTION.  A blank line is alway
-printed before any text."
+same right margin as USAGE-HEADER and USAGE-OPTION."
   (with-styles-canon (styles styles)
-    (flet ((par (txt)
-	     (format stream "~%~{~<~%~1:;~a~>~^ ~}~%"
-		     (split *ws* txt))))
-      (let ((extra (strcat (if (and (member :unix styles)
-				    (foldp styles))
-			       "Options are case-insensitive (-x and -X are ~
-                                equivalent). "
-			       "")
-			   (if (and (member :windows styles)
-				    (not (foldp styles)))
-			       "Options are case sensitive (/x and /X are ~
-                                different). "
-			       "")
-			   (if (member :partial styles)
-			       "Options may be abbreviated to their shortest ~
-                                unique specifier. "
-			       ""))))
-	(when (not (zerop (length extra)))
-	  (par extra)))
+    (flet ((par (text)
+	     (let ((words (split *ws* text)))
+	       (when (not (zerop (length (car words))))
+		 (format stream "~{~<~%~1:;~a~>~^ ~}~%~%" words)))))
+      (par (strcat (if (and (member :unix styles)
+			    (foldp styles))
+              "Options are case-insensitive (-x and -X are equivalent). "
+		       "")
+		   (if (and (member :windows styles)
+			    (not (foldp styles)))
+              "Options are case sensitive (/x and /X are different). "
+		       "")
+		   (if (member :partial styles)
+              "Options may be abbreviated to their shortest unique specifier. "
+		       "")))
       (when tail
 	(par (funcall tail))))))
 
-(defun usage (appname summary tail
-	      allopts arghash dochash typehash
-	      aliases styles
+(defun usage (appname summary tail opthash dochash aliases styles
 	      &key (stream *standard-output*) (maxappwidth 18) (maxoptwidth 16))
   "Display a usage message on the supplied stream, describing all the
 options the application supports on its command-line.  MAXAPPWIDTH and
@@ -854,80 +830,40 @@ MAXOPTWIDTH can be used to supply maximum indentation of the SUMMARY
 and each option's description \(though longer texts will be formatted
 reasonably\); use those keywords to change the default sizes."
   (with-styles-canon (styles styles)
-    (let ((optwidth (min maxoptwidth (+ 2 (length (widest-option-label
-						   allopts arghash styles))))))
+    (let ((optwidth (min (+ 2 (widest-option-label opthash styles))
+			 maxoptwidth))
+	  (printed nil))
       (usage-header appname summary maxappwidth stream)
-      ;; (mapc (lambda (opt)
-      ;; 	      (usage-option opt argopts aliases deschash styles
-      ;; 			    optwidth stream))
-      ;; 	    (sort (copy-seq (append argopts flagopts)) #'string<))
+      (mapc (lambda (option)
+	      (usage-option option opthash dochash aliases styles
+			    optwidth stream)
+	      (setf printed t))
+	    (sort (hash-table-keys opthash) #'string<))
+      (when printed
+	(terpri stream))
       (usage-footer tail styles stream))))
 
-(defun sort-out-options (argopts flagopts)
+(defun sort-out-options (optspecs)
   "Given specifications for options taking arguments and options that
-are only flags, return four values: 1\) a list of all the options
-taken by the application, 2\) a hash of just the options that
-take arguments \(usually faster than calling MEMBER on a list of
-strings\), 3\) a hash of the closures that generate documentation for
-the options \(where provided\), 4\) a hash of the type descriptions
-those options taking arguments \(again, where provided\)."
-  (let ((dochash (make-hash-table))
-	(typehash (make-hash-table))
-	(arghash (make-hash-table))
-	(allopts))
-    (mapc (lambda (x) (destructuring-bind (option type docfn) x
-			(setf (gethash option dochash) docfn
-			      (gethash option typehash) type
-			      (gethash option arghash) t
-			      allopts (cons option allopts))))
-	  argopts)
-    (mapc (lambda (x) (destructuring-bind (option type docfn) x
-			(declare (ignore type))
-			(setf (gethash option dochash) docfn
-			      allopts (cons option allopts))))
-	  flagopts)
-    (values allopts arghash dochash typehash)))
+are only flags, return two values: a list of all the options taken by
+the application, and a hash mapping all options to their types
+\(including the pseudo-type :FLAG indicating the option takes no
+argument\)."
+  (let ((opthash (make-hash-table))
+	(dochash (make-hash-table)))
+    (mapc (lambda (spec) (destructuring-bind (option type docfn)
+			     spec
+			   (setf (gethash option opthash) type
+				 (gethash option dochash) docfn)))
+	  optspecs)
+    (values opthash dochash)))
 
-(defun spec-cli* (name summary tail argopts flagopts aliases styles args)
+(defun spec-cli* (name summary tail optspecs aliases styles args)
     "Receives a parsed specification of command-line options and
 arguments from the SPEC-CLI macro."
-    (multiple-value-bind (allopts arghash dochash typehash)
-	(sort-out-options argopts flagopts)
-      (usage name summary tail allopts arghash dochash typehash
-	     aliases styles)))
-
-;; (defun spec-cli* (&rest forms)
-;;   (let ((name "app")
-;; 	(desc (make-hash-table))
-;; 	summary tail argopts flagopts aliases arglist styles)
-;;     (iterate (for f in forms)
-;; 	     (unless (listp f)
-;; 	       (error "Each SPEC-CLI form must be a list."))
-;; 	     (case (car f)
-;; 	       (:summary (setf summary (cdr f)))
-;; 	       (:name (setf name (cadr f)))
-;; 	       (:tail (setf tail (cdr f)))
-;; 	       (:flagopt (push (cadr f) flagopts)
-;; 			 (setf (gethash (cadr f) desc) (cddr f)))
-;; 	       (:argopt (push (cadr f) argopts)
-;; 			(setf (gethash (cadr f) desc) (cddr f)))
-;; 	       ((:alias :aliases) (push (cdr f) aliases))
-;; 	       ((:arg :args) (iterate (for x in (cdr f))
-;; 				      (collect x into y)
-;; 				      (finally (setf arglist y))))
-;; 	       ((:style :styles) (iterate (for x in (cdr f))
-;; 					  (collect x into y)
-;; 					  (finally (setf styles y))))
-;; 	       ))
-;;     (usage name summary tail argopts flagopts aliases desc styles
-;; 	   :stream *error-output*)
-;;     ))
-
-;; I think we should return NIL or a hash filled with the values?
-;; But we need to return three values
-;; success (the hash)
-;; pseudo-success (please print the usage)
-;; failure (a message was generated)
+    (multiple-value-bind (opthash dochash)
+	(sort-out-options optspecs)
+      (usage name summary tail opthash dochash aliases styles)))
 
 (defmacro spec-cli (&rest forms)
   "Using a series of forms specifying a complete command-line
@@ -936,7 +872,7 @@ interface presented to the user, blah blah blah...
 \(:NAME \"…\"\) provides a name for the application.  Eventually, we
 might tease the name under which we were invoked out of the running
 Lisp environment, but for now, every well-behaved application should
-supply its name
+supply a name for itself.
 
    \(:name \"sharpen\"\)
 
@@ -946,49 +882,104 @@ function (those arguments are only evaluated when a suitable help
 message is generated).  The resulting summary text will be further
 reformatted and justified to take as many lines as necessary on
 output; breaking will occur on any whitespace characters embedded
-within the result of the call to FORMAT.  Whitespace includes spaces,
-tabs, newlines, and carriage returns, so don't bother using them, they
-will be silently disregarded when usage messages are generated.
-Examples:
+within the result of the call to FORMAT.  The evaluation of the
+arguments is delayed until they are needed for display.  Examples:
 
-   \(:summary \"stimulate the beaded hamster\"\)
-
-   \(:summary \"do the thing with the thing and the other things ~
-	     and report things found \(version ~a, ~a\)\"
+   \(:summary \"Stimulate the beaded hamster.\"\)
+   \(:summary \"Does the thing with the thing and the other things ~
+	     and reports things found \(version ~a, ~a\).\"
 	     \(get-version-string\) \(get-release-date\)\)
 
 \(:TAIL \"…\" …\) provides further text to appear at the bottom of a
 usage page, perhaps supplying copyright, author information, or
 anything else that isn't important enough to appear in the summary
-text at the start of the usage page.
+text at the start of the usage page.  The evaluation of the
+arguments is delayed until they are needed for display.
 
 \(:FLAGOPT \"option\" [\"text description\" …]\) names a single option
 that is taken as a flag (that is, it is not expected to take an
 argument value).  If a text description is provided, it and subsequent
-arguments are evaluated at that time, sent through FORMAT, and placed
-in usage messages, re-justified as necessary.
+arguments are only evaluated when necessary for display, sent through
+FORMAT, and placed in usage messages, re-justified as necessary.
 
-    \(:flagopt \"verbose\" \"increase the detail in trace messages\"\)
-    \(:flagopt \"quiet\" \"decrease the detail in trace messages\"\)
+    \(:flagopt \"verbose\"\)
+    \(:flagopt \"verbose\" \"Increase the detail in trace messages.\"\)
 
 \(:ARGOPT \"option\" [type-spec] [\"text description\" …]\) is similar
-to :FLAGOPT, except that it names an option that takes an argument,
-and provides type specification and conversion of that argument.  Type
-specifications are a subset of known Lisp types \(limited by the Lisp
-environment itself \(e.g., not all Lisp systems equally support short,
-single, double, and long floats\)\).  A TYPE-SPEC can simply be
-INTEGER, or could be something fancy like \(RATIONAL -3/5 11/5\).  The
-subset of recognized type specifiers are INTEGER, NUMBER, RATIONAL,
-RATIO, REAL, and STRING.  Yes, including RATIONAL and RATIO means a
-user can specify --foo=1/3 or /bar:-11/3 on the command-line, and your
-application can do the right thing. Nifty!
+to :FLAGOPT, except that it has an optional argument naming a type for
+the argument to this option.  If the type-spec is not supplied, it is
+assumed to be :STRING, meaning that a string of any length is
+acceptable.
 
-   \(:argopt \"file\"\)
-   \(:argopt \"file\" \"The name of the file to be scanned for ~
-		    vulnerabilities\"\)
-   \(:argopt \"config\" :string\)
-   \(:argopt \"delay\" \(:integer 0 10\) \"The number of seconds to ~
-				     pause between iterations.\"\)
+    \(:argopt \"config\"\)
+    \(:argopt \"config\" \"Supplies an alternate configuration file.\")
+
+- :STRING and \(:STRING *\) both describe a string of any length.
+  Alternatively, a type \(:STRING N\) indicates a string whose length
+  will be truncated if its length exceeds N characters.  No processing
+  is performed on a string (other than the aforementioned truncation),
+  so almost any string that can be presented from your shell or
+  command interpreter is supported.
+
+    \(:argopt \"title\"\)
+    \(:argopt \"title\" \(:string 50\)\)   
+    \(:argopt \"title\" \(:string 50\) \"Used to supply a title ~
+                                   for the report.\"\)
+
+- Numeric types may be specified via :FLOAT, :INTEGER, :RATIO,
+  :RATIONAL, and :REAL.  :FLOAT indicates a floating point decimal
+  number.  :INTEGER indicates a whole decimal number, of course.
+  :RATIO accepts precise fractional values such as -1/3 or 11/5.
+  :RATIONAL is a supertype of both integers and ratios, and all the
+  preceding numeric types are subtypes of :REAL.
+
+    \(:argopt \"delay\" :real\)
+    \(:argopt \"delay\" :real \"Specifies the number of seconds ~
+                            to wait between iterations.\"\)
+
+
+- The preceding numeric types may be expressed in a list with up to
+  two optional values.  If a second argument exists, it provides a
+  minimum value for the number; if a third argument exists, it
+  provides a maximum value; either value may be specified as an
+  asterisk meaning \"any value\".  For examples, \(:INTEGER 0 100\) is
+  used in an option whose argument must be an integer in the interval
+  [0,100].  \(:FLOAT 0\) and \(:FLOAT 0 *\) both describe a floating
+  point value that cannot be negative.  \(:RATIONAL * 1\) indicates a
+  number whose value cannot exceed 1.
+
+    \(:argopt \"volume\" \(:real 0 10\)\)
+    \(:argopt \"volume\" \(:real 0 11\) \"This one goes to 11.\"\)
+
+- A pseudo-type :KEY can be specified to describe an option's argument
+  that will be converted to uppercase and interned as a symbol in the
+  keyword package.  The argument should start with a letter, and the
+  remainder of the argument should be restrained to alphanumeric
+  characters and punctuation in ~!@$%^&*-+=_[]{}<>,./?.  Other
+  characters can be accepted, but they funky syntax that usually
+  defeats the purpose of using a keyword in the first place.  Note
+  that the colon that usually introduces a keyword symbol in Lisp is
+  not present in the command-line argument using :KEY.
+
+  \(spec-cli ... \(:argopt \"color\" :key\) ...\)
+  $ app --color=red
+  SPEC-CLI returns :RED as the argument of \"color\".
+
+- A pseudo-type :READ can be specified that will call the Lisp reader
+  to parse the supplied argument string.  This can be exploited to
+  accept many data types and expressions \(such as arrays and lists\).
+  HOWEVER this can also be risky in that the running Lisp environment
+  is opened up to whatever the reader can be tricked into evaluating.
+  While something as obvious as \"\(ERASE-HARD-DISK\)\" won't do the
+  trick, it isn't inconceivable that a given Lisp implementation's
+  reader might have undesirable side effects that can be invoked or
+  otherwise tricked by a clever user.  Use the :READ psuedo-type with
+  extreme caution in an executable released into the wild.
+
+  \(spec-cli ... \(:argopt \"foo\" :read\) ...\)
+  C:\\Users\\krz> app /foo:(erase-disk)
+  SPEC-CLI returns a list of one item, the symbol ERASE-DISK, as the
+  argument of the \"foo\" option.
 
 \(:ALIAS \"option\" \"alias\" [\"alias\" …]\) establishes one or more
 aliases for a given option. Multiple instances of :ALIAS for the same
@@ -1023,7 +1014,7 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
   ;; or errors, there's no reason for them to expect anything but
   ;; success.
   (let ((keypkg (find-package 'keyword))
-	name summary tail argopts flagopts aliases styles args)
+	name summary tail options aliases styles args)
     (flet ((stringify (x) (if (stringp x) x (format nil "~a" x))))
       (mapc (lambda (form)
 	      ;; We can't use CASE here because the first clause is
@@ -1056,7 +1047,7 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 		     (warn "SPEC-CLI: (:SUMMARY ...) should only appear once."))
 		   (if (stringp (cadr form))
 		       (setf summary
-			     (lambda () (apply #'format nil (cdr form))))
+			     `(lambda () (format nil ,@(cdr form))))
 		       (error "SPEC-CLI: In (:SUMMARY ...), the first ~
                                argument must be a FORMAT string.")))
 
@@ -1065,7 +1056,7 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 		     (warn "SPEC-CLI: (:TAIL ...) should only appear once."))
 		   (if (stringp (cadr form))
 		       (setf tail
-			     (lambda () (apply #'format nil (cdr form))))
+			     `(lambda () (format nil ,@(cdr form))))
 		       (error "SPEC-CLI: In (:TAIL ...), the first ~
                                argument must be a FORMAT string.")))
 
@@ -1085,16 +1076,15 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 			      (declare (ignore y))
 			      (cond
 				((null x)
-				 (list opt nil nil))
+				 (list opt :flag nil))
 				((stringp x)
-				 (list opt nil
-				       (lambda () (apply #'format nil
-							 (cddr form)))))
+				 `(list ,opt :flag
+					(lambda () (format nil ,@(cddr form)))))
 				(t
 				 (error "SPEC-CLI: In (~s ~s ...), ~
                                          the third element must be a FORMAT ~
                                          string." key opt))))
-			    flagopts))))
+			    options))))
 		    
 		  ((eq :argopt key)
 		   (cond
@@ -1114,11 +1104,11 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 				((null x)
 				 (cond
 				   ((null y)
-				    (list opt nil nil))
+				    `(list ,opt :string nil))
 				   ((stringp y)
-				    (list opt nil
-					  (lambda () (apply #'format nil
-							    (cdddr form)))))
+				    `(list ,opt :string
+					  (lambda ()
+					    (format nil ,@(cdddr form)))))
 				   (t
 				    (error "SPEC-CLI: In (~s ~s NIL ...), ~
                                             the fourth element ~s must be ~
@@ -1132,11 +1122,11 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
                                             symbol in the keyword package."
 					   key opt x))
 				   ((null y)
-				    (list opt x nil))
+				    `(list ,opt ,x nil))
 				   (t
-				    (list opt x
-					  (lambda () (apply #'format nil
-						      (cdddr form)))))))
+				    `(list ,opt ,x
+					  (lambda ()
+					    (format nil ,@(cdddr form)))))))
 
 				((listp x)
 				 (cond
@@ -1148,17 +1138,17 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
                                             symbol in the keyword package."
 					   key opt (car x)))
 				   ((null y)
-				    (list opt x nil))
+				    `(list ,opt ,x nil))
 				   (t
-				    (list opt x
-					  (lambda () (apply #'format nil
-						      (cdddr form)))))))
+				    `(list ,opt ,x
+					  (lambda ()
+					    (format nil ,@(cdddr form)))))))
 
 				((stringp x)
-				 (list opt nil (lambda ()
-						 (apply #'format nil
-							(cddr form)))))))
-			    argopts))))
+				 `(list ,opt ,nil
+				       (lambda ()
+					 (format nil ,@(cddr form)))))))
+			    options))))
 
 		  ((member key '(:arg :args))
 		   (mapc (lambda (x) (push (stringify x) args))
@@ -1171,26 +1161,38 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 			       (push x styles)
 			       (error "SPEC-CLI: In (~a ...), all ~
                                        arguments must be keyword symbols."
-				      (car form))))
+				      key)))
 			 (cdr form)))
 
 		  ((member key '(:alias :aliases))
 		   (mapc (lambda (x)
 			   (unless (stringp x)
 			     (error "SPEC-CLI: In (~a ...), all arguments ~
-                                     must be strings." (car form))))
+                                     must be strings." key)))
 			 (cdr form))
 		   (push (cdr form) aliases))
 
 		  (t
 		   (error "SPEC-CLI: (~s ...) is not a recognized form."
-			  (car form))))))
+			  key)))))
 	      forms))
     (unless name
       (warn "SPEC-CLI: (:NAME ...) missing, using (:NAME \"nemo\") for now."))
     `(spec-cli* ,(or name "nemo") ,summary ,tail
-		,(if argopts `',argopts nil)
-		,(if flagopts `',flagopts nil)
+		,(if options `(list ,@options) nil)
 		,(if aliases `',aliases nil)
 		,(if styles `',styles nil)
 		,(if args `',(nreverse args)))))
+
+;;; okay, fucked up the options quoting now
+;;; trying to make a form like
+;;; (spec-cli* ...
+;;;            `(("verbose" :flag ,(lambda () (format nil "blah blah")))
+;;;
+;;; But now I think that's wrong.
+;;; We should let spec-cli* create the lambda
+;;; It should receive
+;;;
+;;; (spec-cli* ...
+;;;            '(("verbose" :flag "blah ~ blah" 42)
+;;;              ("other"))

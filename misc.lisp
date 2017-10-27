@@ -390,3 +390,13 @@ them as they are.
   (apply #'concatenate 'string
 	 (funcall (if copy #'reverse #'nreverse) strings)))
 
+(defun maphash/c (function hash)
+  "Call FUNCTION over pairs of keys and values for the supplied HASH,
+collecting the result of each invocation into a list, returning that
+list.  Because MAPHASH is used, no order can be expected of the items
+in the returned list."
+  (let (list)
+    (maphash (lambda (k v)
+	       (push (funcall function k v) list))
+	     hash)
+    list))
