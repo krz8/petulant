@@ -277,7 +277,7 @@ arguments from the SPEC-CLI macro."
       (usage name summary tail opthash dochash aliases styles)))
 
 #-nil
-(defun spec-cli* (name summary tail options)
+(defun spec-cli* (name summary tail options aliases)
   "for debugging"
   (format t "spec-cli* starting at ~d~%" (get-universal-time))
   (format t "spec-cli* pausing three seconds~%")
@@ -288,7 +288,9 @@ arguments from the SPEC-CLI macro."
   (when tail
     (format t "tail ~s~%" (funcall tail)))
   (princ "options")
-  (pprint options *standard-output*))
+  (pprint options *standard-output*) (terpri)
+  (princ "aliases")
+  (pprint aliases *standard-output*) (terpri))
 
 (defmacro spec-cli (&rest forms)
   "Using a series of forms specifying a complete command-line
@@ -450,7 +452,7 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
   ;; success.
   (let ((keypkg (find-package :keyword))
 	name summary tail
-	options ;; aliases styles args
+	options aliases ;; styles args
 	)
     (macrolet ((wrn (x &rest y) `(warn ,(strcat "SPEC-CLI: " x) ,@y))
 	       (err (x &rest y) `(error ,(strcat "SPEC-CLI: " x) ,@y)))
@@ -603,7 +605,22 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 			  (t
 			   (setf docs nil)))
 			`(,opt ,type ,docs))
-		      options)))))
+		      options))))
+	   (alias (form)
+	     (cond
+	       ((null (cdr form))
+		(err "In (~s), an option and at least one alias must ~
+                      be supplied." (car form)))
+	       ((null (cddr form))
+		(err "In (~s ~s), at least one alias must be supplied."
+		     (car form) (cadr form)))
+	       ((not (stringp (cadr form)))
+		(err "In (~s ...), the option must be a string." (car form)))
+	       ((not (every #'stringp (cdr form)))
+		(err "In (~s ~s ...), all aliases must be strings."
+		     (car form) (cadr form)))
+	       (t
+		(push (cdr form) aliases)))))
 	(mapc (lambda (f)
 		(if (listp f)
 		    (case (car f)
@@ -612,13 +629,14 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 		      (:tail (tail f))
 		      (:flagopt (flagopt f))
 		      (:argopt (argopt f))
+		      ((:alias :aliases) (alias f))
 		      (otherwise (err "~s is not a recognized form." f)))
 		    (err "~s must be a list." f)))
 	      forms))
 	(unless name
 	  (wrn "(:NAME ...) missing, using (:NAME \"nemo\") for now.")
 	  (setf name "nemo")))
-    `(spec-cli* ,name ,summary ,tail ',options)))
+    `(spec-cli* ,name ,summary ,tail ',options ',aliases)))
 
 		;; ,(if options `(list ,@options) nil)
 		;; ,(if aliases `',aliases nil)
