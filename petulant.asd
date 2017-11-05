@@ -20,4 +20,7 @@ and data interfaces are provided to the caller."
   :components ((:file "pkg")
 	       (:file "misc" :depends-on ("pkg"))
 	       (:file "trie" :depends-on ("pkg"))
+	       (:file "simple" :depends-on ("trie"))
+	       (:file "get" :depends-on ("simple"))
+	       (:file "parse" :depends-on ("simple"))
 	       (:file "petulant" :depends-on ("trie"))))
