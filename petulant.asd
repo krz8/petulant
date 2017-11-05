@@ -12,15 +12,15 @@
 argument processing under both Windows and Unix-like systems.  Code
 using Petulant accepts a command line like /a /b/c /out:foo \\bar\\baz
 under Windows, as well as -a -bc --out=foo /bar/baz under Unix-like
-systems.  Also, Petulant generally requires far less specification of
+systems.  Also, Petulant generally requires much less specification of
 its expected options than typical getopt(3)-like libraries (and in
 many cases, no specification at all is necessary).  Both functional
 and data interfaces are provided to the caller."
 
   :components ((:file "pkg")
 	       (:file "misc" :depends-on ("pkg"))
+	       (:file "simple" :depends-on ("pkg" "misc"))
+	       (:file "get" :depends-on ("pkg" "simple"))
 	       (:file "trie" :depends-on ("pkg"))
-	       (:file "simple" :depends-on ("trie"))
-	       (:file "get" :depends-on ("simple"))
-	       (:file "parse" :depends-on ("simple"))
-	       (:file "petulant" :depends-on ("trie"))))
+	       (:file "parse" :depends-on ("pkg" "trie"))
+	       (:file "petulant" :depends-on ("pkg" "misc" "parse"))))
