@@ -858,6 +858,7 @@ argument\)."
 	  optspecs)
     (values opthash dochash)))
 
+#+nil
 (defun spec-cli* (name summary tail optspecs aliases styles args)
     "Receives a parsed specification of command-line options and
 arguments from the SPEC-CLI macro."
@@ -865,36 +866,49 @@ arguments from the SPEC-CLI macro."
 	(sort-out-options optspecs)
       (usage name summary tail opthash dochash aliases styles)))
 
+#-nil
+(defun spec-cli* (name summary tail options)
+  "for debugging"
+  (format t "spec-cli* starting at ~d~%" (get-universal-time))
+  (format t "spec-cli* pausing three seconds~%")
+  (sleep 3)
+  (format t "name ~s ~s~%" (type-of name) name)
+  (when summary
+    (format t "summary ~s~%" (funcall summary)))
+  (when tail
+    (format t "tail ~s~%" (funcall tail)))
+  (princ "options")
+  (pprint options *standard-output*))
+
 (defmacro spec-cli (&rest forms)
   "Using a series of forms specifying a complete command-line
 interface presented to the user, blah blah blah...
 
-\(:NAME \"…\"\) provides a name for the application.  Eventually, we
-might tease the name under which we were invoked out of the running
+\(:NAME \"appname\"\) provides a name for the application. Eventually,
+we might tease the name under which we were invoked out of the running
 Lisp environment, but for now, every well-behaved application should
 supply a name for itself.
 
    \(:name \"sharpen\"\)
 
-\(:SUMMARY \"…\" …\) provides a short summary of the application.  The
-first string and any subsequent arguments are applied to the FORMAT
-function (those arguments are only evaluated when a suitable help
-message is generated).  The resulting summary text will be further
-reformatted and justified to take as many lines as necessary on
-output; breaking will occur on any whitespace characters embedded
-within the result of the call to FORMAT.  The evaluation of the
-arguments is delayed until they are needed for display.  Examples:
+\(:SUMMARY …\) is used to provide a short summary of the application.
+It takes a FORMAT control string and optional subsequent forms that
+are evaluated when a usage message needs to be generated.  The
+resulting string is reformatted and justified to fit in the usage
+message, using all whitespace (newline, carriage returns, space
+characters) as locations to provide text wrapping. \(So don't bother
+trying any fancy formatting.\)
 
    \(:summary \"Stimulate the beaded hamster.\"\)
    \(:summary \"Does the thing with the thing and the other things ~
 	     and reports things found \(version ~a, ~a\).\"
 	     \(get-version-string\) \(get-release-date\)\)
 
-\(:TAIL \"…\" …\) provides further text to appear at the bottom of a
-usage page, perhaps supplying copyright, author information, or
-anything else that isn't important enough to appear in the summary
-text at the start of the usage page.  The evaluation of the
-arguments is delayed until they are needed for display.
+\(:TAIL …\) provides further text to appear at the bottom of a usage
+page, perhaps supplying copyright, author information, or anything
+else that isn't important enough to appear in the summary text at the
+start of the usage page.  Its specification semantics are the same as
+with :SUMMARY above.
 
 \(:FLAGOPT \"option\" [\"text description\" …]\) names a single option
 that is taken as a flag (that is, it is not expected to take an
@@ -923,8 +937,8 @@ acceptable.
 
     \(:argopt \"title\"\)
     \(:argopt \"title\" \(:string 50\)\)   
-    \(:argopt \"title\" \(:string 50\) \"Used to supply a title ~
-                                   for the report.\"\)
+    \(:argopt \"title\" \(:string 50\)
+              \"Names the main title of the report.\"\)
 
 - Numeric types may be specified via :FLOAT, :INTEGER, :RATIO,
   :RATIONAL, and :REAL.  :FLOAT indicates a floating point decimal
@@ -936,7 +950,6 @@ acceptable.
     \(:argopt \"delay\" :real\)
     \(:argopt \"delay\" :real \"Specifies the number of seconds ~
                             to wait between iterations.\"\)
-
 
 - The preceding numeric types may be expressed in a list with up to
   two optional values.  If a second argument exists, it provides a
@@ -965,6 +978,16 @@ acceptable.
   $ app --color=red
   SPEC-CLI returns :RED as the argument of \"color\".
 
+- The pseudo-type :ONE-OF can be used to introduce a list of strings
+  that the user may supply as an argument to the option.  The list
+  can be specified as strings or symbols; any match from the user
+  counts.  The comparison is not sensitive to case, and a symbol in
+  the keyword package will be returned, regardless of the specification.
+
+   \(:argopt \"channel\" \(:one-of :red :green :blue\)\)
+
+   \(:argopt \"xfer\" \(:one-of \"rectlin\" \"sigmoid\" \"thresh\" \"lin\"\)\)
+
 - A pseudo-type :READ can be specified that will call the Lisp reader
   to parse the supplied argument string.  This can be exploited to
   accept many data types and expressions \(such as arrays and lists\).
@@ -976,10 +999,12 @@ acceptable.
   otherwise tricked by a clever user.  Use the :READ psuedo-type with
   extreme caution in an executable released into the wild.
 
-  \(spec-cli ... \(:argopt \"foo\" :read\) ...\)
-  C:\\Users\\krz> app /foo:(erase-disk)
-  SPEC-CLI returns a list of one item, the symbol ERASE-DISK, as the
-  argument of the \"foo\" option.
+  - \(spec-cli ... \(:argopt \"foo\" :read\) ...\)
+
+  - C:\\Users\\krz> app /foo:(erase-disk)
+
+  - SPEC-CLI returns a list of one item, the symbol ERASE-DISK, as the
+    argument of the \"foo\" option.
 
 \(:ALIAS \"option\" \"alias\" [\"alias\" …]\) establishes one or more
 aliases for a given option. Multiple instances of :ALIAS for the same
@@ -1013,176 +1038,354 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
   ;; we can.  If the caller can get through SPEC-CLI without warnings
   ;; or errors, there's no reason for them to expect anything but
   ;; success.
-  (let ((keypkg (find-package 'keyword))
-	name summary tail options aliases styles args)
-    (flet ((stringify (x) (if (stringp x) x (format nil "~a" x))))
-      (mapc (lambda (form)
-	      ;; We can't use CASE here because the first clause is
-	      ;; meant to catch the situation where we don't have a
-	      ;; (car form) as our key to CASE.  So, we use a COND and
-	      ;; fake it with a macro.  If we use a CASE as an else clause
-	      ;; of an IF, or as a T of a COND, everything reallllly winds
-	      ;; up slammed against the right margin.  I should factor this
-	      ;; out, anyway, but let's get it all working first.
-	      (symbol-macrolet
-		  ((key (car form)))
-		(cond
-		  ((not (listp form))
-		   (error "SPEC-CLI: ~s is not a list." form))
-
-		  ((eq :name key)
-		   (when name
-		     (warn "SPEC-CLI: (:NAME ...) should only appear once."))
-		   (cond
-		     ((cddr form)
-		      (error "SPEC-CLI: (:NAME ...) must have two elements."))
-		     ((not (stringp (cadr form)))
-		      (error "SPEC-CLI: In (:NAME ...) the second element ~
-                              must be a string."))
-		     (t
-		      (setf name (cadr form)))))
-
-		  ((eq :summary key)
-		   (when summary
-		     (warn "SPEC-CLI: (:SUMMARY ...) should only appear once."))
-		   (if (stringp (cadr form))
-		       (setf summary
-			     `(lambda () (format nil ,@(cdr form))))
-		       (error "SPEC-CLI: In (:SUMMARY ...), the first ~
-                               argument must be a FORMAT string.")))
-
-		  ((eq :tail key)
-		   (when tail
-		     (warn "SPEC-CLI: (:TAIL ...) should only appear once."))
-		   (if (stringp (cadr form))
-		       (setf tail
-			     `(lambda () (format nil ,@(cdr form))))
-		       (error "SPEC-CLI: In (:TAIL ...), the first ~
-                               argument must be a FORMAT string.")))
-
-		  ((eq :flagopt key)
-		   (cond
-		     ((zerop (length (cadr form)))
-		      (error "SPEC-CLI: In (:FLAGOPT ...), the second ~
-                              element names an option and cannot be an ~
-                              empty string."))
-		     ((or (null (cadr form))
-			  (not (stringp (cadr form))))
-		      (error "SPEC-CLI: In (:FLAGOPT ...), the second ~
-                              element must be a string naming the option."))
-		     (t
-		      (push (destructuring-bind (key opt &optional x &rest y)
-				form
-			      (declare (ignore y))
-			      (cond
-				((null x)
-				 (list opt :flag nil))
-				((stringp x)
-				 `(list ,opt :flag
-					(lambda () (format nil ,@(cddr form)))))
-				(t
-				 (error "SPEC-CLI: In (~s ~s ...), ~
-                                         the third element must be a FORMAT ~
-                                         string." key opt))))
-			    options))))
-		    
-		  ((eq :argopt key)
-		   (cond
-		     ((or (null (cadr form))
-			  (not (stringp (cadr form))))
-		      (error "SPEC-CLI: In (:ARGOPT ...), the second ~
-                              element must be a string naming the option."))
-		     ((zerop (length (cadr form)))
-		      (error "SPEC-CLI: In (:ARGOPT ...), the second ~
-                              element names an option and cannot be an ~
-                              empty string."))
-		     (t
-		      (push (destructuring-bind (key opt &optional x y &rest z)
-				form
-			      (declare (ignore z))
-			      (cond
-				((null x)
-				 (cond
-				   ((null y)
-				    `(list ,opt :string nil))
-				   ((stringp y)
-				    `(list ,opt :string
-					  (lambda ()
-					    (format nil ,@(cdddr form)))))
-				   (t
-				    (error "SPEC-CLI: In (~s ~s NIL ...), ~
-                                            the fourth element ~s must be ~
-                                            a FORMAT string." key opt y))))
-
-				((symbolp x)
-				 (cond
-				   ((not (eq keypkg (symbol-package x)))
-				    (error "SPEC-CLI: In (~s ~s ...), the ~
-                                            type argument ~s must be a ~
-                                            symbol in the keyword package."
-					   key opt x))
-				   ((null y)
-				    `(list ,opt ,x nil))
-				   (t
-				    `(list ,opt ,x
-					  (lambda ()
-					    (format nil ,@(cdddr form)))))))
-
-				((listp x)
-				 (cond
-				   ((or (not (symbolp (car x)))
-					(not (eq keypkg
-						 (symbol-package (car x)))))
-				    (error "SPEC-CLI: In (~s ~s ...), the ~
-                                            type argument ~s must be a ~
-                                            symbol in the keyword package."
-					   key opt (car x)))
-				   ((null y)
-				    `(list ,opt ,x nil))
-				   (t
-				    `(list ,opt ,x
-					  (lambda ()
-					    (format nil ,@(cdddr form)))))))
-
-				((stringp x)
-				 `(list ,opt ,nil
-				       (lambda ()
-					 (format nil ,@(cddr form)))))))
-			    options))))
-
-		  ((member key '(:arg :args))
-		   (mapc (lambda (x) (push (stringify x) args))
-			 (cdr form)))
-
-		  ((member key '(:style :styles))
-		   (mapc (lambda (x)
-			   (if (and (symbolp x)
-				    (eq keypkg (symbol-package x)))
-			       (push x styles)
-			       (error "SPEC-CLI: In (~a ...), all ~
-                                       arguments must be keyword symbols."
-				      key)))
-			 (cdr form)))
-
-		  ((member key '(:alias :aliases))
-		   (mapc (lambda (x)
-			   (unless (stringp x)
-			     (error "SPEC-CLI: In (~a ...), all arguments ~
-                                     must be strings." key)))
-			 (cdr form))
-		   (push (cdr form) aliases))
-
-		  (t
-		   (error "SPEC-CLI: (~s ...) is not a recognized form."
-			  key)))))
+  (let ((keypkg (find-package :keyword))
+	name summary tail
+	options ;; aliases styles args
+	)
+    (macrolet ((wrn (x &rest y) `(warn ,(strcat "SPEC-CLI: " x) ,@y))
+	       (err (x &rest y) `(error ,(strcat "SPEC-CLI: " x) ,@y)))
+      (labels
+	  ((stringify (x) (if (stringp x) x (format nil "~a" x)))
+	   (name (form)
+	     (when name
+	       (wrn "(:NAME ...) should only appear once."))
+	     (cond
+	       ((cddr form)
+		(err "(:NAME ...) must have exactly two elements."))
+	       ((not (stringp (cadr form)))
+		(err "In (:NAME ...) the second element must be a string."))
+	       (t
+		(setf name (cadr form)))))
+	   (summary (form)
+	     (when summary
+	       (wrn "(:SUMMARY ...) should only appear once."))
+	     (setf summary `(lambda () (format nil ,@(cdr form)))))
+	   (tail (form)
+	     (when tail
+	       (wrn "(:TAIL ...) should only appear once."))
+	     (setf tail `(lambda () (format nil ,@(cdr form)))))
+	   (flagopt (form)
+	     (cond
+	       ((not (stringp (cadr form)))
+		(err "In (:FLAGOPT ...), the second element, which names ~
+                      an option, must be a string."))
+	       ((zerop (length (cadr form)))
+		(err "In (:FLAGOPT ...), the second element, which names ~
+                      an option, must not be an empty string."))
+	       (t
+		(push (destructuring-bind (key opt &optional x &rest y)
+			  form
+			(declare (ignore key y))
+			(cond
+			  ((null x)
+			   `(,opt (:flag) nil))
+			  ((stringp x)
+			   `(,opt (:flag)
+				  (lambda () (format nil ,@(cddr form)))))
+			  (t
+			   (err "In (:FLAGOPT ~s ...), if a third element ~
+                                 is provided, it must be a FORMAT control ~
+                                 string." opt))))
+		      options))))
+	   (num-num-form (opt form)
+	     (cond
+	       ((null (cdr form))
+		`(,(car form) * *))
+	       ((not (or (numberp (cadr form))
+			 (eq (cadr form) '*)))
+		(err "In (:ARGOPT ~s ...), arguments to ~s can only be ~
+                      a number or *." opt (car form)))
+	       ((null (cddr form))
+		`(,(car form) ,(cadr form) *))
+	       ((not (or (numberp (caddr form))
+			 (eq (caddr form) '*)))
+		(err "In (:ARGOPT ~s ...), arguments to ~s can only be ~
+                      a number or *." opt (car form)))
+	       ((not (null (cdddr form)))
+		(err "In (:ARGOPT ~s ...), ~s can only take up to two ~
+                      arguments." opt (car form)))
+	       (t
+		`(,(car form) ,(cadr form) ,(caddr form)))))
+	   (num-form (opt form)
+	     (cond
+	       ((null (cdr form))
+		`(,(car form) *))
+	       ((not (or (numberp (cadr form))
+			 (eq (cadr form) '*)))
+		(err "In (:ARGOPT ~s ...), the argument to ~s can only be ~
+                      a number or *." opt (car form)))
+	       ((not (null (cddr form)))
+		(err "In (:ARGOPT ~s ...), ~s can only take zero or one ~
+                      argument." opt (car form)))
+	       (t
+		`(,(car form) ,(cadr form)))))
+	   (only-form (opt form)
+	     (if (cdr form)
+		 (err "In (:ARGOPT ~s ...), ~s takes no arguments."
+		      opt (car form))
+		 `(,opt)))
+	   (argopt (form)
+	     (cond
+	       ((not (stringp (cadr form)))
+		(err "In (:ARGOPT ...), the second element, which names ~
+                      an option, must be a string."))
+	       ((zerop (length (cadr form)))
+		(err "In (:ARGOPT ...), the second element, which names ~
+                      an option, must not be an empty string."))
+	       (t
+		(push (let ((opt (cadr form))
+			    (type (caddr form))
+			    (docs (cdddr form)))
+			(cond
+			  ((null type)
+			   (setf type '(:string *)))
+			  ((stringp type)
+			   (setf docs (cddr form)
+				 type '(:string *)))
+			  ((symbolp type)
+			   (cond
+			     ((eq (symbol-package type) keypkg)
+			      (case type
+				   ((:real :rational :ratio :integer :float)
+				    (setf type `(,type * *)))
+				   (:string
+				    (setf type `(,type *)))
+				   ((:key :read :flag)
+				    (setf type `(,type)))
+				   (:one-of
+				    (err "In (:ARGOPT ~s ...), :ONE-OF must ~
+                                          appear in a sublist." opt))
+				   (otherwise
+				    (err "In (:ARGOPT ~s ...), ~s is an
+                                      unrecognized type." opt type))))
+			     (t
+			      (err "In (:ARGOPT ~s ...), ~s must be a symbol ~
+                                    in the keyword package." opt type))))
+			  ((listp type)
+			   (cond
+			     ((or (not (symbolp (car type)))
+				  (not (eq (symbol-package (car type)) keypkg)))
+			      (err "In (:ARGOPT ~s ...), ~s must be a symbol ~
+                                    in the keyword package." opt (car type)))
+			     (t
+			      (case (car type)
+				((:real :rational :ratio :integer :float)
+				 (setf type (num-num-form opt type)))
+				(:string
+				 (setf type (num-form opt type)))
+				((:key :read :flag)
+				 (setf type (only-form opt type)))
+				(:one-of
+				 (err "In (:ARGOPT ~s ...), :ONE-OF is not ~
+                                       yet supported." opt))
+				(otherwise
+				 (err "In (:ARGOPT ~s ...), ~s is not a ~
+                                       recognized type." opt (car type)))))))
+			  (t
+			   (err "In (:ARGOPT ~s ...), ~s is not a recognized ~
+                                 type." opt type)))
+			(cond
+			  ((stringp (car docs))
+			   (setf docs `(lambda () (format nil ,@docs))))
+			  ((not (null docs))
+			   (err "In (:ARGOPT ~s ...), the fourth element ~
+                                   must be a FORMAT control string." opt))
+			  (t
+			   (setf docs nil)))
+			`(,opt ,type ,docs))
+		      options)))))
+	(mapc (lambda (f)
+		(if (listp f)
+		    (case (car f)
+		      (:name (name f))
+		      (:summary (summary f))
+		      (:tail (tail f))
+		      (:flagopt (flagopt f))
+		      (:argopt (argopt f))
+		      (otherwise (err "~s is not a recognized form." f)))
+		    (err "~s must be a list." f)))
 	      forms))
-    (unless name
-      (warn "SPEC-CLI: (:NAME ...) missing, using (:NAME \"nemo\") for now."))
-    `(spec-cli* ,(or name "nemo") ,summary ,tail
-		,(if options `(list ,@options) nil)
-		,(if aliases `',aliases nil)
-		,(if styles `',styles nil)
-		,(if args `',(nreverse args)))))
+	(unless name
+	  (wrn "(:NAME ...) missing, using (:NAME \"nemo\") for now.")
+	  (setf name "nemo")))
+    `(spec-cli* ,name ,summary ,tail ',options)))
+
+		;; ,(if options `(list ,@options) nil)
+		;; ,(if aliases `',aliases nil)
+		;; ,(if styles `',styles nil)
+		;; ,(if args `',(nreverse args))))))
+
+
+	;;    (mapc (lambda (form)
+	;; 		 ;; We can't use CASE here because the first clause is
+	;; 		 ;; meant to catch the situation where we don't have a
+	;; 		 ;; (car form) as our key to CASE.  So, we use a COND and
+	;; 		 ;; fake it with a macro.  If we use a CASE as an else clause
+	;; 		 ;; of an IF, or as a T of a COND, everything reallllly winds
+	;; 		 ;; up slammed against the right margin.  I should factor this
+	;; 		 ;; out, anyway, but let's get it all working first.
+	;; 		 (symbol-macrolet
+	;; 		     ((key (car form)))
+	;; 		   (cond
+	;; 		     ((not (listp form))
+	;; 		      (error "SPEC-CLI: ~s is not a list." form))
+
+	;; 		     ((eq :name key)
+	;; 		      (when name
+	;; 			(warn "SPEC-CLI: (:NAME ...) should only appear once."))
+	;; 		      (cond
+	;; 			((cddr form)
+	;; 			 (error "SPEC-CLI: (:NAME ...) must have two elements."))
+	;; 			((not (stringp (cadr form)))
+	;; 			 (error "SPEC-CLI: In (:NAME ...) the second element ~
+        ;;                       must be a string."))
+	;; 			(t
+	;; 			 (setf name (cadr form)))))
+
+	;; 		     ((eq :summary key)
+	;; 		      (when summary
+	;; 			(warn "SPEC-CLI: (:SUMMARY ...) should only appear once."))
+	;; 		      (if (stringp (cadr form))
+	;; 			  (setf summary
+	;; 				`(lambda () (format nil ,@(cdr form))))
+	;; 			  (error "SPEC-CLI: In (:SUMMARY ...), the first ~
+        ;;                        argument must be a FORMAT string.")))
+
+	;; 		     ((eq :tail key)
+	;; 		      (when tail
+	;; 			(warn "SPEC-CLI: (:TAIL ...) should only appear once."))
+	;; 		      (if (stringp (cadr form))
+	;; 			  (setf tail
+	;; 				`(lambda () (format nil ,@(cdr form))))
+	;; 			  (error "SPEC-CLI: In (:TAIL ...), the first ~
+        ;;                        argument must be a FORMAT string.")))
+
+	;; 		     ((eq :flagopt key)
+	;; 		      (cond
+	;; 			((zerop (length (cadr form)))
+	;; 			 (error "SPEC-CLI: In (:FLAGOPT ...), the second ~
+        ;;                       element names an option and cannot be an ~
+        ;;                       empty string."))
+	;; 			((or (null (cadr form))
+	;; 			     (not (stringp (cadr form))))
+	;; 			 (error "SPEC-CLI: In (:FLAGOPT ...), the second ~
+        ;;                       element must be a string naming the option."))
+	;; 			(t
+	;; 			 (push (destructuring-bind (key opt &optional x &rest y)
+	;; 				   form
+	;; 				 (declare (ignore y))
+	;; 				 (cond
+	;; 				   ((null x)
+	;; 				    (list opt :flag nil))
+	;; 				   ((stringp x)
+	;; 				    `(list ,opt :flag
+	;; 					   (lambda () (format nil ,@(cddr form)))))
+	;; 				   (t
+	;; 				    (error "SPEC-CLI: In (~s ~s ...), ~
+        ;;                                  the third element must be a FORMAT ~
+        ;;                                  string." key opt))))
+	;; 			       options))))
+
+	;; 		     ((eq :one-of key)
+	;; 		      (error "SPEC-CLI: (:ONE-OF ...) not yet implemented."))
+		  
+	;; 		     ((eq :argopt key)
+	;; 		      (cond
+	;; 			((or (null (cadr form))
+	;; 			     (not (stringp (cadr form))))
+	;; 			 (error "SPEC-CLI: In (:ARGOPT ...), the second ~
+        ;;                       element must be a string naming the option."))
+	;; 			((zerop (length (cadr form)))
+	;; 			 (error "SPEC-CLI: In (:ARGOPT ...), the second ~
+        ;;                       element names an option and cannot be an ~
+        ;;                       empty string."))
+	;; 			(t
+	;; 			 (push (destructuring-bind (key opt &optional x y &rest z)
+	;; 				   form
+	;; 				 (declare (ignore z))
+	;; 				 (cond
+	;; 				   ((null x)
+	;; 				    (cond
+	;; 				      ((null y)
+	;; 				       `(list ,opt :string nil))
+	;; 				      ((stringp y)
+	;; 				       `(list ,opt :string
+	;; 					      (lambda ()
+	;; 						(format nil ,@(cdddr form)))))
+	;; 				      (t
+	;; 				       (error "SPEC-CLI: In (~s ~s NIL ...), ~
+        ;;                                     the fourth element ~s must be ~
+        ;;                                     a FORMAT string." key opt y))))
+
+	;; 				   ((symbolp x)
+	;; 				    (cond
+	;; 				      ((not (eq keypkg (symbol-package x)))
+	;; 				       (error "SPEC-CLI: In (~s ~s ...), the ~
+        ;;                                     type argument ~s must be a ~
+        ;;                                     symbol in the keyword package."
+	;; 					      key opt x))
+	;; 				      ((null y)
+	;; 				       `(list ,opt ,x nil))
+	;; 				      (t
+	;; 				       `(list ,opt ,x
+	;; 					      (lambda ()
+	;; 						(format nil ,@(cdddr form)))))))
+
+	;; 				   ((listp x)
+	;; 				    (cond
+	;; 				      ((or (not (symbolp (car x)))
+	;; 					   (not (eq keypkg
+	;; 						    (symbol-package (car x)))))
+	;; 				       (error "SPEC-CLI: In (~s ~s ...), the ~
+        ;;                                     type argument ~s must be a ~
+        ;;                                     symbol in the keyword package."
+	;; 					      key opt (car x)))
+	;; 				      ((null y)
+	;; 				       `(list ,opt ,x nil))
+	;; 				      (t
+	;; 				       `(list ,opt ,x
+	;; 					      (lambda ()
+	;; 						(format nil ,@(cdddr form)))))))
+
+	;; 				   ((stringp x)
+	;; 				    `(list ,opt ,nil
+	;; 					   (lambda ()
+	;; 					     (format nil ,@(cddr form)))))))
+	;; 			       options))))
+
+	;; 		     ((member key '(:arg :args))
+	;; 		      (mapc (lambda (x) (push (stringify x) args))
+	;; 			    (cdr form)))
+
+	;; 		     ((member key '(:style :styles))
+	;; 		      (mapc (lambda (x)
+	;; 			      (if (and (symbolp x)
+	;; 				       (eq keypkg (symbol-package x)))
+	;; 				  (push x styles)
+	;; 				  (error "SPEC-CLI: In (~a ...), all ~
+        ;;                                arguments must be keyword symbols."
+	;; 					 key)))
+	;; 			    (cdr form)))
+
+	;; 		     ((member key '(:alias :aliases))
+	;; 		      (mapc (lambda (x)
+	;; 			      (unless (stringp x)
+	;; 				(error "SPEC-CLI: In (~a ...), all arguments ~
+        ;;                              must be strings." key)))
+	;; 			    (cdr form))
+	;; 		      (push (cdr form) aliases))
+
+	;; 		     (t
+	;; 		      (error "SPEC-CLI: (~s ...) is not a recognized form."
+	;; 			     key)))))
+	;; 	   forms))
+	;; (unless name
+	;;   (warn "SPEC-CLI: (:NAME ...) missing, using (:NAME \"nemo\") for now."))
+	;; `(spec-cli* ,(or name "nemo") ,summary ,tail
+	;; 	    ,(if options `(list ,@options) nil)
+	;; 	    ,(if aliases `',aliases nil)
+	;; 	    ,(if styles `',styles nil)
+	;; 	    ,(if args `',(nreverse args))))))
 
 ;;; okay, fucked up the options quoting now
 ;;; trying to make a form like
