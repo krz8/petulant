@@ -13,6 +13,23 @@ is evaluated in that context."
   "Concatenates all arguments together, returning a new string."
   (apply #'concatenate 'string strings))
 
+(defun slashify (x)
+  "Prefix the string X with a slash character, unless it already has
+one, or is an empty string."
+  (cond
+    ((zerop (length x))
+     x)
+    ((char= #\/ (char x 0))
+     x)
+    (t
+     (strcat "/" x))))
+
+(defun stringify (x)
+  "Return X if it is a string; otherwise, return a string that represents it."
+  (or (and (stringp x) x)
+      (format nil "~a" x)))
+
+
 #+nil
 (defun fold? (flavor)
   "In a few different places, we need to know if we should be folding
@@ -289,17 +306,6 @@ kind.  In the meantime, our mini-split-sequence hack is good enough.
        (when i
 	 (push (subseq str i) res))
        (nreverse res)))))
-
-(defun slashify (x)
-  "Prefix X with a slash character, unless it already has one, or is
-an empty string."
-  (cond
-    ((zerop (length x))
-     x)
-    ((char= #\/ (char x 0))
-     x)
-    (t
-     (concatenate 'string "/" x))))
 
 (defun canonicalize-windows-args (strings)
   "Given a list of strings that represents command line options and
