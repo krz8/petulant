@@ -463,7 +463,7 @@ equality baked in."
   (with-styles-canon (styles styles)
     (make-hash-table :test (eq=-fn styles))))
 
-(defun build-options-aliases (opthash dochash alihash options aliases)
+(defun sort-out-options (opthash dochash alihash options aliases)
   "Work through OPTIONS and ALIASES, as supplied to SPEC-CLI*, and
 update the option hash, option documentation hash, and alias hash
 accordingly.  Every option appears in the OPTHASH, the value of which
@@ -509,16 +509,21 @@ application's actual command line."
   (with-styles-canon (styles styles)
     (let ((opthash (make-pethash styles))
 	  (dochash (make-pethash styles))
-	  (alihash (make-pethash styles)))
-      (build-options-aliases opthash dochash alihash options aliases)
-      (format t "opthash~%")
-      (maphash (lambda (k v) (format t "~s ~s~%" k v)) opthash)
-      (format t "dochash~%")
-      (maphash (lambda (k v)
-		 (when v
-		   (format t "~s ~s~%" k (funcall v)))) dochash)
-      (format t "alihash~%")
-      (maphash (lambda (k v) (format t "~s ~s~%" k v)) alihash))))
+	  (alihash (make-pethash styles))
+	  (results (make-pethash styles)))
+      (labels ((argp (option) (gethash option opthash)))
+	(sort-out-options opthash dochash alihash options aliases)
+	))))
+
+
+;;; WWI
+;;; Hit parse.lisp, and change PARSE-CLI to work with hashes instead of
+;;; lists.  Then create a wrapper that takes the original lists and
+;;; generates hashes for use by the other function.
+;;;
+;;; We probably want the new wrapper to be PARSE-CLI, and the function
+;;; doing the actual work and consuming hashes to be PARSE-CLI*
+
 
 ;; (defun label-option (option type styles &optional (padding "  "))
 ;;   "Given a string naming an OPTION, some kind of type specification
