@@ -9,9 +9,14 @@ is evaluated in that context."
        ((not it))
      ,@body))
 
-(defun strcat (&rest strings)
-  "Concatenates all arguments together, returning a new string."
-  (apply #'concatenate 'string strings))
+;;; This used to be a function, but if you think about it, there's no
+;;; advantage here to going through an extra set of lambda &rest parsing
+;;; and ginning up an (apply #'concatenate ...) here over a compile-time
+;;; rewrite into the function that does all the heavy lifting anyway.
+
+(defmacro strcat (&rest strings)
+  "Concatenate all string arguments together, returning a new string."
+  `(concatenate 'string ,@strings))
 
 (defun slashify (x)
   "Prefix the string X with a slash character, unless it already has
@@ -25,10 +30,17 @@ one, or is an empty string."
      (strcat "/" x))))
 
 (defun stringify (x)
-  "Return X if it is a string; otherwise, return a string that represents it."
-  (or (and (stringp x) x)
-      (format nil "~a" x)))
-
+  "Returns a string based on X.  NIL becomes an empty string.
+Characters are converted to strings of length 1.  Keywords are
+returned as upper-case strings.  Numbers are converted to decimal
+strings."
+  (cond
+    ((stringp x) x)
+    ((null x) "")
+    ((characterp x) (string x))
+    ((numberp x) (format nil "~d" x))
+    ((symbolp x) (symbol-name x))
+    (t (format nil "~s" x))))		; hope for the best
 
 #+nil
 (defun fold? (flavor)
@@ -58,6 +70,7 @@ string comparisons should be sensitive to case."
   (or (and (fold? flavor) #'char-equal)
       #'char=))
 
+#+nil
 (defun make-string-fixer (&optional flavor)
   "Returns a function that \"fixes up\" its single argument when
 returning options seen on a command line to the caller.  When FLAVOR
@@ -94,23 +107,22 @@ thing.
     (t     #'(lambda (x) (string x)))))
 
 (defun wc/make-setfs (n string vars)
-  "Generate the middle SETF forms for a case clause in the WITH-CHARS macro.
-Effectively, where N is a case of the length of the string being
-dissected, this turns out as many SETF clauses of the variables named
-in VARS that can be resolved against the length of STRING.  When N is
-0, NIL is returned.
+  "Generate the middle SETF forms for a case clause in the WITH-CHARS
+macro.  Effectively, where N is a case of the length of the string
+being dissected, this turns out as many SETF clauses of the variables
+named in VARS that can be resolved against the length of STRING.  When
+N is 0, a dangling SETF with no forms is avoided and NIL is returned.
 
-Example return values:  NIL
-                        (SETF A (CHAR STRING 0))
-                        (SETF A (CHAR STRING 0) B (CHAR STRING 1))
-                        (SETF A (CHAR STRING 0) B (CHAR STRING 1)
-                              C (CHAR STRING 2))"
+   \(wc/make-setfs 0 'foo '\(a b c\)\)
+=> NIL
+   \(wc/make-setfs 1 'foo '\(a b c\)\)
+=> \(SETF A \(CHAR FOO 0\)\)
+   \(wc/make-setfs 3 'foo '\(a b c\)\)
+=> \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\) C \(CHAR FOO 2\)\)"
   (when (> n 0)
-    (list (append '(setf)
-	     (iterate
-	       (for i from 0 below n)
-	       (for v in vars)
-	       (appending `(,v (char ,string ,i))))))))
+    `(setf ,@(iterate (for i from 0 below n)
+		      (for v in vars)
+		      (appending `(,v (char ,string ,i)))))))
 
 (defun wc/make-case-clause (n string vars)
   "Generate a clause for the case statement inside the WITH-CHARS macro.
@@ -118,12 +130,21 @@ Specifically, the clause to be executed when the string's length is N.
 When N is equal to, or greater than, the number of variable named in
 the list VARS, a default case clause (T) is emitted.
 
-Example return values:  (0)
-                        (1 (SETF A (CHAR STRING 0)))
-                        (2 (SETF A (CHAR STRING 1) B (CHAR STRING 2)))"
-  (append
-   (list (if (>= n (length vars)) t n))
-   (wc/make-setfs n string vars)))
+   \(wc/make-case-clause 0 'foo '\(a b c\)\)
+=> \(0 NIL\)
+   \(wc/make-case-clause 1 'foo '\(a b c\)\)
+=> \(1 \(SETF A \(CHAR FOO 0\)\)\)
+   \(wc/make-case-clause 2 'foo '\(a b c\)\)
+=> \(2 \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\)\)\)
+   \(wc/make-case-clause 3 'foo '\(a b c\)\)
+=> \(T \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\) C \(CHAR FOO 2\)\)\)
+   \(wc/make-case-clause 4 'foo '\(a b c\)\)
+=> \(T \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\) C \(CHAR FOO 2\)\)\)
+
+Note that at 3, which is the largest value that '\(A B C\) permits,
+the case selector turns to T."
+  `(,(if (>= n (length vars)) t n)
+    ,(wc/make-setfs n string vars)))
 
 (defmacro with-chars ((&rest vars) string &body body)
   "Evaluate BODY after binding the variables in VARS to the first characters
@@ -141,6 +162,7 @@ of the STRING.  The variables are NIL when STRING is not long enough.
 	       (collect (wc/make-case-clause i string vars))))
 	 ,@body))))
 
+#+nil
 (defun char-or-string (x)
   "When X is a character, or when X is a string whose length is not 1,
 it is returned.  When X is a string whose length is 1, the character
@@ -155,6 +177,7 @@ making up that string is returned.
     ((= (length x) 1) (char x 0))
     (t x)))
 
+#+nil
 (defun chars-and-strings (list)
   "Given a list of characters and strings, return two values.  The
 first is a list of characters from LIST, and the second is a list of
@@ -199,6 +222,7 @@ OPTARGS, so don't modify it after the fact.
 				    (member y optchars :test c=)
 				    (member y optstrings :test s=)))))))
 
+#+nil
 (defun all-truncated-strings (strings)
   "Given a list of STRINGS, return a list of those strings plus all
 the truncated variations of those strings.  The returned list shares
@@ -215,6 +239,7 @@ STRINGS will be silently dropped.)
 			    (collect (subseq str 0 i))))
 	  strings))
 
+#+nil
 (defun count-strings (strings &key safe fold)
   "Given a list of STRINGS, return an alist indicating the number
 of times each string appeared in STRINGS.  The key to the alist is
@@ -240,6 +265,7 @@ Set FOLD when case-insensitive testing is desired.
 		str<))
     result))
 
+#+nil
 (defun unique-substrings (strings &key fold)
   "Given a list of STRINGS, generate all the truncated permutations of
 every string in that list.  Return only those strings that appear once
@@ -261,17 +287,7 @@ STRINGS will be silently dropped.\)
 	  (count-strings (all-truncated-strings strings)
 			 :safe t :fold fold)))
 
-(defun ensure-string (x)
-  "Returns a string from X.  NIL becomes an empty string.  Characters
-are converted to strings of length 1.  Keywords are returned as
-upper-case strings.  Numbers are converted to decimal strings."
-  (typecase x
-    (string x)
-    (number (format nil "~d" x))
-    (t (cond
-	 ((null x) "")
-	 ((symbolp x) (symbol-name x))
-	 (t (string x))))))		; hope for the best
+;;; This, and canonicalize-windows-args, should move to simple.lisp.
 
 (defun isolate-switches (string)
   "Given a string that begins with at least one Windows CLI switch
@@ -282,7 +298,7 @@ switches introduced with a colon are preserved with the switch.
 If this looks like SPLIT-SEQUENCE, well, you're not wrong.
 ISOLATE-SWITCHES exists because one day, this is going to require some
 kind of weird escape processing and probably a state machine of some
-kind.  In the meantime, our mini-split-sequence hack is good enough.
+kind.  In the meantime, this mini-split-sequence hack is good enough.
 
    \(ISOLATE-SWITCHES \"/a\"\)                 => \(\"a\"\)
    \(ISOLATE-SWITCHES \"/ab\"\)                => \(\"ab\"\)
@@ -344,13 +360,13 @@ them as they are.
     (nreverse result)))
 
 (defun split (char-bag string)
-  "Return a list of strings that are subsequences of STRING, split up
-  on boundaries where any character in the list CHAR-BAG match.  This
-  is a lot like SPLIT-SEQUENCE, possibly faster but at the cost of some
-  bells and whistles.
+  "Return a list of strings that are subsequences of STRING, splitting
+it up on boundaries where any character in the list CHAR-BAG match.
+This is a lot like SPLIT-SEQUENCE, possibly faster depending on the
+Lisp system, but at the cost of some bells and whistles.
 
-  \(SPLIT '\(#\Space #\Tab #\Newline #\Return\) \"  hello,  world  \"\)
-  => \(\"hello,\" \"world\"\)"
+   \(SPLIT '\(#\Space #\Tab #\Newline #\Return\) \"  hello,  world  \"\)
+=> \(\"hello,\" \"world\"\)"
   (flet ((bagp (ch) (member ch char-bag)))
     (cond
       ((zerop (length string))
@@ -387,12 +403,16 @@ them as they are.
 
 (defun revstrcat (strings &key copy)
   "Given a list of STRINGS, concatenate them together in reverse order.
-  Due to the reversal, this is particularly useful for lists of strings
-  built up by PUSH and friends.  This function MODIFIES the STRINGS
-  list; set COPY if the original STRINGS argument should not be changed.
+Due to the reversal, this is particularly useful for lists of strings
+built up by PUSH and friends.  This function MODIFIES the STRINGS
+list; set COPY if the original STRINGS argument should not be changed.
 
-  \(REVSTRCAT '(\"world\" \", \" \"hello\"\)\)
-  => \"hello, world\""
+Note: this is poorly named.  STRCAT takes individual strings as
+arguments, while REVSTRCAT takes one list of strings, owing to its
+different purpose.  Hmm.
+
+   \(REVSTRCAT '(\"world\" \", \" \"hello\"\)\)
+=> \"hello, world\""
   (apply #'concatenate 'string
 	 (funcall (if copy #'reverse #'nreverse) strings)))
 
