@@ -1,5 +1,75 @@
 (in-package #:petulant)
 
+(defun isolate-switches (string)
+  "Given a string that begins with at least one Windows CLI switch
+character, return a list of strings that exist between slashes,
+skipping leading, multiple, and trailing slashes.  Arguments to
+switches introduced with a colon are preserved with the switch.
+
+If this looks like SPLIT-SEQUENCE, well, you're not wrong.
+ISOLATE-SWITCHES exists because one day, this is going to require some
+kind of weird escape processing and probably a state machine of some
+kind.  In the meantime, this mini-split-sequence hack is good enough.
+
+   \(ISOLATE-SWITCHES \"/a\"\)                 => \(\"a\"\)
+   \(ISOLATE-SWITCHES \"/ab\"\)                => \(\"ab\"\)
+   \(ISOLATE-SWITCHES \"/a/bc\"\)              => \(\"a\" \"bc\"\)
+   \(ISOLATE-SWITCHES \"/a/bc:de\"\)           => \(\"a\" \"bc:de\"\)
+   \(ISOLATE-SWITCHES \"/a/bc:de/f\"\)         => \(\"a\" \"bc:de\" \"f\"\)
+   \(ISOLATE-SWITCHES \"/a/bc:de/f/\"\)        => \(\"a\" \"bc:de\" \"f\"\)
+   \(ISOLATE-SWITCHES \"///a///bc:de///f//\"\) => \(\"a\" \"bc:de\" \"f\"\)
+   \(ISOLATE-SWITCHES \"\"\)                   => \(\"\"\)
+   \(ISOLATE-SWITCHES \"/\"\)                  => \(\"/\"\)
+   \(ISOLATE-SWITCHES \"//\"\)                 => \(\"//\"\)"
+  (cond
+    ((zerop (length string))                       '(""))
+    ((not (position #\/ string :test #'char/=))    (list string))
+    (t
+     (let ((str (string-trim "/" string))
+	   (i 0) (res))
+       (awhile (position #\/ str :start i)
+	 (push (subseq str i it) res)
+	 (setq i (position #\/ str :start it :test #'char/=)))
+       (when i
+	 (push (subseq str i) res))
+       (nreverse res)))))
+
+(defun canonicalize-windows-args (strings)
+  "Given a list of strings that represents command line options and
+arguments passed in a Windows environment, break up combined switches
+and return a new list of strings that is easier to parse.  The original
+set of STRINGS is broken down via ISOLATE-SWITCHES.
+
+Strings like \"\", \"/\", \"//\", and so on are special, we preserve
+them as they are.
+
+   (CANONICALIZE-WINDOWS-ARGS '(\"abc\" nil \"\" \"def\")
+=> (\"abc\" \"\" \"def\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"abc\" \"//\" \"def\")
+=> (\"abc\" \"//\" \"def\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"/abc\" \"def\")
+=> (\"/abc\" \"def\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\")
+=> (\"/a\" \"/bc\" \"def\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/ef:gh\")
+=> (\"/a\" \"/bc\" \"def\" \"/ef:gh\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/ef\" \"gh\")
+=> (\"/a\" \"/bc\" \"def\" \"/ef\" \"gh\")
+   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/e/f:g/h\")
+=> (\"/a\" \"/bc\" \"def\" \"/e\" \"/f:g\" \"/h\""
+  (let ((result))
+    (labels ((collect (x) (push x result)))
+      (mapc #'(lambda (sw)
+		(cond
+		  ((null sw))
+		  ((and (> (length sw) 0) (char= #\/ (char sw 0)))
+		   (mapc #'(lambda (s) (collect (slashify s)))
+			 (isolate-switches sw)))
+		  (t
+		   (collect sw))))
+	    strings))
+    (nreverse result)))
+
 (defun parse-unix-cli (arglist fn
 		       &optional
 			 (argoptp-fn (constantly nil))

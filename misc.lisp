@@ -287,78 +287,6 @@ STRINGS will be silently dropped.\)
 	  (count-strings (all-truncated-strings strings)
 			 :safe t :fold fold)))
 
-;;; This, and canonicalize-windows-args, should move to simple.lisp.
-
-(defun isolate-switches (string)
-  "Given a string that begins with at least one Windows CLI switch
-character, return a list of strings that exist between slashes,
-skipping leading, multiple, and trailing slashes.  Arguments to
-switches introduced with a colon are preserved with the switch.
-
-If this looks like SPLIT-SEQUENCE, well, you're not wrong.
-ISOLATE-SWITCHES exists because one day, this is going to require some
-kind of weird escape processing and probably a state machine of some
-kind.  In the meantime, this mini-split-sequence hack is good enough.
-
-   \(ISOLATE-SWITCHES \"/a\"\)                 => \(\"a\"\)
-   \(ISOLATE-SWITCHES \"/ab\"\)                => \(\"ab\"\)
-   \(ISOLATE-SWITCHES \"/a/bc\"\)              => \(\"a\" \"bc\"\)
-   \(ISOLATE-SWITCHES \"/a/bc:de\"\)           => \(\"a\" \"bc:de\"\)
-   \(ISOLATE-SWITCHES \"/a/bc:de/f\"\)         => \(\"a\" \"bc:de\" \"f\"\)
-   \(ISOLATE-SWITCHES \"/a/bc:de/f/\"\)        => \(\"a\" \"bc:de\" \"f\"\)
-   \(ISOLATE-SWITCHES \"///a///bc:de///f//\"\) => \(\"a\" \"bc:de\" \"f\"\)
-   \(ISOLATE-SWITCHES \"\"\)                   => \(\"\"\)
-   \(ISOLATE-SWITCHES \"/\"\)                  => \(\"/\"\)
-   \(ISOLATE-SWITCHES \"//\"\)                 => \(\"//\"\)"
-  (cond
-    ((zerop (length string))                       '(""))
-    ((not (position #\/ string :test #'char/=))    (list string))
-    (t
-     (let ((str (string-trim "/" string))
-	   (i 0) (res))
-       (awhile (position #\/ str :start i)
-	 (push (subseq str i it) res)
-	 (setq i (position #\/ str :start it :test #'char/=)))
-       (when i
-	 (push (subseq str i) res))
-       (nreverse res)))))
-
-(defun canonicalize-windows-args (strings)
-  "Given a list of strings that represents command line options and
-arguments passed in a Windows environment, break up combined switches
-and return a new list of strings that is easier to parse.  The original
-set of STRINGS is broken down via ISOLATE-SWITCHES.
-
-Strings like \"\", \"/\", \"//\", and so on are special, we preserve
-them as they are.
-
-   (CANONICALIZE-WINDOWS-ARGS '(\"abc\" nil \"\" \"def\")
-=> (\"abc\" \"\" \"def\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"abc\" \"//\" \"def\")
-=> (\"abc\" \"//\" \"def\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"/abc\" \"def\")
-=> (\"/abc\" \"def\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\")
-=> (\"/a\" \"/bc\" \"def\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/ef:gh\")
-=> (\"/a\" \"/bc\" \"def\" \"/ef:gh\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/ef\" \"gh\")
-=> (\"/a\" \"/bc\" \"def\" \"/ef\" \"gh\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/e/f:g/h\")
-=> (\"/a\" \"/bc\" \"def\" \"/e\" \"/f:g\" \"/h\""
-  (let ((result))
-    (labels ((collect (x) (push x result)))
-      (mapc #'(lambda (sw)
-		(cond
-		  ((null sw))
-		  ((and (> (length sw) 0) (char= #\/ (char sw 0)))
-		   (mapc #'(lambda (s) (collect (slashify s)))
-			 (isolate-switches sw)))
-		  (t
-		   (collect sw))))
-	    strings))
-    (nreverse result)))
-
 (defun split (char-bag string)
   "Return a list of strings that are subsequences of STRING, splitting
 it up on boundaries where any character in the list CHAR-BAG match.
@@ -401,6 +329,7 @@ Lisp system, but at the cost of some bells and whistles.
 	      (t (strcat y x))))
 	  strings))
 
+#+nil
 (defun revstrcat (strings &key copy)
   "Given a list of STRINGS, concatenate them together in reverse order.
 Due to the reversal, this is particularly useful for lists of strings
@@ -416,13 +345,35 @@ different purpose.  Hmm.
   (apply #'concatenate 'string
 	 (funcall (if copy #'reverse #'nreverse) strings)))
 
-(defun maphash/c (function hash)
-  "Call FUNCTION over pairs of keys and values for the supplied HASH,
-collecting the result of each invocation into a list, returning that
-list.  Because MAPHASH is used, no order can be expected of the items
-in the returned list."
-  (let (list)
-    (maphash (lambda (k v)
-	       (push (funcall function k v) list))
-	     hash)
-    list))
+(defgeneric collecting (function container)
+  (:documentation "COLLECTING calls FUNCTION for every conceptual
+element of CONTAINER, gathering the results into a list, which is
+returned.  By \"conceptual element\", we mean e.g., a pair \(key and
+value\) for a hash table, an individual element for a sequence, a
+character for a string, and so on.  Method specialization will be
+performed only for CONTAINER; FUNCTION is always assumed to be a
+function of the proper arguments."))
+
+(defmethod collecting (function (container hash-table))
+  "For every key and value pair in the hash table CONTAINER, call
+FUNCTION once with those as its arguments.  The results of FUNCTION
+are gathered into a list and returned to the caller.  No order can be
+expected of the elements of the returned list."
+  (declare (type function function))
+  (let (results)
+    (maphash (lambda (k v) (push (funcall function k v) results)) container)
+    results))
+
+(defmethod collecting (function (container sequence))
+  "For every element in the sequence CONTAINER, call FUNCTION once
+with that as its argument.  The results of FUNCTION are gathered into
+a list and returned to the caller."
+  (declare (type function function))
+  (map 'list function container))
+
+(defmethod collecting (function (container list))
+  "For every element in the list CONTAINER, call FUNCTION once with
+that as its argument.  The results of FUNCTION are gathered into a
+list and returned to the caller."
+  (declare (type function function))
+  (mapcar function container))

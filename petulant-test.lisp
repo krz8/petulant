@@ -1,13 +1,14 @@
 (defpackage #:petulant-test
   (:use #:cl #:5am)
-  (:export #:all #:misc
+  (:export #:all #:misc #:simple
 	   ;; #:string-fixers #:with-chars #:make-optargp	  ; test sets
 	   ;; #:unique-substrings #:parse-unix-cli
 	   )
   (:import-from #:petulant
-		#:stringify #:slashify #:wc/make-setfs #:wc/make-case-clause
-		#:with-chars #:isolate-switches #:canonicalize-windows-args
-		#:split
+		#:stringify #:slashify #:split
+		#:wc/make-setfs #:wc/make-case-clause #:with-chars
+		#:collecting
+		#:isolate-switches #:canonicalize-windows-args
 		;; #:make-string-fixer #:with-chars #:make-optargp
 		;; #:all-truncated-strings #:count-strings #:unique-substrings
 		;; #:parse-windows-cli #:parse-unix-cli
@@ -17,6 +18,9 @@
 (in-package #:petulant-test)
 
 (def-suite all :description "all petulant tests")
+
+
+
 (def-suite misc :description "petulant misc utilities" :in all)
 (in-suite misc)
 
@@ -35,7 +39,15 @@
 (test split
   (is (equal '("") (split '(#\a #\b #\c) "")))
   (is (equal '("hello," "world")
-	     (split '(#\Space #\Tab #\Newline #\Return) "  hello,  world  "))))
+	     (split '(#\Space #\Tab #\Newline #\Return) "hello, world")))
+  (is (equal '("hello," "world")
+	     (split '(#\Tab #\Space #\Newline #\Return) "  hello, world")))
+  (is (equal '("hello," "world")
+	     (split '(#\Tab #\Newline #\Space #\Return) "  hello,  world")))
+  (is (equal '("hello," "world")
+	     (split '(#\Tab #\Newline #\Return #\Space) "  hello,  world  ")))
+  (is (equal '("hello," "world")
+	     (split '(#\Space #\Tab #\Newline #\Return) "hello,  world  "))))
 
 (test wc/make-setfs
       (is (equalp nil
@@ -77,6 +89,36 @@
 	  (is (null f))
 	  (is (null g))
 	  (is (null h)))))
+
+(test collecting
+  (let ((hash (make-hash-table))
+	(str "aCeG")
+	(seq #(#\b #\D #\f #\H))
+	(list '(12 23 34 45)))
+    (is (equal nil
+	       (sort (collecting (lambda (k v) (* k v)) hash) #'<)))
+    (is (equal nil
+	       (collecting #'char-downcase "")))
+    (is (equal nil
+	       (collecting #'char-upcase #())))
+    (is (equal nil
+	       (collecting (lambda (x) (* 2 x)) nil)))
+    (setf (gethash 1 hash) 10
+	  (gethash 2 hash) 20
+	  (gethash 3 hash) 30
+	  (gethash 4 hash) 40)
+    (is (equal '(10 40 90 160)
+	       (sort (collecting (lambda (k v) (* k v)) hash) #'<)))
+    (is (equal '(#\a #\c #\e #\g)
+	       (collecting #'char-downcase str)))
+    (is (equal '(#\B #\D #\F #\H)
+	       (collecting #'char-upcase seq)))
+    (is (equal '(24 46 68 90)
+	       (collecting (lambda (x) (* 2 x)) list)))))
+
+
+
+(def-suite simple :description "simple parser stuff" :in all)
 
 (test isolate-switches
   (is (equalp '("a") (isolate-switches "/a")))
