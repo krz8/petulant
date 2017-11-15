@@ -7,7 +7,7 @@
   (:import-from #:petulant
 		#:stringify #:slashify #:split
 		#:wc/make-setfs #:wc/make-case-clause #:with-chars
-		#:collecting #:canonicalize-styles
+		#:collecting #:styles-to-hash #:canonicalize-styles
 		#:isolate-switches #:canonicalize-windows-args
 		;; #:make-string-fixer #:with-chars #:make-optargp
 		;; #:all-truncated-strings #:count-strings #:unique-substrings
@@ -120,6 +120,54 @@
 
 (def-suite simple :description "simple parser stuff" :in all)
 (in-suite simple)
+
+(def-fixture hashhack ()
+  `(let ((num 42))
+     ,@(&body)))
+(test hashtest
+  (with-fixture hashhack ()
+    (is-true num)))
+
+(def-test hashtest (:fixture hashhack)
+  (is-true num))
+
+(test (hashtest :fixture hashhack)
+  (is-true num))
+
+(def-fixture hashhack (styles)
+  `(let ((hash (cli::styles-to-hash ,styles)))
+     ,@ (&body)))
+
+(test (styles-to-hash :fixture (hashhack nil))
+  (is-true (gethash :windows hash))
+  (is-false (gethash :unix hash)))
+
+(test styles-to-hash
+  (let ((hash (styles-to-hash nil)))
+    (labels ((has (k) (is (eq k (gethash k hash))))
+	     (hasnot (k) (is (not (eq k (gethash k hash))))))
+      #+windows (has :windows)
+      #+windows (hasnot :unix)
+      #-windows (hasnot :windows)
+      #-windows (has :unix))))
+
+(test styles-to-hash
+  (macrolet ((hack ((&rest styles) &body body)
+	       `(let ((hash (styles-to-hash ,styles)))
+		  (labels ((has (k) (is (gethash k hash)))
+			   (hasnot (k) (is (not (gethash k hash)))))
+		    ,@body))))
+    (hack nil
+	  #+windows (has :windows)
+	  #+windows (hasnot :unix)
+	  #-windows (has :unix)
+	  #-windows (hasnot :windows))
+    (hash '(:windows)
+	  (has :windows)
+	  (hasnot :unix))
+    (hash '(:unix)
+	  (hasnot :windows)
+	  (has :unix))))
 
 (test isolate-switches
   (is (equalp '("a") (isolate-switches "/a")))

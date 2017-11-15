@@ -248,68 +248,70 @@ name, argv[0], or other non-argument information."
   #- (or ccl sbcl clisp acl)
   (error "Petulant needs to be ported to this Lisp environment."))
 
-(defun canonicalize-styles (styles)
-  "Given STYLES, which might be a keyword or a list of keywords,
-return a complete list of keywords and any other keywords they imply.
+(defun styles-to-hash (styles)
+  "Given STYLES, which is a keyword or a list of keywords, populate a
+hash with a complete list of keywords and any other keywords implied
+by those supplied and the running system.  This function converts the
+STYLES list to a hash to speed lookups, and \"fleshes out\" the
+keyword list so that it deetermines all aspects of Petulant's
+processing based on what was originally supplied by the caller.
 
-If :UNIX or :WINDOWS appears in styles, it is left as-is.  Otherwise,
-CL:*FEATURES* is consulted, and if :WINDOWS appears there, it is added
-to STYLES.  In this way, we support a default based on the local
-operating system, but make it easy for clients of Petulant to override
-this forcing one or the other behavior.
+First, all keywords in STYLES are added to the returned hash.
 
-If :KEY appears in STYLES, :UP is added to STYLES as well.
+Next, we ensure that one of :UNIX or :WINDOWS always appears in the
+hash.  If not already present, CL:*FEATURES* is consulted to determine
+which of those keywords will appear.
 
-If :STR= does not appear in STYLES, and one of :UP, :DOWN, or :WINDOWS
-appears, then :STREQ is added to STYLES.
+If :KEY appears in the hash, and neither :UP nor :DOWN appear in
+STYLES, then :UP is added to the hash.
 
-Once processed by CANONICALIZE-STYLES, the keyword :CANON is pushed to
-the front of the resulting list.  By leaving :CANON at the front,
-future calls of CANONICALIZE-STYLES can quickly detect when they've
-already run on a list, and avoid duplicating work when called more
-than once.
+If :UP or :DOWN appear in the hash, and neither :STREQ nor :STR=
+appear, then :STREQ is added to the hash.
 
-   \(CANONICALIZE-STYLES '\(:UNIX :KEY\)\)
-=> \(:CANON :STREQ :UP :UNIX :KEY\)
-   \(CANONICALIZE-STYLES '\(:FOO :BAR\)\)
-=> \(:CANON :FOO :BAR\)
-   \(CANONICALIZE-STYLES :DOWN\)
-=> \(:CANON :STREQ :DOWN\)
-   \(CANONICALIZE-STYLES :STREQ\)
-=> \(:CANON :STREQ\)"
-  (let ((res (ensure-list styles)))
-    ;; We're calling (MEMBER :CANON RES) here; a slightly less robust
-    ;; but faster approach would be (EQ :CANON (CAR RES)) since :CANON
-    ;; should be leftmost in RES once we've run once, but that relies
-    ;; on no one messing with STYLES once it's been processed.
-    (unless (member :canon res)
-      (unless (or (member :windows res) (member :unix res))
-	(push (if (featurep :windows) :windows :unix) res))
-      (when (member :key res)
-	(push :up res))
-      (unless (member :str= res)
-	(when (or (member :up res)
-		  (member :down res)
-		  (member :windows res))
-	  (push :streq res)))
-      (push :canon res))		; always last!
-    res))
+If neither :STREQ nor :STR= appear in the hash, but :WINDOWS does,
+then :STREQ is added to the hash, otherwise :STR= is added."
+  (let ((styles (ensure-list styles))
+	(hash (make-hash-table)))
+    (labels ((set! (x) (setf (gethash x hash) x))
+	     (set? (x) (gethash x hash)))
+      (mapc (lambda (k) (set! k)) styles)
+      (unless (or (set? :windows) (set? :unix))
+	(set! (cond ((featurep :windows) :windows)
+		    (t                   :unix))))
+      (unless (or (set? :up) (set? :down))
+	(when (set? :key)
+	  (set! :up)))
+      (unless (or (set? :str=) (set? :streq))
+	(when (or (set? :up) (set? :down))
+	  (set! :streq)))
+      (unless (or (set? :str=) (set? :streq))
+	(if (set? :windows)
+	    (set! :streq)
+	    (set! :str=))))
+    hash))
 
-(defmacro with-styles-canon ((var val) &body body)
-  "Evaluate BODY in a context where VAR is bound to the canonicalized
-styles based on VAL.  This macro can be used more than once;
-CANONICALIZE-STYLES is written to make that situation harmless."
-  `(let ((,var (canonicalize-styles ,val)))
+(defun with-stylehash ((var) &body body)
+  "WITH-STYLEHASH takes the name of a variable that might be a list of
+style keywords or a hash as returned by STYLES-TO-HASH, and ensures
+that the variable is bound to such a hash for the duration of BODY.
+This macro is used to allow multiple functions in the Petulant
+hierarchy to be entry points to an external caller \(who would use a
+list of style keywords\) while allowing higher functions in Petulant
+to call those same functions with an already-converted and
+already-fleshed-out hash of those keywords.
+
+   \(defun foo \(styles\)
+     \(with-stylehash \(styles\)
+       ...
+       \(bar styles\)
+       ...\)\)"
+  `(let ((,var (if (hash-table-p ,var) ,var (styles-to-hash ,var))))
      ,@body))
 
-(defun foldp (styles)
-  "Returns true when STYLES indicates that case-insensitive matching
-should be employed.  Specifically, this is described by :STR= not
-being present in STYLES and :STREQ being present.  \(:STR= overrides
-any :STREQ that might be present.\)"
-  (with-styles-canon (styles styles)
-    (and (not (member :str= styles))
-	 (member :streq styles))))
+(defun foldp (stylehash)
+  "Returns true when STYLEHASH indicates that case-insensitive matching
+should be employed."
+  (gethash :streq stylehash))
 
 (defun simple-parse-cli (fn &key arglist argopt-p-fn chgname-fn styles)
   "This is the low level parser for command-lines.  If you're simply
