@@ -7,7 +7,7 @@
   (:import-from #:petulant
 		#:stringify #:slashify #:split
 		#:wc/make-setfs #:wc/make-case-clause #:with-chars
-		#:collecting #:styles-to-hash #:canonicalize-styles
+		#:collecting #:styles-to-hash #:with-stylehash
 		#:isolate-switches #:canonicalize-windows-args
 		;; #:make-string-fixer #:with-chars #:make-optargp
 		;; #:all-truncated-strings #:count-strings #:unique-substrings
@@ -160,6 +160,21 @@
     (has :windows :str= :down)
     (hasnot :unix :streq :up :key)))
 
+(test with-stylehash
+  (let ((styles '(:unix :key :junk)))
+    (with-stylehash (styles)
+      (is-true (hash-table-p styles))
+      (is-true (gethash :unix styles))
+      (is-false (gethash :windows styles))
+      (is-true (gethash :streq styles))
+      (is-false (gethash :str= styles))
+      (is-false (gethash :down styles))
+      (is-true (gethash :up styles))
+      (is-true (gethash :key styles))
+      (with-stylehash (styles)		; ensure they nest right
+	(is-true (hash-table-p styles))
+	(is-true (gethash :junk styles))))))
+
 (test isolate-switches
   (is (equalp '("a") (isolate-switches "/a")))
   (is (equalp '("ab") (isolate-switches "/ab")))
@@ -193,57 +208,6 @@
   (is (equalp '("/a" "/bc" "def" "/e" "/f:g" "/h")
 	      (canonicalize-windows-args '("/a/bc" "def" "/e/f:g/h")))))
 
-(test canonicalize-styles
-  #+windows
-  (let ((r (canonicalize-styles nil)))
-    (is (member :canon r))
-    (is (not (member :unix r)))
-    (is (member :windows r))
-    (is (member :streq r))
-    (is (not (member :str= r))))
-  #-windows
-  (let ((r (canonicalize-styles nil)))
-    (is (member :canon r))
-    (is (not (member :windows r)))
-    (is (member :unix r))
-    (is (not (member :streq r)))
-    (is (member :str= r)))
-  (let ((r (canonicalize-styles '(:unix :key))))
-    (is (member :canon r))
-    (is (member :unix r))
-    (is (not (member :windows r)))
-    (is (member :key r))
-    (is (member :streq r))
-    (is (not (member :str= r)))
-    (is (member :up r))
-    (is (not (member :down r))))
-  (let ((r (canonicalize-styles '(:foo :bar))))
-    (is (member :canon r))
-    (is (member :foo r))
-    (is (member :bar r))
-    #+windows (is (member :windows r))
-    #+windows (is (not (member :unix r)))
-    #+windows (is (member :streq r))
-    #+windows (is (not (member :str= r)))
-    #-windows (is (not (member :windows r)))
-    #-windows (is (member :unix r))
-    #-windows (is (not (member :streq r)))
-    #-windows (is (member :str= r)))
-  (let ((r (canonicalize-styles :down)))
-    (is (member :down r))
-    (is (member :streq r))
-    (is (not (member :str= r))))
-  (let ((r (canonicalize-styles :up)))
-    (is (member :up r))
-    (is (member :streq r))
-    (is (not (member :str= r))))
-  (let ((r (canonicalize-styles :streq)))
-    (is (member :streq r))
-    (is (not (member :str= r))))
-  (let ((r (canonicalize-styles :str=)))
-    (is (member :str= r))
-    (is (not (member :streq r)))))
-  
 ;; These are broken up because, when you reuse values in the tests,
 ;; it's not immediately in five-am to know which specific test fails.
 ;; Yes, using different test values in every test would mitigate this,
