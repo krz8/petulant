@@ -43,8 +43,8 @@
 
 (defun make-trie (&key loose)
   "Create a new empty TRIE node.  The underlying hash table will use
-  EQUAL to compare keys, unless LOOSE is true, which will cause the
-  hash table to use EQUALP instead."
+EQUAL to compare keys, unless LOOSE is true, which will cause the hash
+table to use EQUALP instead."
   (make-instance 'trie :table (make-hash-table
 			       :test (if loose #'equalp #'equal))))
 
@@ -59,9 +59,9 @@
 
 (defmethod make-similar-trie ((trie trie))
   "Create and return a new trie of the same type as the supplied TRIE.
-  There is no linkage between the supplied TRIE and the newly created
-  trie.  For most classes and subclasses of TRIE, this method will
-  suffice."
+There is no linkage between the supplied TRIE and the newly created
+trie.  For most classes and subclasses of TRIE, this method will
+suffice."
   (make-instance (type-of trie)
 		 :table (make-hash-table
 			 :test (hash-table-test (trie-table trie)))))
@@ -74,9 +74,9 @@
 
 (defmethod trie-at ((trie trie) key)
   "Given any kind of TRIE, return a subtrie associated with KEY within
-  it.  If KEY is not presently associated with anything, a new empty
-  subtrie of the same type as TRIE is created and associated with it.
-  For most classes and subclasses of TRIE, this method will suffice."
+it.  If KEY is not presently associated with anything, a new empty
+subtrie of the same type as TRIE is created and associated with it.
+For most classes and subclasses of TRIE, this method will suffice."
   (aif (gethash key (trie-table trie))
        it
        (setf (gethash key (trie-table trie))
@@ -171,8 +171,8 @@
 
 (defun make-dict (&key loose)
   "Create a new empty dictionary.  The underlying hash table will use
-  EQUAL to compare keys, unless LOOSE is true, which will cause the
-  hash table to use EQUALP instead."
+EQUAL to compare keys, unless LOOSE is true, which will cause the hash
+table to use EQUALP instead."
   (make-instance 'dict :table (make-hash-table
 			       :test (if loose #'equalp #'equal))))
 
@@ -196,10 +196,10 @@
 
 (defmethod dict-add ((dict dict) (word string))
   "Given a single WORD represented by a string, add it to the supplied
-  dictionary DICT.  All necessary new subtries are added to DICT, all
-  nodes along the \"path\" of the WORD are incremented, and the
-  termination flag of the node corresponding to the end of that
-  \"path\" is set. DICT is returned."
+dictionary DICT.  All necessary new subtries are added to DICT, all
+nodes along the \"path\" of the WORD are incremented, and the
+termination flag of the node corresponding to the end of that \"path\"
+is set. DICT is returned."
   (labels ((add (dict word length idx)
 	     (let ((subtrie (trie-at dict (char word idx))))
 	       (incf (dict-count subtrie))
@@ -215,12 +215,12 @@
   (let ((string (make-array 0 :element-type 'character :fill-pointer 0
 			    :adjustable t)))
     (labels ((hack (dict)
-	       (maphash #'(lambda (k v)
-			    (vector-push-extend k string)
-			    (when (dict-term-p v)
-			      (print string))
-			    (hack v)
-			    (vector-pop string))
+	       (maphash (lambda (k v)
+			  (vector-push-extend k string)
+			  (when (dict-term-p v)
+			    (print string))
+			  (hack v)
+			  (vector-pop string))
 			(trie-table dict))))
       (hack dict))))
 
@@ -252,75 +252,63 @@ is too long."
 			    :adjustable t))
 	(result))
     (labels ((remainder (dict)
-	       (maphash #'(lambda (k v)
-			    (vector-push-extend k string)
-			    (remainder v))
+	       (maphash (lambda (k v)
+			  (vector-push-extend k string)
+			  (remainder v))
 			(trie-table dict)))
 	     (walk (dict)
-	       (maphash #'(lambda (k v)
-			    (vector-push-extend k string)
-			    (cond
-			      ((= 1 (dict-count v))
-			       (let ((minlen (length string)))
-				 (remainder v)
-				 ;; when the minimum length is the same as
-				 ;; the length of the target word, don't
-				 ;; bother pushing this result: it's useless
-				 ;; and just clutters up our results
-				 (unless (>= minlen (length string))
-				   (push (list minlen
-					       (length string)
-					       (copy-seq string)) result))
-				 ;; restoring the fill pointer to MINLEN
-				 ;; undoes the call to REMAINDER, and the 1-
-				 ;; is effectively VECTOR-POP.
-				 (setf (fill-pointer string) (1- minlen))))
-			      (t
-			       (walk v)
-			       (vector-pop string))))
+	       (maphash (lambda (k v)
+			  (vector-push-extend k string)
+			  (cond
+			    ((= 1 (dict-count v))
+			     (let ((minlen (length string)))
+			       (remainder v)
+			       ;; when the minimum length is the same as
+			       ;; the length of the target word, don't
+			       ;; bother pushing this result: it's useless
+			       ;; and just clutters up our results
+			       (unless (>= minlen (length string))
+				 (push (list minlen
+					     (length string)
+					     (copy-seq string)) result))
+			       ;; restoring the fill pointer to MINLEN
+			       ;; undoes the call to REMAINDER, and the 1-
+			       ;; is effectively VECTOR-POP.
+			       (setf (fill-pointer string) (1- minlen))))
+			    (t
+			     (walk v)
+			     (vector-pop string))))
 			(trie-table dict))))
       (walk dict))
     result))
 
-;; No, this doesn't draw the nice picture above.  It's just for
-;; debugging.
+;; No, this doesn't draw the nice picture above, but you can infer the
+;; trie structure nonetheless when debugging.
 
-(defun show-dict (root &optional (indent 0))
-  (let ((ind (+ 2 (* 3 indent))))
-    (when (not (zerop indent))
-      (format t "~vt~d ~a~%"
-	      ind (dict-count root) (if (dict-term-p root) "T" " ")))
-    (maphash #'(lambda (key val)
-		 (format t "~vt~a:" ind key)
-		 (show-dict val (1+ indent)))
-	     (trie-table root))))
+(defun show-dict (trie &optional (indent 0))
+  (labels ((space ()
+	     (dotimes (i indent)
+	       (princ "   "))))
+    (let ((n 0))
+      (maphash (lambda (k v)
+		 (when (> n 0)
+		   (terpri)
+		   (space))
+		 (incf n)
+		 (format t "~c~c "
+			 k (if (dict-term-p v) #\. #\Space))
+		 (show v (1+ indent)))
+	       (trie-table trie)))))
 
+#|
+1z ── 1e ── 1b ── 1r ── 1a. 
+3b ── 3e ─┬ 2t ─┬ 1a. 
+          │     └ 1s. 
+          └ 1a ── 1t. 
+4a ─┬ 1d ── 1d. 
+    ├ 2t.── 1o ── 1m. 
+    └ 1a. 
+2i ─┬ 1n ── 1p ── 1u ── 1t. 
+    └ 1g ── 1n ── 1o ── 1r ── 1e. 
+|#
 
-;; (defun leader (n m)
-;;   "Return the leader for the nth entry in a trie of m items. It's
-;;   assumed that n and m are both >= 1."
-;;   (cond
-;;     ((= m 1) "──")
-;;     ((= n 1) "─┬")
-;;     ((= m n) " └")
-;;     (t       " ├")))
-
-;; (defun hack (dict)
-;;   (let ((cntwid (ceiling (log (1+ (dict-count dict)) 10)))
-;; 	(items (hash-table-count (trie-table dict)))
-;; 	(n 0))
-;;     (format t "~v,'0d ~:[.~;T~]" cntwid (dict-count dict) (dict-term-p dict))
-;;     (maphash #'(lambda (k v)
-;; 		 (declare (ignore v))
-;; 		 (format t " ~a ~c " (leader (incf n) items) k)
-;; 		 (hack v)
-;; 		 (terpri))
-;; 	     (trie-table dict))))
-
-;;; 8 . ─┬ a 3 . ─┬ d 1 . ── d 1 t
-;;;      │        └ t 2 t ── o 1 . ── m 1 t
-;;;      ├ b 2 . ── e 2 . ─┬ a 1 . ── t 1 t
-;;;      │                 └ t 1 . ── a 1 t
-;;;      ├ i 2 . ─┬ n 1 . ── p 1 . ── u 1 . ── t 1 t
-;;;      │        └ g 1 . ── n 1 . ── o 1 . ── r 1 . ── e 1 t
-;;;      └ z 1 . ── e 1 . ── b 1 . ── r 1 . ── a 1 t

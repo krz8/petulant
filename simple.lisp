@@ -355,9 +355,9 @@ unambiguously present an option taking an argument.  However, Petulant
 cannot know for certain when a short option (\"-f\" \"bar\") takes an
 option, nor can it discern when a long option (\"--foo\" \"bar\") or a
 switch (\"/foo\" \"bar\") lacking extra punctuation takes an argument.
-The caller can supply a function taking the name of the option as a
-string (\"f\" or \"foo\") and returning true or false to indicate if
-it takes an argument.
+To address this, the caller can supply a function taking the name of
+the option as a string (\"f\" or \"foo\") and returning true or false
+to indicate if it takes an argument.
 
 CHGNAME-FN, if supplied, can be used to change a detected switch from
 one value to another, taking a string and returning a string to use in
@@ -366,12 +366,12 @@ for example.  Every detected switch is passed through this function
 before processing continues; it is called before ARGOPT-P-FN, for
 example.
 
-STYLES can be used to select a particular style of command-line
-processing.  By default, SIMPLE-PARSE-CLI will choose the style based
-on the current operating system environment \(using *FEATURES*\).
-However, the caller can force a particular style by supplying :UNIX
-or :WINDOWS, or by supplying a list containing :UNIX or :WINDOWS, to
-this argument."
+STYLES is a keyword, or list of keywords, that can be used to select a
+particular style of command-line processing.  By default,
+SIMPLE-PARSE-CLI will choose the style based on the current operating
+system environment \(using *FEATURES*\).  However, the caller can
+force a particular style by supplying :UNIX or :WINDOWS, or by
+supplying a list containing :UNIX or :WINDOWS, to this argument."
   (with-stylehash (styles)
     (funcall (if (windowsp styles) #'parse-windows-cli #'parse-unix-cli)
 	     (or arglist (argv))

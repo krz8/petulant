@@ -1,6 +1,6 @@
 (defpackage #:petulant-test
   (:use #:cl #:5am)
-  (:export #:all #:misc #:simple
+  (:export #:all #:misc #:simple #:trie
 	   ;; #:string-fixers #:with-chars #:make-optargp	  ; test sets
 	   ;; #:unique-substrings #:parse-unix-cli
 	   )
@@ -9,10 +9,8 @@
 		#:wc/make-setfs #:wc/make-case-clause #:with-chars
 		#:collecting #:styles-to-hash #:with-stylehash
 		#:isolate-switches #:canonicalize-windows-args
-		;; #:make-string-fixer #:with-chars #:make-optargp
-		;; #:all-truncated-strings #:count-strings #:unique-substrings
-		;; #:parse-windows-cli #:parse-unix-cli
-		;; #:simple-parse-cli
+		#:parse-unix-cli #:parse-windows-cli
+		#:trie #:make-trie #:make-similar-trie #:trie-table #:trie-at
 		))
 
 (in-package #:petulant-test)
@@ -672,6 +670,51 @@
       (is (equalp (pathname "one.dat") *inpath*))
       (is (equalp (pathname "two.dat") *outpath*))
       (is (equalp (pathname "/foo/altconf.yml") *confpath*)))))
+
+
+
+(def-suite trie :description "trie support" :in all)
+(in-suite trie)
+
+(test make-trie
+  (let ((x0 (make-trie))
+	(x1 (make-trie :loose t)))
+    (is-true (typep x0 'trie))
+    (is-true (typep x1 'trie))
+    (is-true (hash-table-p (trie-table x0)))
+    (is (equal 'equal (hash-table-test (trie-table x0))))
+    (is-true (hash-table-p (trie-table x1)))
+    (is (equal 'equalp (hash-table-test (trie-table x1))))))
+
+(test make-similar-trie
+  (let ((x0 (make-similar-trie (make-trie)))
+	(x1 (make-similar-trie (make-trie :loose t))))
+    (is-true (hash-table-p (trie-table x0)))
+    (is (equal 'equal (hash-table-test (trie-table x0))))
+    (is-true (hash-table-p (trie-table x1)))
+    (is (equal 'equalp (hash-table-test (trie-table x1))))))
+
+;; The first time trie-at is called for a given position, it
+;; should create it anew.  All subsequent times, it should return
+;; what was created (kind of a caching or memoization game).
+
+(test trie-at
+  (let ((root (make-trie)))
+    (is-true (zerop (hash-table-count (trie-table root))))
+    (let ((sub1 (trie-at root 1)))
+      (is-true (= 1 (hash-table-count (trie-table root))))
+      (is (eq 'trie (type-of sub1)))
+      (is (eq sub1 (trie-at root 1)))
+      (is-true (= 1 (hash-table-count (trie-table root))))
+      (let ((sub2 (trie-at root 2)))
+	(is-true (= 2 (hash-table-count (trie-table root))))
+	(is (eq 'trie (type-of sub2)))
+	(is (eq sub2 (trie-at root 2)))
+	(is-true (= 2 (hash-table-count (trie-table root))))
+	(is (not (eq sub1 (trie-at root 2))))
+	(is-true (= 2 (hash-table-count (trie-table root))))
+	(is (not (eq sub2 (trie-at root 1))))
+	(is-true (= 2 (hash-table-count (trie-table root))))))))
 
 
 
