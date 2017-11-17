@@ -1,5 +1,5 @@
 (defpackage #:petulant-test
-  (:use #:cl #:5am)
+  (:use #:cl #:5am #:iterate)
   (:export #:all #:misc #:simple #:trie
 	   ;; #:string-fixers #:with-chars #:make-optargp	  ; test sets
 	   ;; #:unique-substrings #:parse-unix-cli
@@ -11,6 +11,8 @@
 		#:isolate-switches #:canonicalize-windows-args
 		#:parse-unix-cli #:parse-windows-cli
 		#:trie #:make-trie #:make-similar-trie #:trie-table #:trie-at
+		#:dict #:make-dict #:dict-add #:dict-count #:dict-term-p
+		#:dict-word-p #:minwords
 		))
 
 (in-package #:petulant-test)
@@ -715,6 +717,97 @@
 	(is-true (= 2 (hash-table-count (trie-table root))))
 	(is (not (eq sub2 (trie-at root 1))))
 	(is-true (= 2 (hash-table-count (trie-table root))))))))
+
+(test make-dict
+  (let ((x0 (make-dict))
+	(x1 (make-dict :loose t)))
+    (is-true (typep x0 'trie))
+    (is-true (typep x1 'trie))
+    (is-true (typep x0 'dict))
+    (is-true (typep x1 'dict))
+    (is-true (hash-table-p (trie-table x0)))
+    (is (equal 'equal (hash-table-test (trie-table x0))))
+    (is-true (hash-table-p (trie-table x1)))
+    (is (equal 'equalp (hash-table-test (trie-table x1))))
+    (is-true (zerop (dict-count x0)))
+    (is-true (zerop (dict-count x1)))
+    (is-false (dict-term-p x0))
+    (is-false (dict-term-p x1))))
+
+(test dict-add
+  (let ((d0 (make-dict))
+	(d1 (make-dict :loose t)))
+    (is-false (dict-word-p d0 "foo"))
+    (is-false (dict-word-p d1 "foo"))
+    (dict-add d0 "foo")
+    (dict-add d1 "foo")
+    (is-true (dict-word-p d0 "foo"))
+    (is-true (dict-word-p d1 "foo"))
+    (is-false (dict-word-p d0 "Foo"))
+    (is-true (dict-word-p d1 "Foo"))
+    (is-false (dict-word-p d0 "beta"))
+    (is-false (dict-word-p d0 "bets"))
+    (is-false (dict-word-p d0 "bet"))
+    (dict-add d0 "bet")
+    (is-false (dict-word-p d0 "beta"))
+    (is-false (dict-word-p d0 "bets"))
+    (is-true (dict-word-p d0 "bet"))
+    (dict-add d0 "bet")			; do it again, nothing should change
+    (is-false (dict-word-p d0 "beta"))
+    (is-false (dict-word-p d0 "bets"))
+    (is-true (dict-word-p d0 "bet"))
+    (dict-add d0 "bets")
+    (is-false (dict-word-p d0 "beta"))
+    (is-true (dict-word-p d0 "bets"))
+    (is-true (dict-word-p d0 "bet"))
+    (dict-add d0 "beta")
+    (is-true (dict-word-p d0 "beta"))
+    (is-true (dict-word-p d0 "bets"))
+    (is-true (dict-word-p d0 "bet"))
+    (dict-add d0 "beta")		; do it again, nothing should change
+    (is-true (dict-word-p d0 "beta"))
+    (is-true (dict-word-p d0 "bets"))
+    (is-true (dict-word-p d0 "bet"))
+    (is-false (dict-word-p d0 "a"))
+    (is-false (dict-word-p d0 "at"))
+    (is-false (dict-word-p d0 "atom"))
+    (dict-add d0 "atom")
+    (is-false (dict-word-p d0 "a"))
+    (is-false (dict-word-p d0 "at"))
+    (is-true (dict-word-p d0 "atom"))
+    (dict-add d0 "at")
+    (is-false (dict-word-p d0 "a"))
+    (is-true (dict-word-p d0 "at"))
+    (is-true (dict-word-p d0 "atom"))))
+
+;; Sorry about the mess below, there are limits to how far EQUAL can
+;; take you.  The strings embedded in the lists don't mix well with
+;; testing equality between the lists, apparently.  Put another way,
+;; it seems that EQUAL and EQUALP adjust to the outer most type of
+;; their arguments, but their recursion doesn't adapt/adjust
+;; similarly.
+;; 
+;; I'm uncomfortable with this test.  My gut is telling me that
+;; MINWORDS is nondeterministic, because we don't know what order the
+;; underlying hash will return key (characters), so we don't know
+;; which word we'll get the abbreviation for.  But then that points to
+;; a failing in MINWORDS itself, doesn't it?  Hmm... well, if things
+;; go wrong, here's a test case to start analyzing the problem with.
+
+(test minwords
+  (let ((dict (make-dict)))
+    (mapc (lambda (w) (dict-add dict w))
+	  '("zebra" "atom" "beta" "bets" "ignore" "at" "beat" "input"))
+    (let ((results (sort (minwords dict) #'string-lessp :key #'caddr)))
+      (is (= 5 (length results)))
+      (iterate
+	(for e in '((3 4 "atom") (3 4 "beat") (2 6 "ignore") (2 5 "input")
+		    (1 5 "zebra")))
+	(for r in results)
+	(is (= 3 (length r)))
+	(is (= (car e) (car r)))
+	(is (= (cadr e) (cadr r)))
+	(is (equal (caddr e) (caddr r)))))))
 
 
 
