@@ -18,9 +18,10 @@ specification at all is necessary).  Both functional and data
 interfaces are provided to the caller."
 
   :components ((:file "pkg")
-	       (:file "misc" :depends-on ("pkg"))
-	       (:file "simple" :depends-on ("pkg" "misc"))
 	       (:file "trie" :depends-on ("pkg"))
-	       (:file "parse" :depends-on ("pkg" "trie"))
+	       (:file "misc" :depends-on ("pkg"))
+	       (:file "styles" :depends-on ("pkg" "misc"))
+	       (:file "simple" :depends-on ("pkg" "misc" "styles"))
+	       (:file "parse" :depends-on ("pkg" "trie" "misc" "styles"))
 	       (:file "get" :depends-on ("pkg" "parse"))
 	       (:file "petulant" :depends-on ("pkg" "misc" "parse"))))
