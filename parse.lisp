@@ -6,10 +6,6 @@
 (defun str=-fn (styles)
   "Return a function to be used in comparing option strings for
 equality, based on FOLDP."
-  (with-stylehash (styles)
-    (if (gethash :streq styles)
-	#'string-equal
-	#'string=))
   (with-styles-canon (styles styles)
     (if (member :streq styles)
 	#'string-equal

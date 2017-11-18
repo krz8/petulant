@@ -1,5 +1,75 @@
 (in-package #:petulant)
 
+(defun styles-to-hash (styles)
+  "Given STYLES, which is a keyword or a list of keywords, populate a
+hash with a complete list of keywords and any other keywords implied
+by those supplied and the running system.  This function converts the
+STYLES list to a hash to speed lookups, and \"fleshes out\" the
+keyword list so that it deetermines all aspects of Petulant's
+processing based on what was originally supplied by the caller.
+
+First, all keywords in STYLES are added to the returned hash.
+
+Next, we ensure that one of :UNIX or :WINDOWS always appears in the
+hash.  If not already present, CL:*FEATURES* is consulted to determine
+which of those keywords will appear.
+
+If :KEY appears in the hash, and neither :UP nor :DOWN appear in
+STYLES, then :UP is added to the hash.
+
+If :UP or :DOWN appear in the hash, and neither :STREQ nor :STR=
+appear, then :STREQ is added to the hash.
+
+If neither :STREQ nor :STR= appear in the hash, but :WINDOWS does,
+then :STREQ is added to the hash, otherwise :STR= is added."
+  (let ((styles (ensure-list styles))
+	(hash (make-hash-table)))
+    (labels ((set! (&rest flags) (mapc (lambda (f) (setf (gethash f hash) f))
+				       flags))
+	     (set? (&rest flags) (some (lambda (f) (gethash f hash))
+				       flags)))
+      (apply #'set! styles)
+      (unless (set? :windows :unix)
+	(set! (cond ((featurep :windows) :windows)
+		    (t                   :unix))))
+      (unless (set? :up :down)
+	(when (set? :key)
+	  (set! :up)))
+      (unless (set? :str= :streq)
+	(set! (or (and (set? :up :down :windows) :streq)
+		  :str=))))
+    hash))
+
+(defmacro with-stylehash ((var) &body body)
+  "WITH-STYLEHASH takes the name of a variable that might be a list of
+style keywords or a hash as returned by STYLES-TO-HASH, and ensures
+that the variable is bound to such a hash for the duration of BODY.
+This macro is used to allow multiple functions in the Petulant
+hierarchy to be entry points to an external caller \(who would use a
+list of style keywords\) while allowing higher functions in Petulant
+to call those same functions with an already-converted and
+already-fleshed-out hash of those keywords.
+
+   \(defun foo \(styles\)
+     \(with-stylehash \(styles\)
+       ...
+       \(bar styles\)
+       ...\)\)"
+  `(let ((,var (if (hash-table-p ,var) ,var (styles-to-hash ,var))))
+     ,@body))
+
+(defun foldp (styles)
+  "Returns true when STYLES indicates that case-insensitive matching
+should be employed."
+  (with-stylehash (styles)
+    (gethash :streq styles)))
+
+(defun windowsp (styles)
+  "Returns true when STYLES indicates that we should use Windows-style
+option processing."
+  (with-stylehash (styles)
+    (gethash :windows styles)))
+
 (defun isolate-switches (string)
   "Given a string that begins with at least one Windows CLI switch
 character, return a list of strings that exist between slashes,
@@ -296,14 +366,14 @@ for example.  Every detected switch is passed through this function
 before processing continues; it is called before ARGOPT-P-FN, for
 example.
 
-STYLES is a keyword, or list of keywords, or a style hash, that can be
-used to select a particular style of command-line processing.  By
-default, SIMPLE-PARSE-CLI will choose the style based on the current
-operating system environment \(using *FEATURES*\).  However, the
-caller can force a particular style by supplying :UNIX or :WINDOWS, or
-by supplying a list containing :UNIX or :WINDOWS, to this argument."
+STYLES is a keyword, or list of keywords, that can be used to select a
+particular style of command-line processing.  By default,
+SIMPLE-PARSE-CLI will choose the style based on the current operating
+system environment \(using *FEATURES*\).  However, the caller can
+force a particular style by supplying :UNIX or :WINDOWS, or by
+supplying a list containing :UNIX or :WINDOWS, to this argument."
   (with-stylehash (styles)
-    (funcall (if (windowsp) #'parse-windows-cli #'parse-unix-cli)
+    (funcall (if (windowsp styles) #'parse-windows-cli #'parse-unix-cli)
 	     (or arglist (argv))
 	     fn
 	     (or argopt-p-fn (constantly nil))
