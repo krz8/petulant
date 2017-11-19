@@ -1,45 +1,10 @@
 (in-package #:petulant)
 
 (defun cb (&rest args)
+  "A test function for debugging PARSE-CLI \(and SIMPLE-PARSE-CLI\)
+that just echoes its arguments back.  You can use this as the callback
+for those two functions."
   (format t "cb~{ ~s~}~%" args))
-
-(defun str=-fn (styles)
-  "Return a function to be used in comparing option strings for
-equality, based on FOLDP."
-  (with-stylehash (styles)
-    (if (gethash :streq styles)
-	#'string-equal
-	#'string=))
-  (with-styles-canon (styles styles)
-    (if (member :streq styles)
-	#'string-equal
-	#'string=)))
-
-(defun eq=-fn (styles)
-  "Return a function to be used in comparing option strings for
-equality, based on FOLDP.  Where STR=-FN returns a string comparison
-function, this returns an equality function \(e.g., for use in hash
-tables\)."
-  (with-styles-canon (styles styles)
-    (if (member :streq styles)
-	#'equalp
-	#'equal)))
-
-(defun str<-fn (styles)
-  "Return a function to be used in comparing option strings for
-sorting, based on FOLDP."
-  (with-styles-canon (styles styles)
-    (if (member :streq styles)
-	#'string-lessp
-	#'string<)))
-
-(defun str/=-fn (styles)
-  "Return a function to be used in comparing option strings for
-inequality, based on FOLDP."
-  (with-styles-canon (styles styles)
-    (if (member :streq styles)
-	#'string-not-equal
-	#'string/=)))
 
 (defun partials-fn (argopts flagopts aliases styles)
   "When STYLES contains :PARTIAL, return a function that implements
@@ -54,29 +19,27 @@ command-line, recognizing unambiguous partial matches of options as
 they appear in the three supplied lists, and returning a possibly new
 string that PARSE-CLI should process as if it were the original word
 from the command-line."
-  (with-styles-canon (styles styles)
+  (with-stylehash styles
     (cond
-      ((member :partial styles)
-       (let ((dict (make-dict :loose (foldp styles)))
-	     (str= (str=-fn styles)))
-	    (labels ((maybe-add (o)
-		       (unless (dict-word-p dict o)
-			 (dict-add dict o))))
-	      (mapc #'maybe-add (append argopts flagopts))
-	      (mapc (lambda (alist)
-		      (mapc #'maybe-add (cdr alist)))
-		    aliases))
-	    (let ((minwords (minwords dict)))
-	      (lambda (x) 
-		(block nil
-		  (let ((len (length x)))
-		    (mapc (lambda (partial)
-			    (destructuring-bind (min max option) partial
-			      (when (and (<= min len max)
-					 (funcall str= x (subseq option 0 len)))
-				(return option))))
-			  minwords)
-		    x))))))
+      ((stylep :partial)
+       (let ((dict (make-dict :loose (stylep :streq)))
+	     (str= (str=-fn)))
+	 (labels ((maybe-add (o) (unless (dict-word-p dict o)
+				   (dict-add dict o))))
+	   (mapc #'maybe-add (append argopts flagopts))
+	   (mapc (lambda (alist) (mapc #'maybe-add (cdr alist)))
+		 aliases))
+	 (let ((minwords (minwords dict)))
+	   (lambda (x) 
+	     (block nil
+	       (let ((len (length x)))
+		 (mapc (lambda (partial)
+			 (destructuring-bind (min max option) partial
+			   (when (and (<= min len max)
+				      (funcall str= x (subseq option 0 len)))
+			     (return option))))
+		       minwords)
+		 x))))))
       (t
        #'identity))))
 

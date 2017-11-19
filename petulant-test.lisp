@@ -1,6 +1,6 @@
 (defpackage #:petulant-test
   (:use #:cl #:5am #:iterate)
-  (:export #:all #:misc #:trie #:styles #:simple
+  (:export #:all #:misc #:trie #:styles #:simple #:parse
 	   ;; #:string-fixers #:with-chars #:make-optargp	  ; test sets
 	   ;; #:unique-substrings #:parse-unix-cli
 	   )
@@ -15,6 +15,7 @@
 		#:dict-word-p #:minwords
 		#:styles-to-hash #:*stylehash* #:with-stylehash #:stylep
 		#:str=-fn #:str<-fn #:equal-fn
+		#:partials-fn
 		))
 
 (in-package #:petulant-test)
@@ -848,6 +849,72 @@
 		 (2 3 "fee") (2 3 "fum")
 		 (2 6 "ignore") (2 5 "input") (1 5 "zebra"))
 	       (sort (minwords dict) #'string-lessp :key #'caddr)))))
+
+
+
+(def-suite parse :description "parse support" :in all)
+(in-suite parse)
+
+(def-fixture partials (argopts flagopts aliases styles)
+  (let ((fn (partials-fn argopts flagopts aliases styles)))
+    (labels ((match? (x y)
+	       (with-stylehash styles
+		 (funcall (str=-fn) x (funcall fn y)))))
+      (&body))))
+
+(test partials-fn-1
+  (with-fixture partials ('("file" "config" "find")
+			   '("verbose" "input" "ignore")
+			   '(("verbose" "debug"))
+			   :windows)
+    (is-false (match? "file" "f"))
+    (is-false (match? "file" "fi"))
+    (is-false (match? "file" "fil"))
+    (is-true (match? "file" "file"))
+    (is-false (match? "find" "fin"))
+    (is-true (match? "find" "find"))
+    (is-false (match? "config" "c"))
+    (is-false (match? "config" "conf"))
+    (is-true (match? "config" "config"))
+    (is-false (match? "verbose" "v"))
+    (is-false (match? "verbose" "verb"))
+    (is-true (match? "verbose" "verbose"))
+    (is-false (match? "verbose" "d"))
+    (is-false (match? "verbose" "deb"))
+    (is-false (match? "verbose" "debug"))
+    (is-false (match? "input" "i"))
+    (is-false (match? "input" "in"))
+    (is-true (match? "input" "input"))
+    (is-false (match? "ignore" "i"))
+    (is-false (match? "ignore" "ign"))
+    (is-true (match? "ignore" "ignore"))))
+
+(test partials-fn-2
+  (with-fixture partials ('("file" "config" "find")
+			   '("verbose" "input" "ignore")
+			   '(("verbose" "debug"))
+			   '(:windows :partial))
+    (is-false (match? "file" "f"))
+    (is-false (match? "file" "fi"))
+    (is-true (match? "file" "fil"))
+    (is-true (match? "file" "file"))
+    (is-true (match? "find" "fin"))
+    (is-true (match? "find" "find"))
+    (is-true (match? "config" "c"))
+    (is-true (match? "config" "conf"))
+    (is-true (match? "config" "config"))
+    (is-true (match? "verbose" "v"))
+    (is-true (match? "verbose" "verb"))
+    (is-true (match? "verbose" "verbose"))
+    (is-true (match? "verbose" "d"))
+    (is-true (match? "verbose" "deb"))
+    (is-true (match? "verbose" "debug"))
+    (is-false (match? "input" "i"))
+    (is-true (match? "input" "in"))
+    (is-true (match? "input" "input"))
+    (is-false (match? "ignore" "i"))
+    (is-true (match? "ignore" "ign"))
+    (is-true (match? "ignore" "ignore"))))
 
 
 
