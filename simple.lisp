@@ -59,16 +59,88 @@ them as they are.
 => (\"/a\" \"/bc\" \"def\" \"/e\" \"/f:g\" \"/h\""
   (let ((result))
     (labels ((collect (x) (push x result)))
-      (mapc #'(lambda (sw)
-		(cond
-		  ((null sw))
-		  ((and (> (length sw) 0) (char= #\/ (char sw 0)))
-		   (mapc #'(lambda (s) (collect (slashify s)))
-			 (isolate-switches sw)))
-		  (t
-		   (collect sw))))
+      (mapc (lambda (sw)
+	      (cond
+		((null sw))
+		((and (> (length sw) 0) (char= #\/ (char sw 0)))
+		 (mapc (lambda (s) (collect (slashify s)))
+		       (isolate-switches sw)))
+		(t
+		 (collect sw))))
 	    strings))
     (nreverse result)))
+
+(defun parse-windows-cli (arglist fn
+			  &optional
+			    (swargp-fn (constantly nil))
+			    (chgname-fn #'identity))
+  "This is the low level parser for Windows-style command lines.  If
+you're an end-user of Petulant, you might want to consider calling a
+higher level function; this one is mostly for implementation of other
+Petulant functionality.
+
+PARSE-WINDOWS-CLI works through ARGLIST, a flat list of strings
+delivered from some OS-specific wrapper in the Lisp environment
+parsing it according to most Windows behaviors.  As switches are
+identified, SWARGP-FN is called to determine if that switch takes an
+argument.
+
+FN is called for each switch \(with or without an argument\) and every
+non-switch argument.  Each call has three arguments.  The first is
+always :ARG or :OPT.  When :ARG, the second argument is a non-switch
+argument string from the command line, and the third argument is NIL.
+When :OPT, the second argument is a switch \(a string\) found on the
+command line, eliding its leading slash, and the third argument is any
+argument to that option or NIL.
+
+SWARGP-FN, if supplied, is a mechanism for the caller to indicate when
+a switch should take an argument.  The default binding of SWARGP-FN
+always returns NIL, indicating that any ambiguous switch is assumed
+not to take an argument.  A non-ambiguous switch with an argument is
+one that uses the colon character \(e.g., \"/foo:bar\"\).
+
+CHGNAME-FN, if supplied, can be used to change a detected switch from
+one value to another, taking a string and returning a string to use in
+its place.  It could be used to implement aliases or partial matching,
+for example.  Every detected switch is passed through this function
+before processing continues; it is called before SWARGP-FN, for
+example.
+
+Generally speaking, the calls to FN proceed from the head to the tail
+of ARGLIST, and from left to right within each string of ARGLIST.
+This is useful to know in testing, but callers probably should not
+rely on any specific ordering."
+  (do ((av (canonicalize-windows-args arglist)))
+      ((null av) t)
+    (labels ((swargp (x) (funcall swargp-fn x))
+	     (chgname (x) (funcall chgname-fn x))
+	     (advance () (setf av (cdr av)))
+	     (opt! (o &optional a) (funcall fn :opt o a))
+	     (arg! (a) (funcall fn :arg a nil)))
+      (let* ((str (car av))
+	     (len (or (and str (length str)) 0)))
+	(acond
+	  ((zerop len)					       ; nil ""
+	   (arg! str))
+	  ((string= str "//")				       ; "//"
+	   (loop (unless (advance)
+		   (return))
+	      (arg! (car av))))
+	  ((char/= (char str 0) #\/)			       ; "foo"
+	   (arg! str))
+	  ((position #\: str)				       ; "/foo:…"
+	   (opt! (chgname (subseq str 1 it))
+		 (unless (= it (1- len))		       ; "/foo:xyz"
+		   (subseq str (1+ it)))))
+	  (t
+	   (let ((f (chgname (subseq str 1))))
+	     (cond
+	       ((swargp f)                                     ; "/foo" "xyz"
+		(opt! f (cadr av))
+		(advance))
+	       (t                                              ; "/foo"
+		(opt! f)))))))
+      (advance))))
 
 (defun parse-unix-cli (arglist fn
 		       &optional
@@ -164,78 +236,6 @@ rely on any specific ordering."
 	   (short (car av)))))
       (advance))))
 
-(defun parse-windows-cli (arglist fn
-			  &optional
-			    (swargp-fn (constantly nil))
-			    (chgname-fn #'identity))
-  "This is the low level parser for Windows-style command lines.  If
-you're an end-user of Petulant, you might want to consider calling a
-higher level function; this one is mostly for implementation of other
-Petulant functionality.
-
-PARSE-WINDOWS-CLI works through ARGLIST, a flat list of strings
-delivered from some OS-specific wrapper in the Lisp environment
-parsing it according to most Windows behaviors.  As switches are
-identified, SWARGP-FN is called to determine if that switch takes an
-argument.
-
-FN is called for each switch \(with or without an argument\) and every
-non-switch argument.  Each call has three arguments.  The first is
-always :ARG or :OPT.  When :ARG, the second argument is a non-switch
-argument string from the command line, and the third argument is NIL.
-When :OPT, the second argument is a switch \(a string\) found on the
-command line, eliding its leading slash, and the third argument is any
-argument to that option or NIL.
-
-SWARGP-FN, if supplied, is a mechanism for the caller to indicate when
-a switch should take an argument.  The default binding of SWARGP-FN
-always returns NIL, indicating that any ambiguous switch is assumed
-not to take an argument.  A non-ambiguous switch with an argument is
-one that uses the colon character \(e.g., \"/foo:bar\"\).
-
-CHGNAME-FN, if supplied, can be used to change a detected switch from
-one value to another, taking a string and returning a string to use in
-its place.  It could be used to implement aliases or partial matching,
-for example.  Every detected switch is passed through this function
-before processing continues; it is called before SWARGP-FN, for
-example.
-
-Generally speaking, the calls to FN proceed from the head to the tail
-of ARGLIST, and from left to right within each string of ARGLIST.
-This is useful to know in testing, but callers probably should not
-rely on any specific ordering."
-  (do ((av (canonicalize-windows-args arglist)))
-      ((null av) t)
-    (labels ((swargp (x) (funcall swargp-fn x))
-	     (chgname (x) (funcall chgname-fn x))
-	     (advance () (setf av (cdr av)))
-	     (opt! (o &optional a) (funcall fn :opt o a))
-	     (arg! (a) (funcall fn :arg a nil)))
-      (let* ((str (car av))
-	     (len (or (and str (length str)) 0)))
-	(acond
-	  ((zerop len)					       ; nil ""
-	   (arg! str))
-	  ((string= str "//")				       ; "//"
-	   (loop (unless (advance)
-		   (return))
-	      (arg! (car av))))
-	  ((char/= (char str 0) #\/)			       ; "foo"
-	   (arg! str))
-	  ((position #\: str)				       ; "/foo:…"
-	   (opt! (chgname (subseq str 1 it))
-		 (unless (= it (1- len))		       ; "/foo:xyz"
-		   (subseq str (1+ it)))))
-	  (t
-	   (let ((f (chgname (subseq str 1))))
-	     (cond
-	       ((swargp f)                                     ; "/foo" "xyz"
-		(opt! f (cadr av))
-		(advance))
-	       (t                                              ; "/foo"
-		(opt! f)))))))
-      (advance))))
-
 (defun argv ()
   "Returns a list of strings representing the command-line from the
 environment.  This is necessarily OS specific.  It's assumed that the
@@ -248,7 +248,7 @@ name, argv[0], or other non-argument information."
   #- (or ccl sbcl clisp acl)
   (error "Petulant needs to be ported to this Lisp environment."))
 
-(defun simple-parse-cli (fn &key arglist argopt-p-fn chgname-fn styles)
+(defun simple-parse-cli (fn &key arglist argoptp-fn chgname-fn styles)
   "This is the low level parser for command-lines.  If you're simply
 using Petulant in your application \(i.e., you aren't developing
 Petulant\), you might want to consider calling a higher level
@@ -266,7 +266,7 @@ non-option argument identified during parsing.  Each call to FN has
 three arguments.  The first is always :ARG or :OPT.  When :ARG, the
 second argument is a non-switch argument string from the command line,
 and the third argument is NIL.  When :OPT, the second argument is a
-switch (a string) found on the command line, eliding its leading
+switch \(a string\) found on the command line, eliding its leading
 slash, and the third argument is any argument to that option or NIL.
 
 Generally speaking, the calls to FN proceed from the head to the tail
@@ -279,32 +279,32 @@ SIMPLE-PARSE-CLI will parse a list of strings provided by the Lisp
 environment representing the command-line with which the application
 was started.
 
-ARGOPT-P-FN, if supplied, is a function.  Petulant recognizes certain
-long options (\"--foo=bar\") and switches (\"/foo:bar\") that
+ARGOPTP-FN, if supplied, is a function.  Petulant recognizes certain
+long options \(\"--foo=bar\"\) and switches \(\"/foo:bar\"\) that
 unambiguously present an option taking an argument.  However, Petulant
-cannot know for certain when a short option (\"-f\" \"bar\") takes an
-option, nor can it discern when a long option (\"--foo\" \"bar\") or a
-switch (\"/foo\" \"bar\") lacking extra punctuation takes an argument.
-To address this, the caller can supply a function taking the name of
-the option as a string (\"f\" or \"foo\") and returning true or false
-to indicate if it takes an argument.
+cannot know for certain when a short option takes an option \(e.g.,
+\"-f\" \"bar\"\), nor can it discern when long options lacking an
+equal character \(e.g., \"--foo\" \"bar\"\) or a switch lacking a
+colon character \(e.g., \"/foo\" \"bar\"\) take an argument.  To
+address this, the caller can supply a function taking the name of the
+option as a string \(\"f\" or \"foo\"\) and returning true or false to
+indicate if it takes an argument.
 
 CHGNAME-FN, if supplied, can be used to change a detected switch from
 one value to another, taking a string and returning a string to use in
 its place.  It could be used to implement aliases or partial matching,
 for example.  Every detected switch is passed through this function
-before processing continues; it is called before ARGOPT-P-FN, for
+before processing continues; it is called before ARGOPTP-FN, for
 example.
 
 STYLES is a keyword, or list of keywords, or a style hash, that can be
 used to select a particular style of command-line processing.  By
-default, SIMPLE-PARSE-CLI will choose the style based on the current
-operating system environment \(using *FEATURES*\).  However, the
-caller can force a particular style by supplying :UNIX or :WINDOWS, or
-by supplying a list containing :UNIX or :WINDOWS, to this argument."
-  (with-stylehash (styles)
-    (funcall (if (windowsp) #'parse-windows-cli #'parse-unix-cli)
+default, Unix or Windows option processing will be chosen based on
+CL:*FEATURES*, but the STYLES argument can be used to override this by
+supplying :UNIX or :WINDOWS, respectively."
+  (with-stylehash styles
+    (funcall (if (stylep :windows) #'parse-windows-cli #'parse-unix-cli)
 	     (or arglist (argv))
 	     fn
-	     (or argopt-p-fn (constantly nil))
+	     (or argoptp-fn (constantly nil))
 	     (or chgname-fn #'identity))))
