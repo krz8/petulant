@@ -1,18 +1,20 @@
 (defpackage #:petulant-test
   (:use #:cl #:5am #:iterate)
-  (:export #:all #:misc #:simple #:trie
+  (:export #:all #:misc #:trie #:styles #:simple
 	   ;; #:string-fixers #:with-chars #:make-optargp	  ; test sets
 	   ;; #:unique-substrings #:parse-unix-cli
 	   )
   (:import-from #:petulant
 		#:stringify #:slashify #:split
 		#:wc/make-setfs #:wc/make-case-clause #:with-chars
-		#:collecting #:styles-to-hash #:with-stylehash
+		#:collecting
 		#:isolate-switches #:canonicalize-windows-args
 		#:parse-unix-cli #:parse-windows-cli
 		#:trie #:make-trie #:make-similar-trie #:trie-table #:trie-at
 		#:dict #:make-dict #:dict-add #:dict-count #:dict-term-p
 		#:dict-word-p #:minwords
+		#:styles-to-hash #:*stylehash* #:with-stylehash #:stylep
+		#:str=-fn #:str<-fn #:equal-fn
 		))
 
 (in-package #:petulant-test)
@@ -118,8 +120,8 @@
 
 
 
-(def-suite simple :description "simple parser stuff" :in all)
-(in-suite simple)
+(def-suite styles :in all)
+(in-suite styles)
 
 (def-fixture stylehash (&rest styles)
   (let ((hash (styles-to-hash styles)))
@@ -161,19 +163,76 @@
     (hasnot :unix :streq :up :key)))
 
 (test with-stylehash
-  (let ((styles '(:unix :key :junk)))
-    (with-stylehash (styles)
-      (is-true (hash-table-p styles))
-      (is-true (gethash :unix styles))
-      (is-false (gethash :windows styles))
-      (is-true (gethash :streq styles))
-      (is-false (gethash :str= styles))
-      (is-false (gethash :down styles))
-      (is-true (gethash :up styles))
-      (is-true (gethash :key styles))
-      (with-stylehash (styles)		; ensure they nest right
-	(is-true (hash-table-p styles))
-	(is-true (gethash :junk styles))))))
+  (with-stylehash :unix
+      (is-true (hash-table-p *stylehash*))
+      (is-true (gethash :unix *stylehash*))
+      (is-false (gethash :windows *stylehash*))
+      (is-false (gethash :streq *stylehash*))
+      (is-true (gethash :str= *stylehash*))
+      (is-false (gethash :down *stylehash*))
+      (is-false (gethash :up *stylehash*))
+      (is-false (gethash :key *stylehash*)))
+  (with-stylehash '(:unix :key :junk)
+    (is-true (hash-table-p *stylehash*))
+    (is-true (gethash :unix *stylehash*))
+    (is-false (gethash :windows *stylehash*))
+    (is-true (gethash :streq *stylehash*))
+    (is-false (gethash :str= *stylehash*))
+    (is-false (gethash :down *stylehash*))
+    (is-true (gethash :up *stylehash*))
+    (is-true (gethash :key *stylehash*))
+    (is-true (gethash :junk *stylehash*))
+    (with-stylehash *stylehash*		; ensure nesting looks right
+      (is-true (hash-table-p *stylehash*))
+      (is-true (gethash :unix *stylehash*))
+      (is-false (gethash :windows *stylehash*))
+      (is-true (gethash :streq *stylehash*))
+      (is-false (gethash :str= *stylehash*))
+      (is-false (gethash :down *stylehash*))
+      (is-true (gethash :up *stylehash*))
+      (is-true (gethash :key *stylehash*))
+      (is-true (gethash :junk *stylehash*)))))
+
+(test windowsp
+  (with-stylehash :windows
+    (is-true (stylep :windows)))
+  (with-stylehash :unix
+    (is-false (stylep :windows)))
+  (with-stylehash nil
+    #+windows (is-true (stylep :windows))
+    #-windows (is-false (stylep :windows))))
+
+(test foldp
+  (macrolet ((foldp () `(stylep :streq)))
+    (with-stylehash nil
+      #+windows (is-true (foldp))
+      #-windows (is-false (foldp)))
+    (with-stylehash :unix
+      (is-false (foldp)))
+    (with-stylehash :windows
+      (is-true (foldp)))
+    (with-stylehash :streq
+      (is-true (foldp)))
+    (with-stylehash :str=
+      (is-false (foldp)))
+    (with-stylehash '(:streq :unix)
+      (is-true (foldp)))
+    (with-stylehash '(:str= :windows)
+      (is-false (foldp)))
+    (with-stylehash '(:up :unix)
+      (is-true (foldp)))
+    (with-stylehash '(:unix :down)
+      (is-true (foldp)))
+    (with-stylehash '(:key :unix)
+      (is-true (foldp)))
+    (with-stylehash '(:up :str=)	; very weird, but still valid
+      (is-false (foldp)))))
+
+
+
+
+(def-suite simple :description "simple parser stuff" :in all)
+(in-suite simple)
 
 (test isolate-switches
   (is (equalp '("a") (isolate-switches "/a")))
