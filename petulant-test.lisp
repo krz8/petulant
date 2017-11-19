@@ -839,34 +839,15 @@
     (is-true (dict-word-p d0 "at"))
     (is-true (dict-word-p d0 "atom"))))
 
-;; Sorry about the mess below, there are limits to how far EQUAL can
-;; take you.  The strings embedded in the lists don't mix well with
-;; testing equality between the lists, apparently.  Put another way,
-;; it seems that EQUAL and EQUALP adjust to the outer most type of
-;; their arguments, but their recursion doesn't adapt/adjust
-;; similarly.
-;; 
-;; I'm uncomfortable with this test.  My gut is telling me that
-;; MINWORDS is nondeterministic, because we don't know what order the
-;; underlying hash will return key (characters), so we don't know
-;; which word we'll get the abbreviation for.  But then that points to
-;; a failing in MINWORDS itself, doesn't it?  Hmm... well, if things
-;; go wrong, here's a test case to start analyzing the problem with.
-
 (test minwords
   (let ((dict (make-dict)))
     (mapc (lambda (w) (dict-add dict w))
-	  '("zebra" "atom" "beta" "bets" "ignore" "at" "beat" "input"))
-    (let ((results (sort (minwords dict) #'string-lessp :key #'caddr)))
-      (is (= 5 (length results)))
-      (iterate
-	(for e in '((3 4 "atom") (3 4 "beat") (2 6 "ignore") (2 5 "input")
-		    (1 5 "zebra")))
-	(for r in results)
-	(is (= 3 (length r)))
-	(is (= (car e) (car r)))
-	(is (= (cadr e) (cadr r)))
-	(is (equal (caddr e) (caddr r)))))))
+	  '("zebra" "atom" "beta" "bets" "ignore" "at" "beat" "input"
+	    "fee" "fi" "fo" "fum" "alpha"))
+    (is (equal '((2 5 "alpha") (3 4 "atom") (3 4 "beat")
+		 (2 3 "fee") (2 3 "fum")
+		 (2 6 "ignore") (2 5 "input") (1 5 "zebra"))
+	       (sort (minwords dict) #'string-lessp :key #'caddr)))))
 
 
 
