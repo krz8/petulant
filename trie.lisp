@@ -297,7 +297,7 @@ is too long."
 		 (incf n)
 		 (format t "~c~c "
 			 k (if (dict-term-p v) #\. #\Space))
-		 (show v (1+ indent)))
+		 (show-dict v (1+ indent)))
 	       (trie-table trie)))))
 
 #|
