@@ -297,11 +297,12 @@ for example.  Every detected switch is passed through this function
 before processing continues; it is called before ARGOPTP-FN, for
 example.
 
-STYLES is a keyword, or list of keywords, or a style hash, that can be
-used to select a particular style of command-line processing.  By
-default, Unix or Windows option processing will be chosen based on
-CL:*FEATURES*, but the STYLES argument can be used to override this by
-supplying :UNIX or :WINDOWS, respectively."
+STYLES is a keyword or list of keywords that can be used to select a
+particular style of command-line processing.  By default, Unix or
+Windows option processing will be chosen based on CL:*FEATURES*, but
+the STYLES argument can be used to override this by supplying :UNIX
+or :WINDOWS, respectively.  When not specified, the current binding
+of *STYLEHASH* remains in effect."
   (with-stylehash styles
     (funcall (if (stylep :windows) #'parse-windows-cli #'parse-unix-cli)
 	     (or arglist (argv))

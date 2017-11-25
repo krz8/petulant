@@ -59,22 +59,19 @@ operating environment.  Don't modify this value, instead bind
 *STYLEHASH* to something useful \(typically via WITH-STYLEHASH\).")
 
 (defmacro with-stylehash (styleval &body body)
-  "WITH-STYLEHASH takes a style keyword, a list of style keywords, or
-a hash as returned by a previous STYLES-TO-HASH, and ensures that
-*STYLEHASH* is bound to such a hash for the duration of BODY."
+  "When STYLEVAL is not NIL, *STYLEHASH* is bound to a new hash table
+computed via STYLES-TO-HASH.  BODY is then evaluated within that
+\(possibly new\) context."
   (let ((var (gensym)))
     `(let* ((,var ,styleval)
-	    (*stylehash* (cond
-			   ((hash-table-p ,var)
-			    ,var)
-			   ((keywordp ,var)
-			    (styles-to-hash ,var))
-			   ((listp ,var)
-			    (styles-to-hash ,var))
-			   (t
-			    (error "The value supplied for styles, ~s, must ~
-                                    be a hash table, a list, or NIL." ,var)))))
-	    ,@body)))
+	    (*stylehash* (typecase ,var
+			   (null *stylehash*)
+			   (list (styles-to-hash ,var))
+			   (keyword (styles-to-hash ,var))
+			   (hash-table ,var)
+			   (t (error "STYLES should be a keyword or a list of ~
+                                     keywords.")))))
+       ,@body)))
 
 (defun stylep (key)
   "Returns true when KEY is among the currently selected set of option

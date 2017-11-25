@@ -16,6 +16,7 @@
 		#:styles-to-hash #:*stylehash* #:with-stylehash #:stylep
 		#:str=-fn #:str<-fn #:equal-fn
 		#:partials-fn
+		#:get-cli #:simple-parse-cli
 		))
 
 (in-package #:petulant-test)
@@ -164,6 +165,7 @@
     (hasnot :unix :streq :up :key)))
 
 (test with-stylehash
+  (is (= 2 (hash-table-count *stylehash*)))
   (with-stylehash :unix
       (is-true (hash-table-p *stylehash*))
       (is-true (gethash :unix *stylehash*))
@@ -183,7 +185,7 @@
     (is-true (gethash :up *stylehash*))
     (is-true (gethash :key *stylehash*))
     (is-true (gethash :junk *stylehash*))
-    (with-stylehash *stylehash*		; ensure nesting looks right
+    (with-stylehash nil		; ensure nesting looks right
       (is-true (hash-table-p *stylehash*))
       (is-true (gethash :unix *stylehash*))
       (is-false (gethash :windows *stylehash*))
@@ -726,7 +728,7 @@
       (simple-parse-cli #'opts-and-args
 			:arglist '("-c" "/foo/altconf.yml"
 				   "-v" "one.dat" "-q" "two.dat" "-v")
-			:argopt-p-fn #'(lambda (x) (string-equal "c" x))
+			:argoptp-fn #'(lambda (x) (string-equal "c" x))
 			:styles :unix)
       (is (= 1 *verbose*))
       (is (equalp (pathname "one.dat") *inpath*))
@@ -906,9 +908,9 @@
     (is-true (match? "verbose" "v"))
     (is-true (match? "verbose" "verb"))
     (is-true (match? "verbose" "verbose"))
-    (is-true (match? "verbose" "d"))
-    (is-true (match? "verbose" "deb"))
-    (is-true (match? "verbose" "debug"))
+    (is-true (match? "debug" "d"))
+    (is-true (match? "debug" "deb"))
+    (is-true (match? "debug" "debug"))
     (is-false (match? "input" "i"))
     (is-true (match? "input" "in"))
     (is-true (match? "input" "input"))
@@ -916,6 +918,58 @@
     (is-true (match? "ignore" "ign"))
     (is-true (match? "ignore" "ignore"))))
 
+;; we'll actually do the testing via GET-CLI rather than PARSE-CLI, as
+;; the results from the former are much easier to test.  The GET-CLI
+;; wrapper is so simple, it can't really break.
+
+(test get-cli
+  (labels ((wrap (styles &rest args)
+	     (get-cli :argopts '("file" "config" "find")
+		      :flagopts '("verbose" "input" "ignore")
+		      :aliases '(("verbose" "debug"))
+		      :styles styles
+		      :arglist args)))
+    (is (equalp nil (wrap nil nil)))
+    (is (equalp nil (wrap :windows nil)))
+    (is (equalp nil (wrap '(:windows :partial) nil)))
+    (is (equalp '((:opt "verbose" nil)
+		  (:arg "foobar" nil))
+		(wrap :windows "/VERBOSE" "foobar")))
+    (is (equal '((:opt "verbose" nil)
+		 (:arg "foobar" nil))
+	       (wrap :unix "--verbose" "foobar")))
+    (is (equalp '((:opt "verbose" nil)
+		  (:arg "foobar" nil))
+		(wrap :windows "/Debug" "foobar")))
+    (is (equal '((:opt "verbose" nil)
+		 (:arg "foobar" nil))
+	       (wrap '(:unix :partial) "--verb" "foobar")))
+    (is (equal '((:opt "verbose" nil)
+		 (:arg "foobar" nil))
+	       (wrap '(:unix :partial) "-v" "foobar")))
+    (is (equalp '((:opt "verbose" nil)
+		 (:opt "config" "cfile")
+		 (:arg "foobar" nil))
+	       (wrap '(:windows) "/Debug" "/Config:cfile" "foobar")))
+    (is (equalp '((:opt "verbose" nil)
+		 (:opt "config" "cfile")
+		 (:arg "foobar" nil))
+	       (wrap '(:windows) "/Debug" "/Config" "cfile" "foobar")))
+    (is (equal '((:opt "verbose" nil)
+		 (:arg "foobar" nil))
+	       (wrap '(:unix :partial) "--debug" "foobar")))
+    (is (equal '((:opt "verbose" nil)
+		 (:arg "foobar" nil))
+	       (wrap '(:unix :partial) "-d" "foobar")))
+    (is (equal '((:opt "verbose" nil)
+		 (:opt "config" "cfile")
+		 (:arg "foobar" nil))
+	       (wrap '(:unix :partial) "-vc" "cfile" "foobar")))
+    (is (equal '((:opt "verbose" nil)
+		 (:opt "config" "cfile")
+		 (:arg "foobar" nil))
+	       (wrap '(:unix :partial) "-dc" "cfile" "foobar")))
+    ))
 
 
 ;; #+nil (def-suite string-fixers :description "make-string-fixer" :in util)

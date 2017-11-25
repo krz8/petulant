@@ -6,7 +6,7 @@ that just echoes its arguments back.  You can use this as the callback
 for those two functions."
   (format t "cb~{ ~s~}~%" args))
 
-(defun partials-fn (argopts flagopts aliases styles)
+(defun partials-fn (argopts flagopts aliases &optional styles)
   "When STYLES contains :PARTIAL, return a function that implements
 partial matching for all the options seen in ARGOPTS, FLAGOPTS, and
 ALIASES; otherwise, #'IDENTITY is returned and no partial matching is
@@ -43,22 +43,21 @@ from the command-line."
       (t
        #'identity))))
 
-(defun build-alias-hash (aliases styles)
+(defun build-alias-hash (aliases &optional styles)
   "Returns a hash table initialized with the option alias list ALIASES.
 In that alist, the CDR of each element are all the strings that are
 mapped to the CAR of the element.  STYLES is used to determine how to
 compare strings within the hash table."
-  (with-styles-canon (styles styles)
-    (let ((hash (make-hash-table :test (eq=-fn styles))))
+  (with-stylehash styles
+    (let ((hash (make-hash-table :test (equal-fn))))
       (mapc (lambda (entry)
-	      (let ((value (car entry)))
-		(mapc (lambda (key)
-			(setf (gethash key hash) value))
+	      (let ((to (car entry)))
+		(mapc (lambda (from) (setf (gethash from hash) to))
 		      (cdr entry))))
 	    aliases)
       hash)))
 
-(defun aliases-fn (aliases styles)
+(defun aliases-fn (aliases &optional styles)
   "Given ALIASES, a list that maps one or more strings to an intended
 option, this creates the function that performs that mapping according
 to STYLES.  The returns function takes an option string as parsed by
@@ -69,29 +68,25 @@ is an intended option, and the CDR is a list of strings that are
 mapped to the intended option.
 
 STYLES is a keyword or list of keywords influencing the matching
-between command-line options and the list of aliases seen here.  In
-order of priority, :STR= prevents case folding, :STREQ directs
-case-insensitive matching, :UP and :DOWN imply :STREQ.  Note that
-ALIASES-FN treats :KEY as :UP \(mapping options to keyword values
-happens elsewhere\)."
-  (with-styles-canon (styles styles)
+between command-line options and the list of aliases seen here."
+  (with-stylehash styles
     (let ((hash (build-alias-hash aliases styles)))
       (lambda (x) (aif (gethash x hash)
 		       it
 		       x)))))
 
-(defun build-argopt-hash (argopts styles)
+(defun build-argopt-hash (argopts &optional styles)
   "Returns a hash table initialized with the options listed in
 ARGOPTS.  Each key simply maps to T; this hash is treated as a set
 function.  STYLES is used to initialize the hash table's equality
 test."
-  (with-styles-canon (styles styles)
-    (let ((hash (make-hash-table :test (eq=-fn styles))))
+  (with-stylehash styles
+    (let ((hash (make-hash-table :test (equal-fn))))
       (mapc (lambda (argopt) (setf (gethash argopt hash) t))
 	    argopts)
       hash)))
 
-(defun argopt-p-fn (argopts styles)
+(defun argopt-p-fn (argopts &optional styles)
   "Given ARGOPTS, a list of strings denoting options that take
 arguments, this returns a function that can be used by Petulant to
 test if an ambiguous option consumes arguments or not.
@@ -101,26 +96,26 @@ between options provided by the calling application and options
 supplied by the user.  In order of priority, :STR= prevents case
 folding, :STREQ directs case-insensitive matching, and :UP :DOWN
 and :KEY all imply :STREQ."
-  (with-styles-canon (styles styles)
+  (with-stylehash styles
     (let ((hash (build-argopt-hash argopts styles)))
       (lambda (x) (gethash x hash)))))
 
-(defun hack-option-fn (styles)
+(defun hack-option-fn (&optional styles)
   "Compose a new function that calls other functions to transform
 \(hack\) a single argument that is an option name.  These other
-functions are based on the contents of STYLES and ARGOPTS, and might
-change the case of the option, they might replace it with a symbol
-from the keyword package, they might substitute aliases or recognize
-partial matches.  The results of passing an option string through
-the composed function is an object (string or keyword) ready for
-the supplied callback function."
-  (with-styles-canon (styles styles)
+functions are based on the contents of STYLES, and might change the
+case of the option, they might replace it with a symbol from the
+keyword package, they might substitute aliases or recognize partial
+matches.  The results of passing an option string through the composed
+function is an object (string or keyword) ready for the supplied
+callback function."
+  (with-stylehash styles
     (let ((funcs nil))
-      (when (member :down styles)
+      (when (stylep :down)
 	(push #'string-downcase funcs))
-      (when (member :up styles)
+      (when (stylep :up)
 	(push #'string-upcase funcs))
-      (when (member :key styles)
+      (when (stylep :key)
 	(push (lambda (x) (intern x "KEYWORD")) funcs))
       (when (null funcs)
 	(push #'identity funcs))
@@ -220,14 +215,14 @@ are silently ignored.
    :WINDOWS Disregard the current running system, and process the
 	    command-line arguments as if in a Windows environment.
 	    Also implies :STREQ."
-  (with-styles-canon (styles styles)
+  (with-stylehash styles
     (let ((hack-fn (hack-option-fn styles)))
       (flet ((cb (x y z)
 	       (case x
 		 (:opt (funcall fn x (funcall hack-fn y) z))
 		 (:arg (funcall fn x y z)))))
 	(simple-parse-cli #'cb
-			  :argopt-p-fn (argopt-p-fn argopts styles)
+			  :argoptp-fn (argopt-p-fn argopts styles)
 			  :chgname-fn (compose (aliases-fn aliases styles)
 					       (partials-fn argopts flagopts
 							    aliases styles))
