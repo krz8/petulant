@@ -1,9 +1,6 @@
 (defpackage #:petulant-test
   (:use #:cl #:5am #:iterate)
-  (:export #:all #:misc #:trie #:styles #:simple #:parse
-	   ;; #:string-fixers #:with-chars #:make-optargp	  ; test sets
-	   ;; #:unique-substrings #:parse-unix-cli
-	   )
+  (:export #:all #:misc #:trie #:styles #:simple #:parse #:petulant)
   (:import-from #:petulant
 		#:stringify #:slashify #:split
 		#:wc/make-setfs #:wc/make-case-clause #:with-chars
@@ -17,6 +14,7 @@
 		#:str=-fn #:str<-fn #:equal-fn
 		#:partials-fn
 		#:get-cli #:simple-parse-cli
+		#:spec-cli #:spec-cli*
 		))
 
 (in-package #:petulant-test)
@@ -985,3 +983,27 @@
 		     "--file" "other.dat")))
     ;; keep writing a few more here every day
     ))
+
+
+
+(def-suite petulant :description "the big kahuna" :in all)
+(in-suite petulant)
+
+(test spec-cli
+  (is (equalp '(cli::spec-cli*		; form
+		"nemo"			; name
+		(constantly "")		; summary
+		(constantly "") 	; tail
+		nil			; options
+		nil			; aliases
+		nil			; styles
+		nil) 			; arguments
+	      (macroexpand '(spec-cli))))
+  (is (equalp '(cli::spec-cli* "foo"
+		(lambda () (format nil "bar ~d" 42))
+		(lambda () (format nil "baz ~d" (get-universal-time)))
+		nil nil nil nil)
+	      (macroexpand '(spec-cli
+			     (:summary "bar ~d" 42)
+			     (:tail "baz ~d" (get-universal-time))
+			     (:name "foo"))))))

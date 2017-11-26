@@ -62,7 +62,8 @@ are evaluated when a usage message needs to be generated.  The
 resulting string is reformatted and justified to fit in the usage
 message, using all whitespace (newline, carriage returns, space
 characters) as locations to provide text wrapping. \(So don't bother
-trying any fancy formatting.\)
+trying any fancy formatter control, just stick to informative
+strings.\)
 
    \(:summary \"Stimulate the beaded hamster.\"\)
    \(:summary \"Does the thing with the thing and the other things ~
@@ -98,7 +99,9 @@ acceptable.
   will be truncated if its length exceeds N characters.  No processing
   is performed on a string (other than the aforementioned truncation),
   so almost any string that can be presented from your shell or
-  command interpreter is supported.
+  command interpreter is supported.  Note that Petulant's typespec of
+  \(:STRING N\) has a slightly different meaning than Common Lisp's
+  \(STRING N\).
 
     \(:argopt \"title\"\)
     \(:argopt \"title\" \(:string 50\)\)   
@@ -418,10 +421,30 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
       (unless name
 	(wrn "(:NAME ...) missing, using (:NAME \"nemo\") for now.")
 	(setf name "nemo")))
-    `(petulant::spec-cli* ,name ,summary ,tail
-			  (list ,@options)
-			  ',aliases ',styles
-		',(nreverse args))))
+    ;; Of course, (LIST) evaluates to the same as NIL, but
+    ;; aesthetically, I simply prefer to see NIL rather than (LIST) in
+    ;; my expansions.  Let's not quibble, this isn't about the
+    ;; overhead of one extra function call (LIST with no arguments),
+    ;; this is purely about form.  Otherwise, get rid of LIST/NIL and
+    ;; change the backticked form below to use something more or less
+    ;; like (LIST ,@OPTIONS) instead of ,(LIST/NIL OPTIONS) and you'll
+    ;; have the same functional effect.  This is somewhat the same
+    ;; feeling I have about SUMMARY and TAIL, and why I use
+    ;; (CONSTANTLY "") instead of (LAMBDA () (FORMAT NIL "")); the
+    ;; latter is easier to autogenerate above, sure, while the former
+    ;; just strikes me as a clearer intent below.
+    (labels ((list/nil (things) (if things
+				    `(list ,@things)
+				    'nil)))
+      `(petulant::spec-cli* ,name
+			    ,(or summary '(constantly ""))
+			    ,(or tail '(constantly ""))
+			    ,(list/nil options)
+			    ,(list/nil aliases)
+			    ,(list/nil styles)
+			    ,(list/nil (nreverse args))))))
+
+#|
 
 ;;; This form is for debugging, I'm leaving it in here because we
 ;;; might need it again later.  Primarily, it demonstrates arguments
@@ -801,3 +824,4 @@ application's actual command line."
 ;; 	(sort-out-options optspecs)
 ;;       (usage name summary tail opthash dochash aliases styles)))
 
+|#
