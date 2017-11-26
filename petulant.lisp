@@ -268,11 +268,11 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
                         arguments." opt type))
 		 ((and (or (null max) (eq '* max))
 		       (or (null min) (eq '* min)))
-		  `(,type '* '*))
+		  `(,type * *))
 		 ((and (numberp max) (or (null min) (eq '* min)))
-		  `(,type '* ,max))
+		  `(,type * ,max))
 		 ((and (numberp min) (or (null max) (eq '* max)))
-		  `(,type ,min '*))
+		  `(,type ,min *))
 		 ((and (numberp min) (numberp max))
 		  `(,type ,min ,max))
 		 (t
@@ -286,7 +286,7 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 		  (err "In (:ARGOPT ~s ...), ~s can only take zero or one ~
                         arguments." opt type))
 		 ((or (null x) (eq '* x))
-		  `(,type '*))
+		  `(,type *))
 		 ((numberp x)
 		  `(,type ,x))
 		 (t
@@ -310,19 +310,19 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 			    (type (caddr form))
 			    (docs (cdddr form)))
 			(cond
-			  ((null type)
-			   (setf type '(:string '*)))
+			  ((null type)			   
+			   (setf type '(:string *)))
 			  ((stringp type)
 			   (setf docs (cddr form)
-				 type '(:string '*)))
+				 type '(:string *)))
 			  ((symbolp type)
 			   (cond
 			     ((eq (symbol-package type) keypkg)
 			      (case type
 				((:real :rational :ratio :integer :float)
-				 (setf type `(,type '* '*)))
+				 (setf type `(,type * *)))
 				(:string
-				 (setf type `(,type '*)))
+				 (setf type `(,type *)))
 				((:key :read :flag)
 				 (setf type `(,type)))
 				(:one-of
@@ -365,7 +365,7 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
                                    must be a FORMAT control string." opt))
 			  (t
 			   (setf docs nil)))
-			`(list ,opt (list ,@type) ,docs))
+			`(list ,opt ',type ,docs))
 		      options))))
 	   (alias (form)
 	     (cond
@@ -421,28 +421,21 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
       (unless name
 	(wrn "(:NAME ...) missing, using (:NAME \"nemo\") for now.")
 	(setf name "nemo")))
-    ;; Of course, (LIST) evaluates to the same as NIL, but
-    ;; aesthetically, I simply prefer to see NIL rather than (LIST) in
-    ;; my expansions.  Let's not quibble, this isn't about the
-    ;; overhead of one extra function call (LIST with no arguments),
-    ;; this is purely about form.  Otherwise, get rid of LIST/NIL and
-    ;; change the backticked form below to use something more or less
-    ;; like (LIST ,@OPTIONS) instead of ,(LIST/NIL OPTIONS) and you'll
-    ;; have the same functional effect.  This is somewhat the same
-    ;; feeling I have about SUMMARY and TAIL, and why I use
-    ;; (CONSTANTLY "") instead of (LAMBDA () (FORMAT NIL "")); the
-    ;; latter is easier to autogenerate above, sure, while the former
-    ;; just strikes me as a clearer intent below.
-    (labels ((list/nil (things) (if things
-				    `(list ,@things)
-				    'nil)))
-      `(petulant::spec-cli* ,name
-			    ,(or summary '(constantly ""))
-			    ,(or tail '(constantly ""))
-			    ,(list/nil options)
-			    ,(list/nil aliases)
-			    ,(list/nil styles)
-			    ,(list/nil (nreverse args))))))
+    ;; The difference between OPTIONS and ALIASES below is simply
+    ;; this: OPTIONS needs a form that can be evaluated, (LIST ...),
+    ;; because it might include a lambda form that documents the
+    ;; option.  ALIASES, STYLES, and so forth are typically simple
+    ;; (maybe nested) lists of constants (strings, keywords), so they
+    ;; can be handled by a simpler quoted form.  That's all there is
+    ;; to it.  You know, no matter how many times I use it, `',foo
+    ;; always feels like I'm abusing something...
+    `(petulant::spec-cli* ,name
+			  ,(or summary '(constantly ""))
+			  ,(or tail '(constantly ""))
+			  ,(if options `(list ,@options) 'nil)
+			  ,(if aliases `',aliases 'nil)
+			  ,(if styles `',styles 'nil)
+			  ,(if args `',(nreverse args) 'nil))))
 
 #|
 
