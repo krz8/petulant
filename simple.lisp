@@ -79,7 +79,7 @@ you're an end-user of Petulant, you might want to consider calling a
 higher level function; this one is mostly for implementation of other
 Petulant functionality.
 
-PARSE-WINDOWS-CLI works through ARGLIST, a flat list of strings
+PARSE-WINDOWS works through ARGLIST, a flat list of strings
 delivered from some OS-specific wrapper in the Lisp environment
 parsing it according to most Windows behaviors.  As switches are
 identified, SWARGP-FN is called to determine if that switch takes an
@@ -151,7 +151,7 @@ you're an end-user of Petulant, you might want to consider calling a
 higher level function; this one is mostly for implementation of other
 Petulant functionality.
 
-PARSE-UNIX-CLI works through ARGLIST, a flat list of strings from a
+PARSE-UNIX works through ARGLIST, a flat list of strings from a
 command line, parsing it according to most POSIX and GNU behaviors.
 As options are identified, ARGOPTP-FN is called to determine if that
 option takes an argument.
@@ -252,14 +252,13 @@ name, argv[0], or other non-argument information."
   "This is the simple, low level parser for command-lines.  If you're
 simply using Petulant in your application \(i.e., you aren't
 developing Petulant\), you might want to consider calling a higher
-level function; SIMPLE-PARSE-CLI is mainly for implementation of other
-Petulant functionality.
+level function; SIMPLE is mainly for implementation of other Petulant
+functionality.
 
-SIMPLE-PARSE-CLI works through an argument list, a flat list of
-strings representing the command-line.  It parses this list according
-to the dominant style for a specific operating system \(e.g.,
-hyphen-based options under Unix, or slash-based switches under
-Windows\).
+SIMPLE works through an argument list, a flat list of strings
+representing the command-line.  It parses this list according to the
+dominant style for a specific operating system \(e.g., hyphen-based
+options under Unix, or slash-based switches under Windows\).
 
 FN is called for each option \(with or without an argument\) and every
 non-option argument identified during parsing.  Each call to FN has
@@ -275,9 +274,8 @@ string of that list.  This is useful to know in testing, but callers
 probably should not rely on any specific ordering.
 
 ARGLIST, if supplied, is a list of strings to parse.  By default,
-SIMPLE-PARSE-CLI will parse a list of strings provided by the Lisp
-environment representing the command-line with which the application
-was started.
+SIMPLE will parse a list of strings provided by the Lisp environment
+representing the command-line with which the application was started.
 
 ARGOPTP-FN, if supplied, is a function.  Petulant recognizes certain
 long options \(\"--foo=bar\"\) and switches \(\"/foo:bar\"\) that
@@ -301,8 +299,7 @@ STYLES is a keyword or list of keywords that can be used to select a
 particular style of command-line processing.  By default, Unix or
 Windows option processing will be chosen based on CL:*FEATURES*, but
 the STYLES argument can be used to override this by supplying :UNIX
-or :WINDOWS, respectively.  When not specified, the current binding
-of *STYLEHASH* remains in effect."
+or :WINDOWS, respectively."
   (with-stylehash styles
     (funcall (if (stylep :windows) #'parse-windows #'parse-unix)
 	     (or arglist (argv))

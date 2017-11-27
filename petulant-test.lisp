@@ -1,31 +1,19 @@
 (defpackage #:petulant-test
   (:use #:cl #:5am #:iterate #:petulant)
-  (:export #:all #:misc #:trie #:styles #:simple #:parse #:petulant)
+  (:export #:all #:misc #:trie #:styles #:simple #:parse #:petulant))
 
-  #+nil
-  (:import-from #:petulant
-		#:stringify #:slashify #:split
-		#:wc/make-setfs #:wc/make-case-clause #:with-chars
-		#:collecting
-		#:isolate-switches #:canonicalize-windows-args
-		#:parse-unix #:parse-windows #:simple
-		#:trie #:make-trie #:make-similar-trie #:trie-table #:trie-at
-		#:dict #:make-dict #:dict-add #:dict-count #:dict-term-p
-		#:dict-word-p #:minwords
-		#:styles-to-hash #:*stylehash* #:with-stylehash #:stylep
-		#:str=-fn #:str<-fn #:equal-fn
-		#:partials-fn
-		#:collect-cli
-		#:spec-cli #:spec-cli*
-		)
-
-  )
+;; We're not using :IMPORT-FROM any longer.  We intend Petulant
+;; functions to be qualified with their package name.  That's why we
+;; provide CLI as a nickname for PETULANT, so that client code can
+;; simply use (cli:parse ...)  and so on.  So, in here, we'll
+;; implement our testing either by those symbols, or by explicitly
+;; invoking unexported symbols (e.g., cli:split).  Overall, the idea
+;; is to leave as much of as the default packaging in place, without
+;; modification by :IMPORT-FROM, to raise the fidelity of the tests to
+;; something like the actual end user's environment.
 
 (in-package #:petulant-test)
-
 (def-suite all :description "all petulant tests")
-
-
 
 (def-suite misc :description "petulant misc utilities" :in all)
 (in-suite misc)
@@ -917,8 +905,8 @@
     (is-true (match? "ignore" "ign"))
     (is-true (match? "ignore" "ignore"))))
 
-;; we'll actually do the testing via GET rather than PARSE, as
-;; the results from the former are much easier to test.  The GET
+;; We'll actually do the testing via COLLECT rather than PARSE, as the
+;; results from the former are much easier to test.  The COLLECT
 ;; wrapper is so simple, it can't really break.
 
 (test collect
