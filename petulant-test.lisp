@@ -107,6 +107,22 @@
     (is (equal '(24 46 68 90)
 	       (cli::collecting (lambda (x) (* 2 x)) list)))))
 
+#+nil
+(test hanging-par
+  (let ((eol (format nil "~%")))
+    (is (equal (cli::strcat "signs: Enoch begat Uruk begat Nineveh begat Babylon begat Sodom begat" eol "Jericho begat Cairo begat Port Said begat Bangkok begat Saigon begat" eol "Vegas begat Hamburg begat New York City begat Mega City One begat" eol "Neo Tokyo." eol)
+	       (with-output-to-string (s)
+		 (cli::hanging-par
+		  "signs: "
+		  (cli::strcat "      Enoch begat Uruk begat Nineveh "
+			       "begat Babylon begat Sodom begat      "
+			       "Jericho begat Cairo begat Port Said  "
+			       "begat Bangkok begat Saigon begat     "
+			       "Vegas begat Hamburg begat New York   "
+			       "City begat Mega City One begat Neo   "
+			       "Tokyo")
+		  :stream s))))))
+
 
 
 (def-suite styles :in all)
@@ -981,8 +997,8 @@
 (test spec
   (is (equalp '(cli::spec*		; form
 		"nemo"			; name
-		(constantly "")		; summary
-		(constantly "") 	; tail
+		nil			; summary
+		nil			; tail
 		nil			; options
 		nil			; aliases
 		nil			; styles
@@ -996,35 +1012,27 @@
 			     (:summary "bar ~d" 42)
 			     (:tail "baz ~d" (get-universal-time))
 			     (:name "foo")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list (list "verbose" '(:flag) nil))
 		nil nil nil)
 	      (macroexpand '(cli:spec
 			     (:name "foo")
 			     (:flagopt "verbose")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list (list "verbose" '(:flag)
 		       (lambda () (format nil "bar baz buz"))))
 		nil nil nil)
 	      (macroexpand '(cli:spec
 			     (:name "foo")
 			     (:flagopt "verbose" "bar baz buz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list (list "verbose" '(:flag)
 		       (lambda () (format nil "bar ~a buz" "baz"))))
 		nil nil nil)
 	      (macroexpand '(cli:spec
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1034,9 +1042,7 @@
 			     (:argopt "file")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1046,9 +1052,7 @@
 			     (:argopt "file" :string)
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1058,9 +1062,7 @@
 			     (:argopt "file" (:string 50))
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1071,9 +1073,7 @@
 			     (:argopt "file" (:string 50) "bebop")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1084,9 +1084,7 @@
 			     (:argopt "file" "bebop")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1099,9 +1097,7 @@
 			     (:argopt "file" "bebop")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1114,9 +1110,7 @@
 			     (:argopt "file" "bebop")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1129,9 +1123,7 @@
 			     (:argopt "file" "bebop")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1144,9 +1136,7 @@
 			     (:argopt "file" "bebop")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1159,9 +1149,7 @@
 			     (:argopt "file" "bebop")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1175,9 +1163,7 @@
 			     (:argopt "file" "bebop")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1194,9 +1180,7 @@
 			     (:argopt "file" "bebop")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1214,9 +1198,7 @@
 			     (:argopt "file" "bebop")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1235,9 +1217,7 @@
 			     (:argopt "file" "bebop")
 			     (:name "foo")
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1257,20 +1237,18 @@
 			     (:name "foo")
 			     (:style :partial)
 			     (:flagopt "verbose" "bar ~a buz" "baz")))))
-  (is (equalp '(cli::spec* "foo"
-		(constantly "")
-		(constantly "")
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
 		 (list "file" '(:string *) (lambda ()
 					     (format nil "bebop")))
-		 (list "alpha" '(:real 0 100) nil))
+		 (list "alpha" '(:real 0 99) nil))
 		'(("verbose" "debug")
 		  ("alpha" "transparency" "fade"))
 		'(:partial :key :windows) nil)
 	      (macroexpand '(cli:spec
-			     (:argopt "alpha" (:real 0 100))
+			     (:argopt "alpha" (:real 0 99))
 			     (:alias "alpha" "transparency" "fade")
 			     (:style :windows)
 			     (:aliases "verbose" "debug")

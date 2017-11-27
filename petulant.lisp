@@ -363,7 +363,7 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 			   (err "In (:ARGOPT ~s ...), the fourth element ~
                                    must be a FORMAT control string." opt))
 			  (t
-			   (setf docs nil)))
+			   (setf docs nil))) ; paranoia
 			`(list ,opt ',type ,docs))
 		      options))))
 	   (alias (form)
@@ -426,17 +426,14 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
     ;; option.  ALIASES, STYLES, and so forth are typically simple
     ;; (maybe nested) lists of constants (strings, keywords), so they
     ;; can be handled by a simpler quoted form.  That's all there is
-    ;; to it.  You know, no matter how many times I use it, `',foo
-    ;; always feels like I'm abusing something...
-    `(petulant::spec* ,name
-		      ,(or summary '(constantly ""))
-		      ,(or tail '(constantly ""))
+    ;; to it, it's purely an aesthetical thing.  You know, no matter
+    ;; how many times I use it, `',foo always feels like I'm abusing
+    ;; something...
+    `(petulant::spec* ,name ,summary ,tail
 		      ,(if options `(list ,@options) 'nil)
 		      ,(if aliases `',aliases 'nil)
 		      ,(if styles `',styles 'nil)
 		      ,(if args `',(nreverse args) 'nil))))
-
-#|
 
 ;;; This form is for debugging, I'm leaving it in here because we
 ;;; might need it again later.  Primarily, it demonstrates arguments
@@ -471,24 +468,190 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
       (showq styles)
       (showq args))))
 
-(defun make-pethash (styles)
-  "Given a STYLES specification (that may or may not have already been
-canonicalized), return a new hash table with the appropriate test of
-equality baked in."
-  (with-styles-canon (styles styles)
-    (make-hash-table :test (eq=-fn styles))))
+(defun make-pethash ()
+  "Referencing whatever styles are in effect \(typically, via the most
+recent WITH-STYLEHASH\) return a new hash table with the appropriate
+test of equality baked in.  These hash tables are meant to use option
+strings as their keys."
+  (make-hash-table :test (equal-fn)))
+
+(defparameter *no-doc-fn* (constantly "")
+  "A closure that always returns an empty string. Useful when dealing
+with aspects of a command-line that may, or may not, be documented.")
+
+(defun label-option (option type &optional (padding "  "))
+  "Given a string naming an OPTION, some kind of type specification
+going with it (:FLAG appearing for plain options, and something else
+for options that take arguments), return a string to be used in a
+usage message for this option.  The string is always padded with two
+spaces at its beginning.
+
+   \(label-option \"alpha\" '\(:string *\)\)
+=> \"  --alpha=VAL\"
+   \(label-option \"beta\" '\(:string *\)\)
+=> \"  /beta:VAL\"
+   \(label-option \"gamma\" '\(:flag\)\)
+=> \"  --gamma\"
+   \(label-option \"delta\" '\(:flag\)\)
+=> \"  /delta\"
+   \(label-option \"e\" '\(:flag\)\)
+=> \"  -e\"
+   \(label-option \"z\" '\(:string *\)\)
+=> \"  -z VAL\""
+  (let ((winp (stylep :windows))
+	(shortp (< (length option) 2))
+	(flagp (eq :flag (car type))))
+    (strcat padding
+	    (cond (winp   "/")
+		  (shortp "-")
+		  (t      "--"))
+	    option
+	    (cond (flagp  "")
+		  (winp   ":VAL")
+		  (shortp " VAL")
+		  (t      "=VAL")))))
+
+(defun widest-option-label (opthash)
+  "Given the type hash of all options to our application, format each
+of them as they would appear in a usage message via LABEL-OPTION, and
+return the length of the longest string that represents an option in
+a usage message \(e.g., \"  --config=VAL\"\)."
+  (if (zerop (hash-table-count opthash))
+      2				   ; label option pads with two spaces
+      (reduce #'max
+	      (collecting (lambda (k v) (length (label-option k v)))
+			  opthash))))
+
+(defun usage-header (appname summary namewidth stream)
+  "Given an string APPNAME and its possibly long SUMMARY (which can be
+NIL), format the pair as a hanging paragraph onto STREAM.  SUMMARY is
+a closure that generates the text to be formatted, or NIL."
+  (let ((namewidth (min namewidth (+ 3 (length appname)))))
+    (hanging-par (pad (strcat appname ":") namewidth)
+		 (funcall (or summary *no-doc-fn*))
+		 :stream stream :indentlength namewidth)
+    (terpri stream)))
+
+(defun usage-footer (tail stream)
+  "If TAIL is not NIL, call it to obtain text, and render it onto the
+named output stream, wrapping the text at the same right margin as
+USAGE-HEADER and USAGE-OPTION."
+  (when tail
+    (par (strcat
+	  (funcall tail)
+	  (if (and (stylep :unix) (stylep :streq))
+	      " Options are case-insensitive (-x and -X are equivalent)."
+	      "")
+	  (if (and (stylep :windows) (stylep :str=))
+	      " Options are case-sensitive (/x and /X are different)."
+	      "")
+	  (if (stylep :partial)
+	      " Options may be abbreviated to their shortest unique name."
+	      ""))
+	 :stream stream)))
+
+(defun option-text (option dochash)
+  "Return a string that may be empty describing OPTION.  Looks for a
+closure in the dochash, and if one exists, executes it (we assume it
+returns a string).  Otherwise, OPTION-TEXT returns an empty string."
+  (funcall (or (gethash option dochash) *no-doc-fn*)))
+
+(defun option-type (type-spec)
+  "This function returns text that at least somewhat describes the
+supplied type for use in a help or usage message.  Petulant type
+specifications include real ones like :STRING, :FLOAT, :INTEGER,
+:RATIO, :RATIONAL, :REAL, and so on.  We also support pseudo-types
+like :FLAG, :READ, :KEY, :ONE-OF, etc."
+  (destructuring-bind (&optional d0 d1 d2)
+      type-spec
+    (apply #'concatenate 'string
+	   (case d0
+	     ((:float :integer :ratio :rational :real)
+	      (list "This option takes"
+		    (case d0
+		      (:integer " an integer")
+		      (:float " a floating point value")
+		      (:rational " a rational number (like 6 or 11/3)")
+		      (:ratio " a ratio (like -1/3 or 11/3)")
+		      (:real " a number"))
+		    (cond
+		      ((and (eq d1 '*) (eq d2 '*))
+		       "")
+		      ((eq d2 '*)
+		       (format nil " no less than ~a" d1))
+		      ((eq d1 '*)
+		       (format nil " no more than ~a" d2))
+		      (t
+		       (format nil " between ~a and ~a" d1 d2)))
+		    ". "))
+	     (:string
+	      (if (eq '* d1)
+		  '("")
+		  (list (format nil "This option takes a string no more than ~
+                                     ~d characters in length. " d1))))
+	     (:key
+	      '("This option takes a single short alphanumeric word, starting"
+		"with a letter, containing no whitespace or other symbols. "))
+	     (otherwise
+	      '(""))))))
+
+(defun option-aliases (option alihash)
+  (let ((eqfun (str=-fn))
+	(aliases))
+    (maphash (lambda (k v) (when (funcall eqfun option v)
+			     (push k aliases)))
+	     alihash)
+    (apply #'format nil
+	   "~#[~;An alias for this option is ~s.~
+            ~;Aliases for this option are ~s and ~s.~
+            ~;Aliases for this option are ~@{~#[~; and~] ~s~^,~}.~]"
+	   (sort aliases (str<-fn)))))
+
+(defun usage-option (option opthash dochash alihash tagwidth stream)
+  "Format a full description of the string named OPTION onto the
+supplied STREAM.  OPTHASH is the hash mapping options to their types,
+and DOCHASH is the hash mapping options to closures that provide
+option descriptions.  TAGWIDTH provides a specific width for the lefthand
+column in which the options appear."
+  (let* ((type (gethash option opthash))
+	 (label (pad (label-option option type) tagwidth)))
+    (hanging-par label
+		 (strcat (option-text option dochash)
+			 " " (option-type type)
+			 " " (option-aliases option alihash))
+		 :stream stream :indentlength tagwidth)))
+
+(defun usage (appname summary tail opthash dochash alihash
+	      &key (stream *standard-output*) (maxappwidth 18)
+		(maxoptwidth 16))
+  "Display a usage message on the supplied stream, describing all the
+options the application supports on its command-line.  MAXAPPWIDTH and
+MAXOPTWIDTH can be used to supply maximum indentation of the SUMMARY
+and each option's description \(though longer texts will be formatted
+reasonably\); use those keywords to change the default sizes."
+  (let ((optwidth (min maxoptwidth (+ 2 (widest-option-label opthash))))
+	(printed nil))
+    (usage-header appname summary maxappwidth stream)
+    (mapc (lambda (option)
+	    (usage-option option opthash dochash alihash optwidth stream)
+	    (setf printed t))
+	  (sort (hash-table-keys opthash) (str<-fn)))
+    (when printed
+      (terpri stream))
+    (usage-footer tail stream)))
 
 (defun sort-out-options (opthash dochash alihash options aliases)
   "Work through OPTIONS and ALIASES, as supplied to CLI:SPEC*, and
 update the option hash, option documentation hash, and alias hash
 accordingly.  Every option appears in the OPTHASH, the value of which
-is the type specification for the option.  Those options which have
-documentation closures also appear in the DOCHASH.  The ALIHASH maps
-alternative names for aliases to their proper option name."
+is the type specification for the option.  Every option also appears
+in the DOCHASH, mapped to a closure providing a documentation string
+for the named option.  The ALIHASH maps alternative option names to
+their proper option name."
   (mapc (lambda (optspec)
 	  (let ((opt (car optspec)))
 	    (setf (gethash opt opthash) (cadr optspec)
-		  (gethash opt dochash) (caddr optspec))))
+		  (gethash opt dochash) (or (caddr optspec) *no-doc-fn*))))
 	options)
   (mapc (lambda (alispec)
 	  (let ((opt (car alispec)))
@@ -496,324 +659,35 @@ alternative names for aliases to their proper option name."
 		  (cdr alispec))))
 	aliases))
 
-(defun cli:spec* (nane summaryfn tailfn options aliases styles args)
-  "Typically invoked from the CLI:SPEC macro.  NAME is a string
-identifying the running application.  SUMMARYFN and TAILFN are
-closures that generate the strings that appear in a usage message.
-OPTIONS is a list of option specifications, ALIASES is a list of
-alternate names for those options, STYLES is a list of keyword
-controlling various nuances of our command line parsing, and ARGS is a
-list of strings to use instead of the command line.
+(defun spec* (name summary tail options aliases styles args)
+  "Typically invoked from the CLI:SPEC macro.
 
-Each element in the OPTIONS list must have the form \(OPTION TYPE
-DOCFN\) where OPTION is a string, TYPE is a list providing a fully
-qualified Petulant type specification, and DOCFN is a closure that
-generates documentation for this option.
+NAME is a string identifying the running application.
 
-Each element in the ALIAS list is, itself, a list of strings.  The
-first string in that list is an option that appears in the OPTIONS
-list, and all remaining strings in the list are alternative names for
-it.
+SUMMARYFN and TAILFN are closures that generate the strings that
+appear in a usage message, or NIL.
 
-STYLES is a list of keywords directing the processing of the command
-line according to system (Unix or Windows), case sensitivity, string
-conversion, keyword conversion, and so on.
+OPTIONS is a list of option specifications.  Each specification is,
+itself, a list of three elements.  The first element is a string
+naming the option.  The second element is a Petulant type
+specification \(e.g., flags, integers, strings\).  The third element
+is a closure yielding a string that documents the option, or NIL.
 
-ARGS, when not nil, is a list of strings to use instead of the
-application's actual command line."
-  (with-styles-canon (styles styles)
-    (let ((opthash (make-pethash styles))
-	  (dochash (make-pethash styles))
-	  (alihash (make-pethash styles))
-	  (results (make-pethash styles)))
-      (labels ((argp (option) (gethash option opthash)))
-	(sort-out-options opthash dochash alihash options aliases)
-	))))
+ALIASES is a list of alternative names for the options.  Each element
+of ALIASES is a list, where the first element is a string names an
+option appearing in OPTIONS, and all subsequent strings are its
+aliases.
 
+STYLES is a keyword, or list of keywords, that control various nuances
+of our command line parsing, including option formats \(Unix or
+Windows\), case sensitivity, string conversion, keyword conversion,
+and so on.
 
-;;; WWI
-;;; Hit parse.lisp, and change CLI:PARSE to work with hashes instead of
-;;; lists.  Then create a wrapper that takes the original lists and
-;;; generates hashes for use by the other function.
-;;;
-;;; We probably want the new wrapper to be CLI:PARSE, and the function
-;;; doing the actual work and consuming hashes to be CLI:PARSE*
-
-
-;; (defun label-option (option type styles &optional (padding "  "))
-;;   "Given a string naming an OPTION, some kind of type specification
-;; going with it (:FLAG appearing for plain options, and something else
-;; for options that take arguments), and a styles list, return a string
-;; to be used in a usage message for this option.  The string is always
-;; padded with two spaces at its beginning.
-
-;;    \(label-option \"alpha\" :string :unix\)
-;; => \"  --alpha=VAL\"
-;;    \(label-option \"beta\" :string :windows\)
-;; => \"  /beta:VAL\"
-;;    \(label-option \"gamma\" :flag :unix\)
-;; => \"  --gamma\"
-;;    \(label-option \"delta\" :flag :windows\)
-;; => \"  /delta\"
-;;    \(label-option \"e\" :flag :unix\)
-;; => \"  -e\"
-;;    \(label-option \"z\" :string :unix\)
-;; => \"  -z VAL\""
-;;   (with-styles-canon (styles styles)
-;;     (let ((winp (member :windows styles))
-;; 	  (shortp (< (length option) 2))
-;; 	  (flagp (eq :flag type)))
-;;       (strcat padding
-;; 	      (cond (winp   "/")
-;; 		    (shortp "-")
-;; 		    (t      "--"))
-;; 	      option
-;; 	      (cond (flagp  "")
-;; 		    (winp   ":VAL")
-;; 		    (shortp " VAL")
-;; 		    (t      "=VAL"))))))
-
-;; (defun widest-option-label (opthash styles)
-;;   "Given the type hash of all options to our application, a hash
-;; containing only those options that take arguments, and the influencing
-;; styles of our application, format each of them as they would appear in
-;; a usage message via LABEL-OPTION, and return the length of the longest
-;; string \(e.g., \" --config=VAL\"\)."
-;;   (with-styles-canon (styles styles)
-;;     (reduce #'max
-;; 	    (maphash/c (lambda (k v) (length (label-option k v styles)))
-;; 		       opthash))))
-
-;; (defun fmt (format-args)
-;;   "Format the list FORMAT-ARGS as if they were arguments to the FORMAT
-;; utility, returning the resulting string.  The first element of
-;; FORMAT-ARGS must be a string, and any subsequent elements are as
-;; called for in the first string."
-;;   (apply #'format nil format-args))
-
-;; (defun canonicalize-type (type-spec)
-;;   "Try to put TYPE-SPEC into a canonical form, undoing the
-;; abbreviations and shortcuts that are commonly accepted.  If TYPE-SPEC
-;; is a keyword, then it is reformed to a list with * in the position of
-;; its arguments.  If it is a list, but it takes more arguments than are
-;; provided, * is appended for each of the missing arguments."
-;;   (when type-spec
-;;     (destructuring-bind (&optional x y z)
-;; 	(ensure-list type-spec)
-;;       (case x
-;; 	((:integer :float :ratio :rational :real) ; two arguments
-;; 	 (list x (or y '*) (or z '*)))
-;; 	(:string			; one argument
-;; 	 (list x (or y '*)))
-;; 	(otherwise
-;; 	 (list x))))))
-
-;; (defun option-type (type-spec)
-;;   "This function returns text that at least somewhat describes the
-;; supplied type for use in a help or usage message.  In addition to
-;; obvious types like :FLOAT, :INTEGER, :RATIO, :RATIONAL, and :REAL, the
-;; following pseudo-types are supported:
-
-;; :KEY is not really a type, but instead, represents the intent to take
-;; the supplied string, trim whitespace from either end, convert it to
-;; upper case, and intern the result as a symbol in the keyword package.
-
-;; :READ is not really a type, but instead, represents the desire to call
-;; the Lisp READ-FROM-STRING on the supplied argument and take the result
-;; as-is.  This could be used for reading lists from the command-line or
-;; other weirdness.  This could lead to very unexpected behavior \(you
-;; know how users are\), so use this pseudo-type with great care.
-
-;; :STRING is slightly different than the built-in Lisp STRING type.
-;; When its single optional argument appears, it is taken as a maximum
-;; length for the string."
-;;   (destructuring-bind (&optional d0 d1 d2)
-;;       (canonicalize-type type-spec)
-;;     (apply #'strcat
-;; 	   (case d0
-;; 	     ((:float :integer :ratio :rational :real)
-;; 	      (list "This option takes"
-;; 		    (case d0
-;; 		      (:integer " an integer")
-;; 		      (:float " a floating point value")
-;; 		      (:rational " a rational number (like 6 or 11/3)")
-;; 		      (:ratio " a ratio (like -1/3 or 11/3)")
-;; 		      (:real " a number"))
-;; 		    (cond
-;; 		      ((and (eq d1 '*) (eq d2 '*))
-;; 		       "")
-;; 		      ((eq d2 '*)
-;; 		       (format nil " no less than ~a" d1))
-;; 		      ((eq d1 '*)
-;; 		       (format nil " no more than ~a" d2))
-;; 		      (t
-;; 		       (format nil " between ~a and ~a" d1 d2)))
-;; 		    ". "))
-;; 	     (:string
-;; 	      (if (eq '* d1)
-;; 		  '("")
-;; 		  (list (format nil "This option takes a string no more than ~
-;;                                      ~d characters in length." d1))))
-;; 	     (:key
-;; 	      '("This option takes a single short alphanumeric word, starting"
-;; 		"with a letter, containing no whitespace or other symbols. "))
-;; 	     (otherwise
-;; 	      '(""))))))
-
-;; (defparameter *ws* '(#\Space #\Tab #\Newline #\Return #\Page)
-;;   "A list of common whitespace characters.")
-
-;; (defun pad (string minlength &optional (minpad 2))
-;;   "Return a new string that is STRING but with spaces appended in
-;; order to make its length equal to MINLENGTH.  At least MINPAD spaces
-;; appears at the right of STRING, no matter how long the resulting
-;; string is.  This is used to set off a tag in a paragraph with a
-;; hanging tag, as in an option in a usage message.
-
-;;    \(PAD \"foo\" 8) => \"foo     \"
-;;    \(PAD \"foo\" 5) => \"foo  \"
-;;    \(PAD \"foo\" 2) => \"foo  \"
-
-;;    \(PAD \"blah\" 3 0\) => \"blah\" 
-;;    \(PAD \"blah\" 3 1\) => \"blah \" 
-;;    \(PAD \"blah\" 3 2\) => \"blah  \" 
-;;    \(PAD \"blah\" 4 0\) => \"blah\" 
-;;    \(PAD \"blah\" 4 1\) => \"blah \" 
-;;    \(PAD \"blah\" 4 2\) => \"blah  \" 
-;;    \(PAD \"blah\" 5 0\) => \"blah \" 
-;;    \(PAD \"blah\" 5 1\) => \"blah \" 
-;;    \(PAD \"blah\" 5 2\) => \"blah  \" 
-;;    \(PAD \"blah\" 6 0\) => \"blah  \" 
-;;    \(PAD \"blah\" 6 1\) => \"blah  \" 
-;;    \(PAD \"blah\" 6 2\) => \"blah  \""
-;;   (let ((str (string-right-trim *ws* string)))
-;;     (strcat str (make-string (max minpad (- minlength (length str)))
-;; 			     :initial-element #\Space))))
-
-;; (defun hanging-par (label text &optional stream indentlength)
-;;   "Presents a hanging paragraph onto STREAM or *STANDARD-OUTPUT* if
-;; STREAM is not provided.  The exdented text, starting at the beginning
-;; of the first line, is supplied by the LABEL string.  The TEXT string
-;; is broken up on whitespace boundaries and flowed onto the remainder of
-;; the line until the right margin is encountered.  Remaining words are
-;; placed on as many subsequent lines as necessary, each of those lines
-;; indented by spaces.  The number of spaces used to indent all remaining
-;; lines is given by INDENTLENGTH; if that argument is not provided, the
-;; width of LABEL is used instead."
-;;   (let* ((spaces (make-string (or indentlength (length label))
-;; 			      :initial-element #\Space))
-;; 	 (words (split *ws* text))
-;; 	 (format (strcat "~a~{~<~%" spaces "~1:;~a~>~^ ~}~%")))
-;;     (format (or stream *standard-output*) format label words)))
-
-;; (defun option-text (option dochash)
-;;   "Return a string that may be empty describing OPTION.  Looks for a
-;; closure in the dochash, and if one exists, executes it (we assume it
-;; came from CLI:SPEC, and therefore returns a string).  Otherwise,
-;; returns an empty string."
-;;   (or (aand (gethash option dochash) (funcall it))
-;;       ""))
-
-;; (defun option-aliases (option aliases styles)
-;;   (with-styles-canon (styles styles)
-;;     (apply #'format nil
-;; 	   "~#[~;An alias for this option is ~s.~
-;;              ~;Aliases for this option are ~s and ~s.~
-;;              ~;Aliases for this option are ~@{~#[~; and~] ~s~^,~}.~]"
-;; 	   (cdr (assoc option aliases :test (str=-fn styles))))))
-
-;; (defun usage-option (option opthash dochash aliases styles tagwidth stream)
-;;   "Format a full description of the string named OPTION onto the
-;; supplied STREAM.  OPTHASH is the hash mapping options to their types,
-;; and DOCHASH is the hash mapping options to closures that provide
-;; descriptions.  TAGWIDTH provides a specific width for the lefthand
-;; column in which the options appear."
-;;   (with-styles-canon (styles styles)
-;;     (let* ((type (gethash option opthash))
-;; 	   (label (pad (label-option option type styles) tagwidth)))
-;;       (hanging-par label
-;; 		   (strcat (option-text option dochash)
-;; 			   " " (option-type type)
-;; 			   " " (option-aliases option aliases styles))
-;; 		   stream tagwidth))))
-
-;; (defun usage-header (appname summary namewidth stream)
-;;   "Given an string APPNAME and its possibly long SUMMARY (which can be
-;; NIL), format the pair as a hanging paragraph onto STREAM.  SUMMARY is
-;; a closure that generates the text to be formatted, or NIL."
-;;   (let ((namewidth (min namewidth (+ 3 (length appname)))))
-;;     (if (null summary)
-;; 	(format stream "~a:~%" appname)
-;; 	(hanging-par (pad (strcat appname ":") namewidth)
-;; 		     (funcall summary)
-;; 		     stream namewidth))
-;;     (terpri stream)))
-
-;; (defun usage-footer (tail styles stream)
-;;   "If TAIL is not NIL, call it to obtain text, and render it onto the
-;; named output stream or *STANDARD-OUTPUT*, wrapping the text at the
-;; same right margin as USAGE-HEADER and USAGE-OPTION."
-;;   (with-styles-canon (styles styles)
-;;     (flet ((par (text)
-;; 	     (let ((words (split *ws* text)))
-;; 	       (when (not (zerop (length (car words))))
-;; 		 (format stream "~{~<~%~1:;~a~>~^ ~}~%~%" words)))))
-;;       (par (strcat (if (and (member :unix styles)
-;; 			    (foldp styles))
-;;               "Options are case-insensitive (-x and -X are equivalent). "
-;; 		       "")
-;; 		   (if (and (member :windows styles)
-;; 			    (not (foldp styles)))
-;;               "Options are case sensitive (/x and /X are different). "
-;; 		       "")
-;; 		   (if (member :partial styles)
-;;               "Options may be abbreviated to their shortest unique specifier. "
-;; 		       "")))
-;;       (when tail
-;; 	(par (funcall tail))))))
-
-;; (defun usage (appname summary tail opthash dochash aliases styles
-;; 	      &key (stream *standard-output*) (maxappwidth 18) (maxoptwidth 16))
-;;   "Display a usage message on the supplied stream, describing all the
-;; options the application supports on its command-line.  MAXAPPWIDTH and
-;; MAXOPTWIDTH can be used to supply maximum indentation of the SUMMARY
-;; and each option's description \(though longer texts will be formatted
-;; reasonably\); use those keywords to change the default sizes."
-;;   (with-styles-canon (styles styles)
-;;     (let ((optwidth (min (+ 2 (widest-option-label opthash styles))
-;; 			 maxoptwidth))
-;; 	  (printed nil))
-;;       (usage-header appname summary maxappwidth stream)
-;;       (mapc (lambda (option)
-;; 	      (usage-option option opthash dochash aliases styles
-;; 			    optwidth stream)
-;; 	      (setf printed t))
-;; 	    (sort (hash-table-keys opthash) #'string<))
-;;       (when printed
-;; 	(terpri stream))
-;;       (usage-footer tail styles stream))))
-
-;; (defun sort-out-options (optspecs)
-;;   "Given specifications for options taking arguments and options that
-;; are only flags, return two values: a list of all the options taken by
-;; the application, and a hash mapping all options to their types
-;; \(including the pseudo-type :FLAG indicating the option takes no
-;; argument\)."
-;;   (let ((opthash (make-hash-table))
-;; 	(dochash (make-hash-table)))
-;;     (mapc (lambda (spec) (destructuring-bind (option type docfn)
-;; 			     spec
-;; 			   (setf (gethash option opthash) type
-;; 				 (gethash option dochash) docfn)))
-;; 	  optspecs)
-;;     (values opthash dochash)))
-
-;; #+nil
-;; (defun cli:spec* (name summary tail optspecs aliases styles args)
-;;     "Receives a parsed specification of command-line options and
-;; arguments from the CLI:SPEC macro."
-;;     (multiple-value-bind (opthash dochash)
-;; 	(sort-out-options optspecs)
-;;       (usage name summary tail opthash dochash aliases styles)))
-
-|#
+ARGS is a simple list of strings to be processed as a command line,
+rather than the application's actual command line."
+  (with-stylehash styles
+    (let ((opthash (make-pethash)) (dochash (make-pethash))
+ 	  (alihash (make-pethash)))
+      (sort-out-options opthash dochash alihash options aliases)
+      (usage name summary tail opthash dochash alihash)
+	)))

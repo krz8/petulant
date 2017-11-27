@@ -122,6 +122,59 @@ Lisp system, but at the cost of some bells and whistles.
 	   (push (subseq str i) res))
 	 (nreverse res))))))
 
+(defparameter *ws* '(#\Space #\Tab #\Newline #\Return #\Page)
+  "A list of common whitespace characters.")
+
+"~{~<~%~1:;~a~>~^ ~}~%~%"
+
+(defun par (text &key (stream *standard-output*))
+  "Splits the string TEXT up into individual words, and formats them
+into a nicely wrapped paragraph."
+  (format stream "~{~<~%~1:;~a~>~^ ~}~%~%" (split *ws* text)))
+
+(defun hanging-par (label text
+		    &key (stream *standard-output*) (eol "~%") indentlength)
+  "Presents a hanging paragraph onto STREAM.  The exdented text,
+starting at the beginning of the first line, is supplied by the LABEL
+string.  The TEXT string is broken up on whitespace boundaries and
+flowed onto the remainder of the line until the right margin is
+encountered.  Remaining words are placed on as many subsequent lines
+as necessary, each of those lines indented by spaces.  The number of
+spaces used to indent all remaining lines is given by INDENTLENGTH; if
+that argument is not provided, the width of LABEL is used instead."
+  (let* ((spaces (make-string (or indentlength (length label))
+			      :initial-element #\Space))
+	 (words (split *ws* text))
+	 (format (strcat "~a~{~<" eol spaces "~1:;~a~>~^ ~}" eol)))
+    (format stream format label words)))
+
+(defun pad (string minlength &optional (minpad 2))
+  "Return a new string that is STRING but with spaces appended in
+order to make its length equal to MINLENGTH.  At least MINPAD spaces
+appears at the right of STRING, no matter how long the resulting
+string is.  This is used to set off a tag in a paragraph with a
+hanging tag, as in an option in a usage message.
+
+   \(PAD \"foo\" 8) => \"foo     \"
+   \(PAD \"foo\" 5) => \"foo  \"
+   \(PAD \"foo\" 2) => \"foo  \"
+
+   \(PAD \"blah\" 3 0\) => \"blah\" 
+   \(PAD \"blah\" 3 1\) => \"blah \" 
+   \(PAD \"blah\" 3 2\) => \"blah  \" 
+   \(PAD \"blah\" 4 0\) => \"blah\" 
+   \(PAD \"blah\" 4 1\) => \"blah \" 
+   \(PAD \"blah\" 4 2\) => \"blah  \" 
+   \(PAD \"blah\" 5 0\) => \"blah \" 
+   \(PAD \"blah\" 5 1\) => \"blah \" 
+   \(PAD \"blah\" 5 2\) => \"blah  \" 
+   \(PAD \"blah\" 6 0\) => \"blah  \" 
+   \(PAD \"blah\" 6 1\) => \"blah  \" 
+   \(PAD \"blah\" 6 2\) => \"blah  \""
+  (let ((str (string-right-trim *ws* string)))
+    (strcat str (make-string (max minpad (- minlength (length str)))
+			     :initial-element #\Space))))
+
 (defgeneric collecting (function container)
   (:documentation "COLLECTING calls FUNCTION for every conceptual
 element of CONTAINER, gathering the results into a list, which is
