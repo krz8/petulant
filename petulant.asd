@@ -1,5 +1,5 @@
 (defsystem "petulant"
-  :description "a command line parser (CLI) for both Windows and Unix"
+  :description "a command line parser (CLI) supporting both Unix and Windows"
   :version "0.1.0"
   :license "MIT"
   :depends-on ("alexandria" "anaphora" "iterate")
@@ -23,5 +23,5 @@ interfaces are provided to the caller."
 	       (:file "styles" :depends-on ("pkg" "misc"))
 	       (:file "simple" :depends-on ("pkg" "misc" "styles"))
 	       (:file "parse" :depends-on ("pkg" "trie" "misc" "styles"))
-	       (:file "get" :depends-on ("pkg" "parse"))
+	       (:file "collect" :depends-on ("pkg" "parse"))
 	       (:file "petulant" :depends-on ("pkg" "misc" "parse"))))

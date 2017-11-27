@@ -45,7 +45,7 @@
 ;;; the same manner as DEFCLASS.  It also will make it so easy to
 ;;; extend this in the future with other forms when necessary.
 
-(defmacro spec-cli (&rest forms)
+(defmacro spec (&rest forms)
   "Using a series of forms specifying a complete command-line
 interface presented to the user, blah blah blah…
 
@@ -429,13 +429,13 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
     ;; can be handled by a simpler quoted form.  That's all there is
     ;; to it.  You know, no matter how many times I use it, `',foo
     ;; always feels like I'm abusing something...
-    `(petulant::spec-cli* ,name
-			  ,(or summary '(constantly ""))
-			  ,(or tail '(constantly ""))
-			  ,(if options `(list ,@options) 'nil)
-			  ,(if aliases `',aliases 'nil)
-			  ,(if styles `',styles 'nil)
-			  ,(if args `',(nreverse args) 'nil))))
+    `(petulant::spec* ,name
+		      ,(or summary '(constantly ""))
+		      ,(or tail '(constantly ""))
+		      ,(if options `(list ,@options) 'nil)
+		      ,(if aliases `',aliases 'nil)
+		      ,(if styles `',styles 'nil)
+		      ,(if args `',(nreverse args) 'nil))))
 
 #|
 

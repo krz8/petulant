@@ -70,7 +70,7 @@ them as they are.
 	    strings))
     (nreverse result)))
 
-(defun parse-windows-cli (arglist fn
+(defun parse-windows (arglist fn
 			  &optional
 			    (swargp-fn (constantly nil))
 			    (chgname-fn #'identity))
@@ -142,7 +142,7 @@ rely on any specific ordering."
 		(opt! f)))))))
       (advance))))
 
-(defun parse-unix-cli (arglist fn
+(defun parse-unix (arglist fn
 		       &optional
 			 (argoptp-fn (constantly nil))
 			 (chgname-fn #'identity))
@@ -248,11 +248,11 @@ name, argv[0], or other non-argument information."
   #- (or ccl sbcl clisp acl)
   (error "Petulant needs to be ported to this Lisp environment."))
 
-(defun simple-parse-cli (fn &key arglist argoptp-fn chgname-fn styles)
-  "This is the low level parser for command-lines.  If you're simply
-using Petulant in your application \(i.e., you aren't developing
-Petulant\), you might want to consider calling a higher level
-function; SIMPLE-PARSE-CLI is mainly for implementation of other
+(defun simple (fn &key arglist argoptp-fn chgname-fn styles)
+  "This is the simple, low level parser for command-lines.  If you're
+simply using Petulant in your application \(i.e., you aren't
+developing Petulant\), you might want to consider calling a higher
+level function; SIMPLE-PARSE-CLI is mainly for implementation of other
 Petulant functionality.
 
 SIMPLE-PARSE-CLI works through an argument list, a flat list of
@@ -304,7 +304,7 @@ the STYLES argument can be used to override this by supplying :UNIX
 or :WINDOWS, respectively.  When not specified, the current binding
 of *STYLEHASH* remains in effect."
   (with-stylehash styles
-    (funcall (if (stylep :windows) #'parse-windows-cli #'parse-unix-cli)
+    (funcall (if (stylep :windows) #'parse-windows #'parse-unix)
 	     (or arglist (argv))
 	     fn
 	     (or argoptp-fn (constantly nil))

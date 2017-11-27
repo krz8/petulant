@@ -1,7 +1,7 @@
 (in-package #:petulant)
 
 (defun cb (&rest args)
-  "A test function for debugging PARSE-CLI \(and SIMPLE-PARSE-CLI\)
+  "A test function for debugging PARSE \(and SIMPLE\)
 that just echoes its arguments back.  You can use this as the callback
 for those two functions."
   (format t "cb~{ ~s~}~%" args))
@@ -13,11 +13,11 @@ ALIASES; otherwise, #'IDENTITY is returned and no partial matching is
 supported.
 
 When partial matching is desired, ARGOPTS FLAGOPTS ALIASES and STYLES
-are taken in the same format as PARSE-CLI.  A function is returned
+are taken in the same format as PARSE.  A function is returned
 that takes a single string as an option or argument appearing on a
 command-line, recognizing unambiguous partial matches of options as
 they appear in the three supplied lists, and returning a possibly new
-string that PARSE-CLI should process as if it were the original word
+string that PARSE should process as if it were the original word
 from the command-line."
   (with-stylehash styles
     (cond
@@ -61,7 +61,7 @@ compare strings within the hash table."
   "Given ALIASES, a list that maps one or more strings to an intended
 option, this creates the function that performs that mapping according
 to STYLES.  The returns function takes an option string as parsed by
-SIMPLE-PARSE-CLI, and returns a string to use in its stead.
+SIMPLE, and returns a string to use in its stead.
 
 ALIASES is an association list of strings, where the CAR of each entry
 is an intended option, and the CDR is a list of strings that are
@@ -121,13 +121,13 @@ callback function."
 	(push #'identity funcs))
       (apply #'compose funcs))))
 
-(defun parse-cli (fn &key argopts flagopts aliases arglist styles)
-  "PARSE-CLI examines the command-line with which an application was
+(defun parse (fn &key argopts flagopts aliases arglist styles)
+  "PARSE examines the command-line with which an application was
 invoked.  According to given styles and the local environment,
 options (aka switches) and arguments are recognized.
 
 FN is a function supplied by the caller, which is called for each
-option or argument identified by PARSE-CLI.  Each call to FN has three
+option or argument identified by PARSE.  Each call to FN has three
 arguments.  The first is the keyword :OPT or :ARG, indicating whether
 an option \(aka switch\) or an non-option argument was found.
 When :ARG, the second argument is a string, an argument from the
@@ -146,34 +146,34 @@ this list.  The call below would recognize both \"-f\" and \"--file\"
 as requiring an argument.  \(Note that \"f\" in the list is better
 handled by an alias below, or by the use of :PARTIAL in STYLES; its
 presence here is merely for example.\) ARGOPTS does not limit the
-options that PARSE-CLI handles, even those with arguments; it is
+options that PARSE handles, even those with arguments; it is
 merely a hint that
 
-   \(parse-cli … :argopts '\(\"f\" \"file\"\) … \)
+   \(parse … :argopts '\(\"f\" \"file\"\) … \)
 
 FLAGOPTS, if supplied, is a list of all the options \(short or long\)
 that do not take an argument.  This argument has no effect on
-PARSE-CLI unless :PARTIAL appears in STYLES.  See :PARTIAL below.
+PARSE unless :PARTIAL appears in STYLES.  See :PARTIAL below.
 
-   \(parse-cli … :flagopts '\(\"verbose\" \"debug\" \"trace\"\) … \)
+   \(parse … :flagopts '\(\"verbose\" \"debug\" \"trace\"\) … \)
 
 ALIASES can be used to supply one or more alternative options that,
 when encountered, are considered aliases for another option.  ALIASES
 is a list of lists.  Every element of ALIASES is a list naming the
 primary option first, followed by all aliases for it.  For example, in
 the call below, both \"/sleep\" and \"/wait\" would be recognized by
-PARSE-CLI, but processed as if \"/delay\" were seen.
+PARSE, but processed as if \"/delay\" were seen.
 
-  \(parse-cli … :aliases '\(\(\"alpha\" \"transparency\"\)
+  \(parse … :aliases '\(\(\"alpha\" \"transparency\"\)
 			   \(\"delay\" \"sleep\" \"wait\"\)
 			   \(\"file\" \"f\"\)\) … \)
 
-ARGLIST causes PARSE-CLI to parse a specified list of strings, instead
+ARGLIST causes PARSE to parse a specified list of strings, instead
 of the default command-line that was supplied to the application.
 These strings are parsed exactly as if they appeared on the
 command-line, each string corresponding to one \"word\".
 
-   \(parse-cli … :arglist '\(\"-xv\" \"-f\" \"foo.tar\"\) … \)
+   \(parse … :arglist '\(\"-xv\" \"-f\" \"foo.tar\"\) … \)
 
 STYLES is a keyword, or a list of keywords, that influence Petulant's
 behavior.  Recognized keywords are as follows; unrecognized keywords
@@ -221,10 +221,10 @@ are silently ignored.
 	       (case x
 		 (:opt (funcall fn x (funcall hack-fn y) z))
 		 (:arg (funcall fn x y z)))))
-	(simple-parse-cli #'cb
-			  :argoptp-fn (argopt-p-fn argopts styles)
-			  :chgname-fn (compose (aliases-fn aliases styles)
-					       (partials-fn argopts flagopts
-							    aliases styles))
-			  :arglist arglist
-			  :styles styles)))))
+	(simple #'cb
+		:argoptp-fn (argopt-p-fn argopts styles)
+		:chgname-fn (compose (aliases-fn aliases styles)
+				     (partials-fn argopts flagopts
+						  aliases styles))
+		:arglist arglist
+		:styles styles)))))
