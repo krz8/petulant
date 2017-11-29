@@ -468,40 +468,104 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
       (showq styles)
       (showq args))))
 
+(defparameter *no-doc-fn* (constantly "")
+  "A closure that always returns an empty string.  Useful when dealing
+with aspects of a command-line that may or may not be documented.")
+
+(defstruct (spec-context (:conc-name nil))
+  "A structure for capturing the context of an invocation of SPEC*.
+There is a mix of hash tables, closures, strings, and lists that are
+all managed in a call to SPEC* and its friends.  This structure
+ensures we don't go nuts passing around five, six, or seven arguments
+across so many functions.  Instead, SPEC* will create an instance of
+this structure based on its arguments, and the functions in the SPEC*
+family will simply operate on this structure.  Slots are provided for
+capturing the original list of options and other values supplied to
+SPEC*, as well as the hash tables and other computed values needed for
+the duration of its call.  CONC-NAME is NIL, thus, slots of a
+SPEC-CONTEXT are retrieved through a function whose name is the slot
+name \(e.g., \(opthash foo\) returns the value of the slot named
+OPTHASH in FOO\)."
+  appname		      ; application name
+  summaryfn		      ; closure providing app summary
+  tailfn		      ; closure providing extra info
+  options		      ; original list of options
+  aliases		      ; original list of aliases
+  arguments		      ; original list of command-line args
+  opthash		      ; maps options to Petulant types
+  dochash		      ; maps options to documentation closures
+  alihash)		      ; maps aliases to options
+
 (defun make-pethash ()
-  "Referencing whatever styles are in effect \(typically, via the most
-recent WITH-STYLEHASH\) return a new hash table with the appropriate
-test of equality baked in.  These hash tables are meant to use option
-strings as their keys."
+  "Referencing whatever styles are in effect via the most recent
+WITH-STYLEHASH, return a new hash table with the appropriate test of
+equality baked in.  These hash tables are meant to use option strings
+as their keys."
   (make-hash-table :test (equal-fn)))
 
-(defparameter *no-doc-fn* (constantly "")
-  "A closure that always returns an empty string. Useful when dealing
-with aspects of a command-line that may, or may not, be documented.")
+(defun make-context (appname summaryfn tailfn options aliases args)
+  "Create a new instance of SPEC-CONTEXT and return it, with most of
+its slots filled in to support the SPEC* family of functions.  It is
+expected that this is called within a WITH-STYLEHASH context.  While
+most slots are simply set with the arguments supplied, the slots that
+are hashes are initialized by working through the OPTIONS and ALIASES
+lists.  Specifically, every option named in OPTIONS appears in the
+OPTHASH, the value of which is the type specification for the option.
+Every option also appears in the DOCHASH, mapped to a closure
+providing a documentation string for the named option.  The ALIHASH
+maps alternative option names to their proper option name."
+  (let ((opthash (make-pethash))
+	(dochash (make-pethash))
+	(alihash (make-pethash)))
+    (mapc (lambda (optspec)
+	    (let ((opt (car optspec)))
+	      (setf (gethash opt opthash) (cadr optspec)
+		    (gethash opt dochash) (or (caddr optspec) *no-doc-fn*))))
+	  options)
+    (mapc (lambda (alispec)
+	    (let ((opt (car alispec)))
+	      (mapc (lambda (a) (setf (gethash a alihash) opt))
+		    (cdr alispec))))
+	  aliases)
+    (make-spec-context :appname appname :summaryfn (or summaryfn *no-doc-fn*)
+		       :tailfn (or tailfn *no-doc-fn*) :options options
+		       :aliases aliases :arguments args :opthash opthash
+		       :dochash dochash :alihash alihash)))
 
-(defun label-option (option type &optional (padding "  "))
-  "Given a string naming an OPTION, some kind of type specification
-going with it (:FLAG appearing for plain options, and something else
-for options that take arguments), return a string to be used in a
-usage message for this option.  The string is always padded with two
-spaces at its beginning.
+(defparameter *context* (make-context "" nil nil nil nil nil)
+  "SPEC* binds this to a new context while it executes, so that the
+rest of the functions in the SPEC* family have easy access to all the
+different bits of information with which we've been invoked.  Doing
+this saves us an argument from nearly every single function.  Its
+default contents are valid but empty.")
 
-   \(label-option \"alpha\" '\(:string *\)\)
+(defparameter *usage-option-padding* "  "
+  "A string providing the left padding \(that is, the indentation\)
+for all options presented in a usage message.  Typically, this is a
+string of two spaces.")
+
+(defun label-option (option type)
+  "Given a string naming an OPTION, along with a canonical Petulant
+TYPE specifier \(a list starting with a keyword\), return a string to
+be used in a usage message for this option.  The string is always
+padded with two spaces at its beginning.
+
+   \(label-option \"alpha\" '\(:string *\)\)  ; when style includes :UNIX
 => \"  --alpha=VAL\"
-   \(label-option \"beta\" '\(:string *\)\)
+   \(label-option \"beta\" '\(:string *\)\)   ; when style includes :WINDOWS
 => \"  /beta:VAL\"
-   \(label-option \"gamma\" '\(:flag\)\)
+   \(label-option \"gamma\" '\(:flag\)\)      ; when style includes :UNIX
 => \"  --gamma\"
-   \(label-option \"delta\" '\(:flag\)\)
+   \(label-option \"delta\" '\(:flag\)\)      ; when style includes :WINDOWS
 => \"  /delta\"
-   \(label-option \"e\" '\(:flag\)\)
+   \(label-option \"e\" '\(:flag\)\)          ; when style includes :UNIX
 => \"  -e\"
-   \(label-option \"z\" '\(:string *\)\)
+   \(label-option \"z\" '\(:string *\)\)      ; when style includes :UNIX
 => \"  -z VAL\""
   (let ((winp (stylep :windows))
 	(shortp (< (length option) 2))
 	(flagp (eq :flag (car type))))
-    (strcat padding
+    (strcat *usage-option-padding*
 	    (cond (winp   "/")
 		  (shortp "-")
 		  (t      "--"))
@@ -511,50 +575,24 @@ spaces at its beginning.
 		  (shortp " VAL")
 		  (t      "=VAL")))))
 
-(defun widest-option-label (opthash)
-  "Given the type hash of all options to our application, format each
-of them as they would appear in a usage message via LABEL-OPTION, and
-return the length of the longest string that represents an option in
-a usage message \(e.g., \"  --config=VAL\"\)."
-  (if (zerop (hash-table-count opthash))
-      2				   ; label option pads with two spaces
+(defun widest-option-label ()
+  "Work through the current hash-table mapping options to Petulant types,
+format each of them as they would appear in a usage message via
+LABEL-OPTION, returning the length of the longest string that
+represents an option in a usage message \(e.g., \" --config=VAL\"\).
+Even if there are no options defined for the application, the length
+of the option indentation is returned as a sort of \"minimal
+length\"."
+  (if (zerop (hash-table-count (opthash *context*)))
+      (length *usage-option-padding*)
       (reduce #'max
 	      (collecting (lambda (k v) (length (label-option k v)))
-			  opthash))))
+			  (opthash *context*)))))
 
-(defun usage-header (appname summary namewidth stream)
-  "Given an string APPNAME and its possibly long SUMMARY (which can be
-NIL), format the pair as a hanging paragraph onto STREAM.  SUMMARY is
-a closure that generates the text to be formatted, or NIL."
-  (let ((namewidth (min namewidth (+ 3 (length appname)))))
-    (hanging-par (pad (strcat appname ":") namewidth)
-		 (funcall (or summary *no-doc-fn*))
-		 :stream stream :indentlength namewidth)
-    (terpri stream)))
-
-(defun usage-footer (tail stream)
-  "If TAIL is not NIL, call it to obtain text, and render it onto the
-named output stream, wrapping the text at the same right margin as
-USAGE-HEADER and USAGE-OPTION."
-  (when tail
-    (par (strcat
-	  (funcall tail)
-	  (if (and (stylep :unix) (stylep :streq))
-	      " Options are case-insensitive (-x and -X are equivalent)."
-	      "")
-	  (if (and (stylep :windows) (stylep :str=))
-	      " Options are case-sensitive (/x and /X are different)."
-	      "")
-	  (if (stylep :partial)
-	      " Options may be abbreviated to their shortest unique name."
-	      ""))
-	 :stream stream)))
-
-(defun option-text (option dochash)
-  "Return a string that may be empty describing OPTION.  Looks for a
-closure in the dochash, and if one exists, executes it (we assume it
-returns a string).  Otherwise, OPTION-TEXT returns an empty string."
-  (funcall (or (gethash option dochash) *no-doc-fn*)))
+(defun option-text (option)
+  "Return a string that may be empty describing OPTION.  Executes the
+appropriate closure in the dochash of the current context."
+  (funcall (gethash option (dochash *context*))))
 
 (defun option-type (type-spec)
   "This function returns text that at least somewhat describes the
@@ -564,100 +602,130 @@ specifications include real ones like :STRING, :FLOAT, :INTEGER,
 like :FLAG, :READ, :KEY, :ONE-OF, etc."
   (destructuring-bind (&optional d0 d1 d2)
       type-spec
-    (apply #'concatenate 'string
-	   (case d0
-	     ((:float :integer :ratio :rational :real)
-	      (list "This option takes"
-		    (case d0
-		      (:integer " an integer")
-		      (:float " a floating point value")
-		      (:rational " a rational number (like 6 or 11/3)")
-		      (:ratio " a ratio (like -1/3 or 11/3)")
-		      (:real " a number"))
-		    (cond
-		      ((and (eq d1 '*) (eq d2 '*))
-		       "")
-		      ((eq d2 '*)
-		       (format nil " no less than ~a" d1))
-		      ((eq d1 '*)
-		       (format nil " no more than ~a" d2))
-		      (t
-		       (format nil " between ~a and ~a" d1 d2)))
-		    ". "))
-	     (:string
-	      (if (eq '* d1)
-		  '("")
-		  (list (format nil "This option takes a string no more than ~
-                                     ~d characters in length. " d1))))
-	     (:key
-	      '("This option takes a single short alphanumeric word, starting"
-		"with a letter, containing no whitespace or other symbols. "))
-	     (otherwise
-	      '(""))))))
+    (case d0
+      ((:float :integer :ratio :rational :real)
+       (strcat "This option takes"
+	       (case d0
+		 (:integer " an integer")
+		 (:float " a floating point value")
+		 #+nil (:rational " a rational number (like 6 or 11/3)")
+		 (:rational " a rational number")
+		 #+nil (:ratio " a ratio (like -1/3 or 11/3)")
+		 (:ratio " a ratio")
+		 (:real " a number"))
+	       (cond
+		 ((and (eq d1 '*) (eq d2 '*))
+		  "")
+		 ((eq d2 '*)
+		  (format nil " no less than ~a" d1))
+		 ((eq d1 '*)
+		  (format nil " no more than ~a" d2))
+		 (t
+		  (format nil " between ~a and ~a" d1 d2)))
+	       ". "))
+      (:string
+       (if (eq '* d1)
+	   ""
+	   (format nil "This option takes a string no more than ~d ~
+                        characters in length." d1)))
+      (:key
+       "This option takes a single short alphanumeric word, starting with ~
+        a letter, containing no whitespace or other symbols.")
+      (:one-of
+       (apply #'format nil
+	      "~#[~;This option takes only the value ~a. ~
+                  ~;This option may take the values ~a and ~a. ~
+                  ~;This option takes one of the values ~
+                    ~@{~#[~; and~] ~a~^,~}.~]"
+	      (sort (cdr type-spec) (str<-fn))))
+      (:read
+       "This option takes a lisp expression.")
+      (:flag
+       "")
+      (otherwise			; should we warn?
+       ""))))
 
-(defun option-aliases (option alihash)
+(defun option-aliases (option)
+  "Returns a string describing aliases for the named option, from the
+current context."
   (let ((eqfun (str=-fn))
 	(aliases))
-    (maphash (lambda (k v) (when (funcall eqfun option v)
-			     (push k aliases)))
-	     alihash)
+    (maphash (lambda (k v)
+	       (when (funcall eqfun option v)
+		 (push (strcat (cond
+				 ((stylep :windows)
+				  "/")
+				 ((< 1 (length k))
+				  "--")
+				 (t
+				  "-")) k)
+		       aliases)))
+	     (alihash *context*))
     (apply #'format nil
-	   "~#[~;An alias for this option is ~s.~
-            ~;Aliases for this option are ~s and ~s.~
-            ~;Aliases for this option are ~@{~#[~; and~] ~s~^,~}.~]"
+	   "~#[~;An alias for this option is ~a. ~
+            ~;Aliases for this option are ~a and ~a. ~
+            ~;Aliases for this option are ~@{~#[~; and~] ~a~^,~}.~]"
 	   (sort aliases (str<-fn)))))
 
-(defun usage-option (option opthash dochash alihash tagwidth stream)
+(defun usage-option (option tagwidth stream)
   "Format a full description of the string named OPTION onto the
-supplied STREAM.  OPTHASH is the hash mapping options to their types,
-and DOCHASH is the hash mapping options to closures that provide
-option descriptions.  TAGWIDTH provides a specific width for the lefthand
-column in which the options appear."
-  (let* ((type (gethash option opthash))
+supplied STREAM, using the hashes in the current context.  TAGWIDTH
+provides a specific width for the lefthand column in which the options
+appear."
+  (let* ((type (gethash option (opthash *context*)))
 	 (label (pad (label-option option type) tagwidth)))
     (hanging-par label
-		 (strcat (option-text option dochash)
+		 (strcat (option-text option)
 			 " " (option-type type)
-			 " " (option-aliases option alihash))
+			 " " (option-aliases option))
 		 :stream stream :indentlength tagwidth)))
 
-(defun usage (appname summary tail opthash dochash alihash
-	      &key (stream *standard-output*) (maxappwidth 18)
-		(maxoptwidth 16))
-  "Display a usage message on the supplied stream, describing all the
-options the application supports on its command-line.  MAXAPPWIDTH and
-MAXOPTWIDTH can be used to supply maximum indentation of the SUMMARY
-and each option's description \(though longer texts will be formatted
-reasonably\); use those keywords to change the default sizes."
-  (let ((optwidth (min maxoptwidth (+ 2 (widest-option-label opthash))))
+(defun usage-header (namewidth stream)
+  "Format an introduction to a list of options for the current
+application, using the current context, onto STREAM.  NAMEWIDTH gives
+us the width of the space that the application will be squeezed into,
+creating a left margin for the application summary."
+  (let* ((name (appname *context*))
+	 (namewidth (min namewidth (+ 3 (length name)))))
+    (hanging-par (pad (strcat name ":") namewidth)
+		 (funcall (summaryfn *context*))
+		 :stream stream :indentlength namewidth)
+    (terpri stream)))
+
+(defun usage-footer (stream)
+  "Render the tail information, if any, of the application onto
+STREAM, along with any extra advice about case and abbreviations."
+  (par (strcat
+	(funcall (tailfn *context*))
+	(if (and (stylep :unix) (stylep :streq))
+	    " Options are case-insensitive (-x and -X are equivalent)."
+	    "")
+	(if (and (stylep :windows) (stylep :str=))
+	    " Options are case-sensitive (/x and /X are different)."
+	    "")
+	(if (stylep :partial)
+	    " Options may be abbreviated to their shortest unique name."
+	    ""))
+       :stream stream))
+
+(defun usage (&key (stream *standard-output*) (maxappwidth 18)
+		    (maxoptwidth 16))
+  "Display a usage message on the supplied stream, describing the
+application and its options as represented by the current context.
+MAXAPPWIDTH and MAXOPTWIDTH can be used to supply maximum indentation
+of the SUMMARY and each option's description \(though longer texts
+will be formatted reasonably\); use those keywords to change the
+default sizes."
+  (let ((optwidth (min maxoptwidth (+ 2 (widest-option-label))))
 	(printed nil))
-    (usage-header appname summary maxappwidth stream)
+    (usage-header maxappwidth stream)
     (mapc (lambda (option)
-	    (usage-option option opthash dochash alihash optwidth stream)
+	    (usage-option option optwidth stream)
 	    (setf printed t))
-	  (sort (hash-table-keys opthash) (str<-fn)))
+	  (sort (hash-table-keys (opthash *context*)) (str<-fn)))
     (when printed
       (terpri stream))
-    (usage-footer tail stream)))
-
-(defun sort-out-options (opthash dochash alihash options aliases)
-  "Work through OPTIONS and ALIASES, as supplied to CLI:SPEC*, and
-update the option hash, option documentation hash, and alias hash
-accordingly.  Every option appears in the OPTHASH, the value of which
-is the type specification for the option.  Every option also appears
-in the DOCHASH, mapped to a closure providing a documentation string
-for the named option.  The ALIHASH maps alternative option names to
-their proper option name."
-  (mapc (lambda (optspec)
-	  (let ((opt (car optspec)))
-	    (setf (gethash opt opthash) (cadr optspec)
-		  (gethash opt dochash) (or (caddr optspec) *no-doc-fn*))))
-	options)
-  (mapc (lambda (alispec)
-	  (let ((opt (car alispec)))
-	    (mapc (lambda (a) (setf (gethash a alihash) opt))
-		  (cdr alispec))))
-	aliases))
+    (usage-footer stream)))
 
 (defun spec* (name summary tail options aliases styles args)
   "Typically invoked from the CLI:SPEC macro.
@@ -686,8 +754,5 @@ and so on.
 ARGS is a simple list of strings to be processed as a command line,
 rather than the application's actual command line."
   (with-stylehash styles
-    (let ((opthash (make-pethash)) (dochash (make-pethash))
- 	  (alihash (make-pethash)))
-      (sort-out-options opthash dochash alihash options aliases)
-      (usage name summary tail opthash dochash alihash)
-	)))
+    (let ((*context* (make-context name summary tail options aliases args)))
+      (usage))))

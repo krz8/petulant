@@ -9,14 +9,9 @@ is evaluated in that context."
        ((not it))
      ,@body))
 
-;;; This used to be a function, but if you think about it, there's no
-;;; advantage here to going through an extra set of lambda &rest parsing
-;;; and ginning up an (apply #'concatenate ...) here over a compile-time
-;;; rewrite into the function that does all the heavy lifting anyway.
-
-(defmacro strcat (&rest strings)
+(defun strcat (&rest strings)
   "Concatenate all string arguments together, returning a new string."
-  `(concatenate 'string ,@strings))
+  (apply #'concatenate 'string strings))
 
 (defun slashify (x)
   "Prefix the string X with a slash character, unless it already has
