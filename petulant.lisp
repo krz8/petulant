@@ -3,20 +3,18 @@
 ;;; The main point of the CLI:SPEC macro is to parse a number of
 ;;; different forms the caller can provide, including shortcuts and
 ;;; abbreviations.  CLI:SPEC is also where we intend to detect any
-;;; errors as well.  From the caller's input, we should wind up with
-;;; very regular forms for the CLI:SPEC* function to operate on.  We
-;;; push as much of the error and warning activity to this macro as we
-;;; can, so that CLI:SPEC* can proceed "trusting" that it input is
-;;; correct and *very* regular.
+;;; errors as well.  We push as much of the error and warning activity
+;;; to this macro as we can, so that CLI:SPEC* can proceed "trusting"
+;;; that it input is correct and *very* regular.
 ;;;
-;;; By regular, we mean that everything for a given type follows the same
-;;; form by the time it gets to CLI:SPEC*.  Consider option specifications,
-;;; for example.  Regardless of the different :ARGOPT and :FLAGOPT forms,
-;;; the unprovided types, partially specified, and fully specified
-;;; types, the optional documentation, CLI:SPEC* is provided a simple list
-;;; where the first element is always the name of an option, the second
-;;; element is always a full type specification, and the third element is
-;;; always a closure providing documentation.
+;;; By regular, we mean that everything for a given type follows the
+;;; same form by the time it gets to CLI:SPEC*.  Consider option
+;;; specifications, for example.  Regardless of the different :ARGOPT
+;;; and :FLAGOPT forms, the omitted types, partial types, and fully
+;;; specified types, the optional documentation, CLI:SPEC* is provided
+;;; a simple list where the first element is always the name of an
+;;; option, the second element is always a full type specification,
+;;; and the third element is always a closure providing documentation.
 ;;;
 ;;; Closures are used to capture format control strings and optional
 ;;; arguments to document both the options as well as the application
@@ -201,8 +199,8 @@ command-line. Multiple instances of :STYLE accumulate. \(aka :STYLES\)
 
    \(:style :key :unix\)
 
-\(:ARG \"command-line-arg\" [\"command-line-arg\"]\) supplies one or
-more strings to be used instead of the application's actual
+\(:ARG \"command-line-arg\" [\"command-line-arg\" ...]\) supplies one
+or more strings to be used instead of the application's actual
 command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
   ;; CLI:SPEC provides hand-holding.  So much hand-holding.  I figure
   ;; if someone is using CLI:SPEC and not CLI:GET or CLI:PARSE, they
@@ -727,6 +725,43 @@ default sizes."
       (terpri stream))
     (usage-footer stream)))
 
+(defun spec-partials-fn ()
+  "Much like PARTIALS-FN, this returns a function that might remap its
+argument, a string naming an option, into a different option name, by
+implementing the partial matching of options in the current SPEC*
+context.  If :PARTIAL does not appear in the current style hash,
+IDENTITY is returned instead, providing a function that changes
+nothing and implements no partial matches of options.  In fact, this is exactly PARTIALS-FN, just rewritten to use the SPEC* context."
+  (cond
+    ((stylep :partial)
+     (let ((dict (make-dict :loose (stylep :streq)))
+	   (str= (str=-fn)))
+       (labels ((maybe-add (o) (unless (dict-word-p dict o)
+				 (dict-add dict o))))
+	 (maphash-keys #'maybe-add (opthash *context*))
+	 (maphash-keys #'maybe-add (alihash *context*))
+	 (let ((minwords (minwords dict)))
+	   (lambda (x)
+	     (block nil
+	       (let ((len (length x)))
+		 (mapc (lambda (partial)
+			 (destructuring-bind (min max option) partial
+			   (when (and (<= min len max)
+				      (funcall str= x (subseq option 0 len)))
+			     (return option))))
+		       minwords)
+		 x)))))))
+    (t #'identity)))
+
+;; WWI
+;; okay, stop
+;; it's clear that context is a root to everything we're doing, so
+;; let's move it out of here, place it near the bottom of the system?
+;; then write the simple and parse and other wrappers to fill it in
+;; I think. I can see a problem with this approach.
+;; think about it more.
+
+
 (defun spec* (name summary tail options aliases styles args)
   "Typically invoked from the CLI:SPEC macro.
 
@@ -754,5 +789,15 @@ and so on.
 ARGS is a simple list of strings to be processed as a command line,
 rather than the application's actual command line."
   (with-stylehash styles
-    (let ((*context* (make-context name summary tail options aliases args)))
-      (usage))))
+    (let ((*context* (make-context name summary tail options aliases args))
+	  (results nil))
+      (simple (lambda (x y z)
+		(push (list x y z) results))
+	      :argoptp-fn (lambda (o)
+			    (aand (gethash o (opthash *context*))
+				  (not (eq :flag (car it)))))
+	      :chgname-fn (lambda (o)
+			    )
+	      )
+      (usage)
+      results)))
