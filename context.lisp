@@ -1,57 +1,5 @@
 (in-package #:petulant)
 
-(defparameter *no-doc-fn* (constantly "")
-  "A closure that always returns an empty string.  Useful when dealing
-with aspects of a command-line that may or may not be documented.")
-
-(defun styles-to-hash (styles)
-  "Given STYLES, which is a keyword or a list of keywords, populate
-a hash with a complete list of those keywords and any other keywords
-implied by those supplied as well as the running system.  Not only
-does STYLES-TO-HASH convert the STYLES list to a hash \(to speed
-lookups\), it \"fleshes out\" the list of styles so that it determines
-all explicit and implicit aspects of Petulant's processing based on
-what was originally supplied by the caller.
-
-First, all keywords in STYLES are added to the returned hash.
-
-Next, we ensure that one of :UNIX or :WINDOWS always appears in the
-hash, but never both.  When one of these are not already present in
-the original list of keywords, CL:*FEATURES* is consulted to determine
-which will appear in the hash.
-
-If :KEY appears in the hash, and neither :UP nor :DOWN appear in
-STYLES, then :UP is added to the hash.  In other words, unless
-overridden with :DOWN, :KEY implies :UP.
-
-If :UP or :DOWN appear in the hash, and neither :STREQ nor :STR=
-appear, then :STREQ is added to the hash.  In other words, :UP
-and :DOWN both imply :STREQ unless :STR= is already present.
-
-If neither :STREQ nor :STR= appear in the hash, but :WINDOWS does,
-then :STREQ is added to the hash, otherwise :STR= is added.  In other
-words, :WINDOWS implies :STREQ while :UNIX implies :STR=, but either
-is easily overridden."
-  (let ((hash (make-hash-table)))
-    (labels ((set? (&rest flags) (some (lambda (f) (gethash f hash)) flags))
-	     (set! (&rest flags)
-	       (mapc (lambda (f)
-		       (unless (keywordp f)
-			 (error "Option processing styles must be specified ~
-                                 as keyword values, which ~s is not." f))
-		       (setf (gethash f hash) f))
-		     flags)))
-      (apply #'set! (ensure-list styles))
-      (unless (set? :windows :unix)
-	(set! (if (featurep :windows) :windows :unix)))
-      (unless (set? :up :down)
-	(when (set? :key)
-	  (set! :up)))
-      (unless (set? :str= :streq)
-	(set! (or (and (set? :up :down :windows) :streq)
-		  :str=))))
-    hash))
-
 (defclass context ()
   ((appname :initarg :appname :initform "" :accessor appname
 	    :documentation "A string that names our application.")
@@ -79,99 +27,200 @@ is easily overridden."
    (stylehash :initarg :stylehash :initform nil :accessor stylehash
 	      :documentation "A hash table representing all style
               keywords, express and implied, during the context of a
-              call to Petulant according to STYLES-TO-HASH.")  ))
+              call to Petulant according to STYLES-TO-HASH.")
+   (args :initarg :args :initform nil :accessor args
+	 :documentation "A list of strings to be processed as if they
+	 were the command-line, instead of the actual list of
+	 command-line strings supplied by the operating system."))
+  (:documentation "Captures a description of the current definitions
+  of options, styles, documentations, and everything else that goes
+  into Petulant.  This structure might be filled out completely \(when
+  a full specification is supplied\), or minimally \(when a low level
+  functional interface is selected\).  In either setting, an instance
+  of this class becomes the current context of a call through
+  Petulant."))
 
-(defparameter *context* (make-context "" nil nil nil nil nil))
+(defparameter *no-doc-fn* (constantly "")
+  "A closure that always returns an empty string.  Useful when dealing
+with aspects of a command-line that may or may not be documented.")
+
+(defun styles-to-hash (styles)
+  "Given STYLES, which is a keyword or a list of keywords, populate a
+hash with a complete list of those keywords and any other keywords
+implied by those supplied as well as the running system.  Not only
+does STYLES-TO-HASH effectively \"convert\" the supplied STYLES list
+to a hash, it \"fleshes out\" the list of styles so that it determines
+all explicit and implicit aspects of Petulant's processing based on
+what was originally supplied by the caller.
+
+First, all keywords in STYLES are added to the returned hash.
+
+Next, we ensure that one of :UNIX or :WINDOWS always appears in the
+hash, but never both.  When one of these are not already present in
+the original list of keywords, CL:*FEATURES* is consulted to determine
+which will appear in the hash.
+
+If :KEY appears in the hash, and neither :UP nor :DOWN appear in
+STYLES, then :UP is added to the hash.  In other words, unless
+overridden with :DOWN, :KEY implies :UP.
+
+If :UP or :DOWN appear in the hash, and neither :STREQ nor :STR=
+appear, then :STREQ is added to the hash.  In other words, :UP
+and :DOWN both imply :STREQ unless :STR= is already present.
+
+If neither :STREQ nor :STR= appear in the hash, but :WINDOWS does,
+then :STREQ is added to the hash, otherwise :STR= is added.  In other
+words, :WINDOWS implies :STREQ while :UNIX implies :STR=, but either
+is easily overridden."
+  (let ((hash (make-hash-table :test #'eq)))
+    (labels ((set? (&rest flags) (some (lambda (f) (gethash f hash)) flags))
+	     (set! (&rest flags)
+	       (mapc (lambda (f)
+		       (unless (keywordp f)
+			 (error "PETULANT: Option processing styles must be ~
+                                 specified as keyword values, which ~s is ~
+                                 not." f))
+		       (setf (gethash f hash) f))
+		     flags)))
+      (apply #'set! (ensure-list styles))
+      (unless (set? :windows :unix)
+	(set! (if (featurep :windows) :windows :unix)))
+      (unless (set? :up :down)
+	(when (set? :key)
+	  (set! :up)))
+      (unless (set? :str= :streq)
+	(set! (or (and (set? :up :down :windows) :streq)
+		  :str=))))
+    hash))
+
+(defun aliases-to-hash (aliases hashtable)
+  "Given a set of option ALIASES, add them to the supplied HASHTABLE.
+ALIASES is a list of alias specifications. Each list is, itself, a
+list of strings.  The first string in the list is the option, and all
+subsequent strings are aliases for that option.  It is up to the
+caller to supply a hash table with the proper equality test."
+  (mapc (lambda (spec)
+	  (let ((option (car spec)))
+	    (mapc (lambda (alias) (setf (gethash alias hashtable) option))
+		  (cdr spec))))
+	aliases)
+  hashtable)
+
+(defun make-context-simple (argopts flagopts aliases styles args)
+  "Creates a Petulant context from arguments typically supplied to one
+of the simpler, less-specified interfaces.  ARGOPTS is a list of strings,
+naming the options that are known to take arguments, while FLAGOPTS is
+a list of strings naming the options that are only flags \(not taking
+arguments\).  ALIASES is a list-of-lists, each sublist providing
+alternate option strings that are considered aliases to the first
+string in the sublist.  STYLES is a keyword, or list of keywords, that
+influence how Petulant processes a command-line.  Finally, ARGS is a
+list of strings that should be used instead of the actual command-line
+presented to the application by the operating system."
+  (let ((stylehash (styles-to-hash styles))
+	(flagtype (list :flag))
+	(argtype (list :string '*)))
+    (labels ((mkhash () (make-hash-table :test (if (gethash :streq stylehash)
+						   #'equalp
+						   #'equal))))
+      (let ((opthash (mkhash)) (dochash (mkhash)) (alihash (mkhash)))
+	(mapc (lambda (o) (setf (gethash o opthash) argtype
+				(gethash o dochash) *no-doc-fn*))
+	      argopts)
+	(mapc (lambda (o) (setf (gethash o opthash) flagtype
+				(gethash o dochash) *no-doc-fn*))
+	      flagopts)
+	(aliases-to-hash aliases alihash)
+	(make-instance 'context
+		       :opthash opthash :dochash dochash :alihash alihash
+		       :stylehash stylehash :args args)))))
+
+(defun make-context-full (appname summary-fn tail-fn optlist aliases
+			  styles args)
+  "Creates a Petulant context from arguments supplied to the \"full
+specification\" interface of Petulant.  These values supplied here are
+typically generated by the SPEC macro \(see petulant.lisp\), and a
+simplified shorthand is used by the caller.  APPNAME is a string
+naming an application, while SUMMARY-FN and TAIL-FN are closures that
+generate a string to be used for the primary documentation and the
+extra \(tail\) documentation of an app.  OPTLIST is a list of
+canonical option specifications, each being a list of the option
+string, corresponding Petulant type, and documentation closure.
+ALIASES is a list of alias specifications, where each spec is a list
+of strings; the first string naming an option for which all other
+strings in the list are aliases.  STYLES is a keyword, or list of
+keywords, that influence how Petulant processes a command-line.
+Finally, ARGS is a list of strings that should be used instead of the
+actual command-line presented to the application by the operating
+system."
+  (let ((stylehash (styles-to-hash styles)))
+    (labels ((mkhash () (make-hash-table :test (if (gethash :streq stylehash)
+						   #'equalp
+						   #'equal))))
+      (let ((opthash (mkhash)) (dochash (mkhash)) (alihash (mkhash)))
+	(mapc (lambda (optspec)
+		(destructuring-bind (option type docfn) optspec
+		  (setf (gethash option opthash) type
+			(gethash option dochash) (or docfn *no-doc-fn*))))
+	      optlist)
+	(aliases-to-hash aliases alihash)
+	(make-instance 'context
+		       :appname appname
+		       :summary-fn (or summary-fn *no-doc-fn*)
+		       :tail-fn (or tail-fn *no-doc-fn*)
+		       :opthash opthash :dochash dochash :alihash alihash
+		       :stylehash stylehash :args args)))))
+
+(defparameter *context* (make-context-simple nil nil nil nil nil)
+  "An instance of CONTEXT captures everything we are processing within
+any given call to the Petulant API.  Typically, new bindings are
+established through the WITH-CONTEXT-SIMPLE and WITH-CONTEXT-FULL
+macros.  *CONTEXT* has a default value that is an intance of CONTEXT
+not because any processing can actually be carried out with it, but
+simply so that the rest of Petulant need not test for binding to NIL
+values all over the place.")
+
+(defmacro with-context-simple ((argopts flagopts aliases style args)
+			       &body body)
+  "Used to establish a new *CONTEXT* for simple calls to lower-level
+Petulant functions."
+  `(let ((*context* (make-context-simple ,argopts ,flagopts ,aliases ,style
+					 ,args)))
+     ,@body))
+
+(defmacro with-context-full ((appname summary-fn tail-fn optspecs aliases
+			      styles args) &body body)
+  "Used to establish a new *CONTEXT* for fully-specified calls to
+Petulant."
+  `(let ((*context* (make-context-full ,appname ,summary-fn ,tail-fn
+				       ,optspecs ,aliases ,styles ,args)))
+     ,@body))
 
 (defun stylep (key)
   "Returns true if KEY appears in the style hash of the current
-context, otherwise NIL."
+*CONTEXT*, otherwise NIL."
   (gethash key (stylehash *context*)))
 
+(defun str<-fn ()
+  "Returns the function comparing strings under the styles set in the
+current *CONTEXT*."
+  (if (stylep :streq) #'string-lessp #'string<))
 
-;; now how is that going to work? when we initialize, we'd want to
-;; call make-pethash or something similar, but we can't since we
-;; haven't set up the very styles in the context that we need in order
-;; to call make-pethash.
-;;
-;; Hmm...
-;;
-;; make hash table inits to nil
-;; write a proper constructor that sets things up from local context
+(defun str=-fn ()
+  "Returns the function testing string equality under the styles set
+in the current *CONTEXT*."
+  (if (stylep :streq) #'string-equal #'string=))
 
+(defun equal-fn ()
+  "Returns the function testing objects \(typically strings\) for
+equality under the styles set in the current *CONTEXT*.  This must be
+used instead of STR=-FN when creating hash tables, for example."
+  (if (stylep :streq) #'equalp #'equal))
 
-(defstruct (spec-context (:conc-name nil))
-  "A structure for capturing the context of an invocation of
-Petulant's API.  Depending on which function in Petulant is called,
-different information is supplied from the caller and different
-information is needed within Petulant \(e.g., Should we process
-options in a Unix or Windows style? Should string matching be
-sensitive to case? Does \"foo\" take an argument?\)
-
-
-.
-There is a mix of hash tables, closures, strings, and lists that are
-all managed in a call to SPEC* and its friends.  This structure
-ensures we don't go nuts passing around five, six, or seven arguments
-across so many functions.  Instead, SPEC* will create an instance of
-this structure based on its arguments, and the functions in the SPEC*
-family will simply operate on this structure.  Slots are provided for
-capturing the original list of options and other values supplied to
-SPEC*, as well as the hash tables and other computed values needed for
-the duration of its call.  CONC-NAME is NIL, thus, slots of a
-SPEC-CONTEXT are retrieved through a function whose name is the slot
-name \(e.g., \(opthash foo\) returns the value of the slot named
-OPTHASH in FOO\)."
-  appname		      ; application name
-  summaryfn		      ; closure providing app summary
-  tailfn		      ; closure providing extra info
-  options		      ; original list of options
-  aliases		      ; original list of aliases
-  arguments		      ; original list of command-line args
-  opthash		      ; maps options to Petulant types
-  dochash		      ; maps options to documentation closures
-  alihash)		      ; maps aliases to options
-
-(defun make-pethash ()
-  "Referencing whatever styles are in effect via the most recent
-WITH-STYLEHASH, return a new hash table with the appropriate test of
-equality baked in.  These hash tables are meant to use option strings
-as their keys."
-  (make-hash-table :test (equal-fn)))
-
-(defun make-context (appname summaryfn tailfn options aliases args)
-  "Create a new instance of SPEC-CONTEXT and return it, with most of
-its slots filled in to support the SPEC* family of functions.  It is
-expected that this is called within a WITH-STYLEHASH context.  While
-most slots are simply set with the arguments supplied, the slots that
-are hashes are initialized by working through the OPTIONS and ALIASES
-lists.  Specifically, every option named in OPTIONS appears in the
-OPTHASH, the value of which is the type specification for the option.
-Every option also appears in the DOCHASH, mapped to a closure
-providing a documentation string for the named option.  The ALIHASH
-maps alternative option names to their proper option name."
-  (let ((opthash (make-pethash))
-	(dochash (make-pethash))
-	(alihash (make-pethash)))
-    (mapc (lambda (optspec)
-	    (let ((opt (car optspec)))
-	      (setf (gethash opt opthash) (cadr optspec)
-		    (gethash opt dochash) (or (caddr optspec) *no-doc-fn*))))
-	  options)
-    (mapc (lambda (alispec)
-	    (let ((opt (car alispec)))
-	      (mapc (lambda (a) (setf (gethash a alihash) opt))
-		    (cdr alispec))))
-	  aliases)
-    (make-spec-context :appname appname :summaryfn (or summaryfn *no-doc-fn*)
-		       :tailfn (or tailfn *no-doc-fn*) :options options
-		       :aliases aliases :arguments args :opthash opthash
-		       :dochash dochash :alihash alihash)))
-
-(defparameter *context* (make-context "" nil nil nil nil nil)
-  "SPEC* binds this to a new context while it executes, so that the
-rest of the functions in the SPEC* family have easy access to all the
-different bits of information with which we've been invoked.  Doing
-this saves us an argument from nearly every single function.  Its
-default contents are valid but empty.")
-
+(defun argoptp-fn ()
+  "Based on the current *CONTEXT*, return a function yielding true
+when its supplied option string is recognized to require an argument
+value."
+  (lambda (option)
+    (aand (gethash option (opthash *context*))
+	  (not (eq :flag (car it))))))
