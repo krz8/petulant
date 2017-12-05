@@ -248,14 +248,14 @@ name, argv[0], or other non-argument information."
   #- (or ccl sbcl clisp acl)
   (error "Petulant needs to be ported to this Lisp environment."))
 
-(defun simple (fn &key arglist argoptp-fn chgname-fn styles)
+(defun parse (fn &key arglist argoptp-fn chgname-fn style)
   "This is the simple, low level parser for command-lines.  If you're
 simply using Petulant in your application \(i.e., you aren't
 developing Petulant\), you might want to consider calling a higher
-level function; SIMPLE is mainly for implementation of other Petulant
+level function; PARSE is mainly for implementation of other Petulant
 functionality.
 
-SIMPLE works through an argument list, a flat list of strings
+PARSE works through an argument list, a flat list of strings
 representing the command-line.  It parses this list according to the
 dominant style for a specific operating system \(e.g., hyphen-based
 options under Unix, or slash-based switches under Windows\).
@@ -277,7 +277,7 @@ ARGLIST, if supplied, is a list of strings to parse.  By default,
 SIMPLE will parse a list of strings provided by the Lisp environment
 representing the command-line with which the application was started.
 
-ARGOPTP-FN, if supplied, is a function.  Petulant recognizes certain
+ARGOPTP-FN, if not nil, is a function.  Petulant recognizes certain
 long options \(\"--foo=bar\"\) and switches \(\"/foo:bar\"\) that
 unambiguously present an option taking an argument.  However, Petulant
 cannot know for certain when a short option takes an option \(e.g.,
@@ -288,21 +288,33 @@ address this, the caller can supply a function taking the name of the
 option as a string \(\"f\" or \"foo\"\) and returning true or false to
 indicate if it takes an argument.
 
-CHGNAME-FN, if supplied, can be used to change a detected switch from
-one value to another, taking a string and returning a string to use in
-its place.  It could be used to implement aliases or partial matching,
-for example.  Every detected switch is passed through this function
-before processing continues; it is called before ARGOPTP-FN, for
-example.
+CHGNAME-FN, if not nil, can be used to change a detected switch from
+yone value to another, taking a string naming the switch \(option\) and
+returning a string to use in its place.  It could be used to implement
+aliases or partial matching, for example.  Every detected switch is
+passed through this function before processing continues; it is called
+before ARGOPTP-FN, for example.
 
-STYLES is a keyword or list of keywords that can be used to select a
-particular style of command-line processing.  By default, Unix or
-Windows option processing will be chosen based on CL:*FEATURES*, but
-the STYLES argument can be used to override this by supplying :UNIX
-or :WINDOWS, respectively."
-  (with-stylehash styles
-    (funcall (if (stylep :windows) #'parse-windows #'parse-unix)
-	     (or arglist (argv))
-	     fn
-	     (or argoptp-fn (constantly nil))
-	     (or chgname-fn #'identity))))
+STYLE is NIL, a keyword, or a list of keywords that can be used to
+select a particular style of command-line processing.  When STYLE is
+not NIL, its value (the presence of :UNIX or :WINDOWS) is used to
+select between the Unix and Windows command-line parsers.  Otherwise,
+if the current *CONTEXT* has a style hash that is not empty, it is
+used for that purpose.  Otherwise, CL:*FEATURES* determines which
+function is used."
+  (funcall (typecase style
+	     (symbol (or (and (eq :windows style) #'parse-windows)
+			 #'parse-unix))
+	     (list (or (and (member :windows style) #'parse-windows)
+		       #'parse-unix))
+	     (t (let ((stylehash (stylehash *context*)))
+		  (cond ((> (hash-table-count stylehash) 0)
+			 (or (and (gethash :windows stylehash)
+				  #'parse-windows)
+			     #'parse-unix))
+			((member :windows cl:*features*) #'parse-windows)
+			(t #'parse-unix)))))
+	   (or arglist (argv))
+	   fn
+	   (or argoptp-fn (constantly nil))
+	   (or chgname-fn #'identity)))

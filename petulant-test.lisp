@@ -237,8 +237,8 @@
 
 
 
-(def-suite simple :description "simple parser stuff" :in all)
-(in-suite simple)
+(def-suite parse :description "simple parser stuff" :in all)
+(in-suite parse)
 
 (test isolate-switches
   (is (equalp '("a") (cli::isolate-switches "/a")))
@@ -662,37 +662,37 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test simple-1
+(test parse-1
   (let ((res (with-output-to-string (s)
-	       (cli:simple #'(lambda (x y z)
+	       (cli:parse #'(lambda (x y z)
 				     (format s "|~s ~s ~s" x y z))
 				 :arglist '("/a" "/beta" "/input:file"
 					    "some" "/v" "thing")
-				 :styles :windows))))
+				 :style :windows))))
     (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
 		      res))))
 
-(test simple-2
+(test parse-2
   (let ((res (with-output-to-string (s)
-	       (cli:simple #'(lambda (x y z)
+	       (cli:parse #'(lambda (x y z)
 				     (format s "|~s ~s ~s" x y z))
 				 :arglist '("-a" "--beta" "--input=file"
 					    "some" "-v" "thing")
-				 :styles :unix))))
+				 :style :unix))))
     (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
 		      res))))
 
-(test simple-3
+(test parse-3
   (let ((*verbose* nil))
     (labels ((opts-and-args (kind name value)
 	       (declare (ignore value))
 	       (when (and (eq kind :opt) (string-equal name "v"))
 		 (setf *verbose* t))))
-      (cli:simple #'opts-and-args
-			:arglist '("-v") :styles :unix)
+      (cli:parse #'opts-and-args
+			:arglist '("-v") :style :unix)
       (is (not (null *verbose*))))))
 
-(test simple-4
+(test parse-4
   (let ((*verbose* 0))
     (labels ((opts-and-args (kind name value)
 	       (declare (ignore value))
@@ -703,12 +703,12 @@
 			  (decf *verbose*))
 			 ((string-equal name "v")
 			  (incf *verbose*)))))))
-      (cli:simple #'opts-and-args
+      (cli:parse #'opts-and-args
 			:arglist '("/v" "/q/v" "/v/q/v" "/q/q/q" "/v/v")
-			:styles :windows)
+			:style :windows)
       (is (= 1 *verbose*)))))
 
-(test simple-5
+(test parse-5
   (let* ((*apphome* (make-pathname :directory '(:absolute "opt" "app")))
 	 (*verbose* 0)
 	 (*inpath* nil)
@@ -728,11 +728,11 @@
 			  (decf *verbose*))
 			 ((string-equal x "v")
 			  (incf *verbose*)))))))
-      (cli:simple #'opts-and-args
+      (cli:parse #'opts-and-args
 			:arglist '("-c" "/foo/altconf.yml"
 				   "-v" "one.dat" "-q" "two.dat" "-v")
 			:argoptp-fn #'(lambda (x) (string-equal "c" x))
-			:styles :unix)
+			:style :unix)
       (is (= 1 *verbose*))
       (is (equalp (pathname "one.dat") *inpath*))
       (is (equalp (pathname "two.dat") *outpath*))
