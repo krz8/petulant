@@ -167,78 +167,82 @@
     (has :windows :str= :down)
     (hasnot :unix :streq :up :key)))
 
-(test with-stylehash
-  (is (= 2 (hash-table-count cli::*stylehash*)))
-  (cli::with-stylehash :unix
-      (is-true (hash-table-p cli::*stylehash*))
-      (is-true (gethash :unix cli::*stylehash*))
-      (is-false (gethash :windows cli::*stylehash*))
-      (is-false (gethash :streq cli::*stylehash*))
-      (is-true (gethash :str= cli::*stylehash*))
-      (is-false (gethash :down cli::*stylehash*))
-      (is-false (gethash :up cli::*stylehash*))
-      (is-false (gethash :key cli::*stylehash*)))
-  (cli::with-stylehash '(:unix :key :junk)
-    (is-true (hash-table-p cli::*stylehash*))
-    (is-true (gethash :unix cli::*stylehash*))
-    (is-false (gethash :windows cli::*stylehash*))
-    (is-true (gethash :streq cli::*stylehash*))
-    (is-false (gethash :str= cli::*stylehash*))
-    (is-false (gethash :down cli::*stylehash*))
-    (is-true (gethash :up cli::*stylehash*))
-    (is-true (gethash :key cli::*stylehash*))
-    (is-true (gethash :junk cli::*stylehash*))
-    (cli::with-stylehash nil		; ensure nesting looks right
-      (is-true (hash-table-p cli::*stylehash*))
-      (is-true (gethash :unix cli::*stylehash*))
-      (is-false (gethash :windows cli::*stylehash*))
-      (is-true (gethash :streq cli::*stylehash*))
-      (is-false (gethash :str= cli::*stylehash*))
-      (is-false (gethash :down cli::*stylehash*))
-      (is-true (gethash :up cli::*stylehash*))
-      (is-true (gethash :key cli::*stylehash*))
-      (is-true (gethash :junk cli::*stylehash*)))))
+(test with-stylehash-1
+  (let ((sh (cli::stylehash cli::*context*)))
+    (is (= 2 (hash-table-count sh)))
+    (is-true (or (gethash :unix sh)
+		 (gethash :windows sh)))
+    (is-false (and (gethash :unix sh)
+		   (gethash :windows sh)))
+    (is-true (or (gethash :str= sh)
+		 (gethash :streq sh)))
+    (is-false (and (gethash :str= sh)
+		   (gethash :streq sh)))))
+
+(test with-stylehash-2
+  (cli::with-context-simple (nil nil nil :unix nil)
+     (let ((sh (cli::stylehash cli::*context*)))
+       (is-true (hash-table-p sh))
+       (is-true (gethash :unix sh))
+       (is-false (gethash :windows sh))
+       (is-false (gethash :streq sh))
+       (is-true (gethash :str= sh))
+       (is-false (gethash :down sh))
+       (is-false (gethash :up sh))
+       (is-false (gethash :key sh)))))
+
+(test with-stylehash-3
+  (cli::with-context-simple (nil nil nil '(:unix :key :junk) nil)
+     (let ((sh (cli::stylehash cli::*context*)))
+       (is-true (hash-table-p sh))
+       (is-true (gethash :unix sh))
+       (is-false (gethash :windows sh))
+       (is-true (gethash :streq sh))
+       (is-false (gethash :str= sh))
+       (is-false (gethash :down sh))
+       (is-true (gethash :up sh))
+       (is-true (gethash :key sh))
+       (is-true (gethash :junk sh)))))
 
 (test windowsp
-  (cli::with-stylehash :windows
+  (cli::with-context-simple (nil nil nil :windows nil)
     (is-true (cli::stylep :windows)))
-  (cli::with-stylehash :unix
+  (cli::with-context-simple (nil nil nil :unix nil)
     (is-false (cli::stylep :windows)))
-  (cli::with-stylehash nil
-    #+windows (is-true (cli::stylep :windows))
-    #-windows (is-false (cli::stylep :windows))))
+  #+windows (is-true (cli::stylep :windows))
+  #-windows (is-false (cli::stylep :windows)))
 
 (test foldp
   (macrolet ((foldp () `(cli::stylep :streq)))
-    (cli::with-stylehash nil
-      #+windows (is-true (foldp))
-      #-windows (is-false (foldp)))
-    (cli::with-stylehash :unix
+    #+windows (is-true (foldp))
+    #-windows (is-false (foldp))
+    (cli::with-context-simple (nil nil nil :unix nil)
       (is-false (foldp)))
-    (cli::with-stylehash :windows
+    (cli::with-context-simple (nil nil nil :windows nil)
       (is-true (foldp)))
-    (cli::with-stylehash :streq
+    (cli::with-context-simple (nil nil nil :streq nil)
       (is-true (foldp)))
-    (cli::with-stylehash :str=
+    (cli::with-context-simple (nil nil nil :str= nil)
       (is-false (foldp)))
-    (cli::with-stylehash '(:streq :unix)
+    (cli::with-context-simple (nil nil nil '(:streq :unix) nil)
       (is-true (foldp)))
-    (cli::with-stylehash '(:str= :windows)
+    (cli::with-context-simple (nil nil nil '(:str= :windows) nil)
       (is-false (foldp)))
-    (cli::with-stylehash '(:up :unix)
+    (cli::with-context-simple (nil nil nil '(:up :unix) nil)
       (is-true (foldp)))
-    (cli::with-stylehash '(:unix :down)
+    (cli::with-context-simple (nil nil nil '(:unix :down) nil)
       (is-true (foldp)))
-    (cli::with-stylehash '(:key :unix)
+    (cli::with-context-simple (nil nil nil '(:key :unix) nil)
       (is-true (foldp)))
-    (cli::with-stylehash '(:up :str=)	; very weird, but still valid
+    ;; very weird, but still valid
+    (cli::with-context-simple (nil nil nil '(:up :str=) nil)
       (is-false (foldp)))))
 
 
 
 
-(def-suite parse :description "simple parser stuff" :in all)
-(in-suite parse)
+(def-suite simple :description "simple parser stuff" :in all)
+(in-suite simple)
 
 (test isolate-switches
   (is (equalp '("a") (cli::isolate-switches "/a")))
@@ -253,25 +257,25 @@
   (is (equalp '("//") (cli::isolate-switches "//")))
   (is (equalp '("///") (cli::isolate-switches "///"))))
 
-(test canonicalize-windows-args
+(test canonicalize-switch-args
   (is (equalp '("abc" "" "def")
-	      (cli::canonicalize-windows-args '(nil "abc" "" "def"))))
+	      (cli::canonicalize-switch-args '(nil "abc" "" "def"))))
   (is (equalp '("abc" "/" "def")
-	      (cli::canonicalize-windows-args '("abc" nil "/" "def"))))
+	      (cli::canonicalize-switch-args '("abc" nil "/" "def"))))
   (is (equalp '("abc" "//" "def")
-	      (cli::canonicalize-windows-args '("abc" "//" nil "def"))))
+	      (cli::canonicalize-switch-args '("abc" "//" nil "def"))))
   (is (equalp '("abc" "///" "def")
-	      (cli::canonicalize-windows-args '("abc" "///" "def" nil))))
+	      (cli::canonicalize-switch-args '("abc" "///" "def" nil))))
   (is (equalp '("/abc" "def")
-	      (cli::canonicalize-windows-args '("/abc" "def"))))
+	      (cli::canonicalize-switch-args '("/abc" "def"))))
   (is (equalp '("/a" "/bc" "def")
-	      (cli::canonicalize-windows-args '("/a/bc" "def"))))
+	      (cli::canonicalize-switch-args '("/a/bc" "def"))))
   (is (equalp '("/a" "/bc" "def" "/ef:gh")
-	      (cli::canonicalize-windows-args '("/a/bc" "def" "/ef:gh"))))
+	      (cli::canonicalize-switch-args '("/a/bc" "def" "/ef:gh"))))
   (is (equalp '("/a" "/bc" "def" "/ef" "gh")
-	      (cli::canonicalize-windows-args '("/a/bc" "def" "/ef" "gh"))))
+	      (cli::canonicalize-switch-args '("/a/bc" "def" "/ef" "gh"))))
   (is (equalp '("/a" "/bc" "def" "/e" "/f:g" "/h")
-	      (cli::canonicalize-windows-args '("/a/bc" "def" "/e/f:g/h")))))
+	      (cli::canonicalize-switch-args '("/a/bc" "def" "/e/f:g/h")))))
 
 ;; These are broken up because, when you reuse values in the tests,
 ;; it's not immediately in five-am to know which specific test fails.
@@ -281,56 +285,56 @@
 ;; related functionality.  Pass this stuff, and you're almost home
 ;; free, the rest of Petulant is easy by comparison!
 
-(test parse-windows-a1
+(test switches-a1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows '("/a") #'cb)
+      (cli::do-switches '("/a") #'cb)
       (is (= (length res) 1))
       (is (equalp '(:opt "a" nil) (car res))))))
 
-(test parse-windows-a2
+(test switches-a2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows '("/a" "/b/c") #'cb)
+      (cli::do-switches '("/a" "/b/c") #'cb)
       (is (= (length res) 3))
       (is (equalp '(:opt "c" nil) (car res)))
       (is (equalp '(:opt "b" nil) (cadr res)))
       (is (equalp '(:opt "a" nil) (caddr res))))))
 
-(test parse-windows-a3
+(test switches-a3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows '("/a" "/b/c" "/de") #'cb)
+      (cli::do-switches '("/a" "/b/c" "/de") #'cb)
       (is (= (length res) 4))
       (is (equalp '(:opt "de" nil) (car res)))
       (is (equalp '(:opt "c" nil) (cadr res)))
       (is (equalp '(:opt "b" nil) (caddr res)))
       (is (equalp '(:opt "a" nil) (cadddr res))))))
 
-(test parse-windows-b1
+(test switches-b1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows '("/a" "/b/c" "d") #'cb)
+      (cli::do-switches '("/a" "/b/c" "d") #'cb)
       (is (equalp '((:arg "d" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-windows-b2
+(test switches-b2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows '("/a" "/b/c" "//" "/d") #'cb)
+      (cli::do-switches '("/a" "/b/c" "//" "/d") #'cb)
       (is (equalp '((:arg "/d" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-windows-c1
+(test switches-c1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows '("/a" "/alpha" "/b/c" "/beta") #'cb)
+      (cli::do-switches '("/a" "/alpha" "/b/c" "/beta") #'cb)
       (is (equalp '((:opt "beta" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
@@ -338,10 +342,10 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-windows-c3
+(test switches-c3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows '("/a" "/b/c" "/beta" "foo" "bar") #'cb)
+      (cli::do-switches '("/a" "/b/c" "/beta" "foo" "bar") #'cb)
       (is (equalp '((:arg "bar" nil)
 		    (:arg "foo" nil)
 		    (:opt "beta" nil)
@@ -350,10 +354,10 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-windows-c4
+(test switches-c4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows '("/a" "/b/c" "/beta" "//" "/foo" "bar") #'cb)
+      (cli::do-switches '("/a" "/b/c" "/beta" "//" "/foo" "bar") #'cb)
       (is (equalp '((:arg "bar" nil)
 		    (:arg "/foo" nil)
 		    (:opt "beta" nil)
@@ -362,10 +366,10 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-windows-d1
+(test switches-d1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows '("/a" "/b/c" "/beta:fuzz" "foo" "bar") #'cb)
+      (cli::do-switches '("/a" "/b/c" "/beta:fuzz" "foo" "bar") #'cb)
       (is (equalp '((:arg "bar" nil)
 		    (:arg "foo" nil)
 		    (:opt "beta" "fuzz")
@@ -374,10 +378,10 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-windows-d2					  ; gnu-ish
+(test switches-d2					  ; gnu-ish
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows '("/a" "/b/c" "foo" "/beta:fuzz" "bar") #'cb)
+      (cli::do-switches '("/a" "/b/c" "foo" "/beta:fuzz" "bar") #'cb)
       (is (equalp '((:arg "bar" nil)
 		    (:opt "beta" "fuzz")
 		    (:arg "foo" nil)
@@ -386,130 +390,130 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-windows-e1
+(test switches-e1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-windows '("/x/v/f" "foo" "something") #'cb #'f?)
+      (cli::do-switches '("/x/v/f" "foo" "something") #'cb #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "f" "foo")
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-windows-e2
+(test switches-e2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-windows '("/x/v/f:foo" "something") #'cb #'f?)
+      (cli::do-switches '("/x/v/f:foo" "something") #'cb #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "f" "foo")
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-windows-e3
+(test switches-e3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-windows '("/x/v" "/file:foo" "something") #'cb #'f?)
+      (cli::do-switches '("/x/v" "/file:foo" "something") #'cb #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-windows-e4
+(test switches-e4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-windows '("/x/v" "/file" "foo" "something") #'cb #'f?)
+      (cli::do-switches '("/x/v" "/file" "foo" "something") #'cb #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-windows-f1
+(test switches-f1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-windows '("/x/v" "/f") #'cb #'f?)
+      (cli::do-switches '("/x/v" "/f") #'cb #'f?)
       (is (equalp '((:opt "f" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-windows-f2
+(test switches-f2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-windows '("/x/v/f") #'cb #'f?)
+      (cli::do-switches '("/x/v/f") #'cb #'f?)
       (is (equalp '((:opt "f" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-windows-f3
+(test switches-f3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-windows '("/x/v" "/file:") #'cb #'f?)
+      (cli::do-switches '("/x/v" "/file:") #'cb #'f?)
       (is (equalp '((:opt "file" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-windows-f4
+(test switches-f4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-windows '("/x/v" "/file") #'cb #'f?)
+      (cli::do-switches '("/x/v" "/file") #'cb #'f?)
       (is (equalp '((:opt "file" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-unix-a1
+(test posix-a1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix '("-a") #'cb)
+      (cli::do-posix '("-a") #'cb)
       (is (= (length res) 1))
       (is (equalp '(:opt "a" nil) (car res))))))
 
-(test parse-unix-a2
+(test posix-a2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix '("-a" "-bc") #'cb)
+      (cli::do-posix '("-a" "-bc") #'cb)
       (is (= (length res) 3))
       (is (equalp '(:opt "c" nil) (car res)))
       (is (equalp '(:opt "b" nil) (cadr res)))
       (is (equalp '(:opt "a" nil) (caddr res))))))
 
-(test parse-unix-b1
+(test posix-b1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix '("-a" "-bc" "d") #'cb)
+      (cli::do-posix '("-a" "-bc" "d") #'cb)
       (is (equalp '((:arg "d" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-b2
+(test posix-b2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix '("-a" "-bc" "--" "-d") #'cb)
+      (cli::do-posix '("-a" "-bc" "--" "-d") #'cb)
       (is (equalp '((:arg "-d" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-c1
+(test posix-c1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix '("-a" "--alpha" "-bc" "--beta") #'cb)
+      (cli::do-posix '("-a" "--alpha" "-bc" "--beta") #'cb)
       (is (equalp '((:opt "beta" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
@@ -517,10 +521,10 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-c2
+(test posix-c2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix '("-a" "--a" "-bc" "--beta") #'cb)
+      (cli::do-posix '("-a" "--a" "-bc" "--beta") #'cb)
       (is (equalp '((:opt "beta" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
@@ -528,10 +532,10 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-c3
+(test posix-c3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix '("-a" "--a" "-bc" "--beta" "foo" "bar") #'cb)
+      (cli::do-posix '("-a" "--a" "-bc" "--beta" "foo" "bar") #'cb)
       (is (equalp '((:arg "bar" nil)
 		    (:arg "foo" nil)
 		    (:opt "beta" nil)
@@ -541,10 +545,10 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-c4
+(test posix-c4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix '("-a" "--a" "-bc" "--beta" "--" "--foo" "bar") #'cb)
+      (cli::do-posix '("-a" "--a" "-bc" "--beta" "--" "--foo" "bar") #'cb)
       (is (equalp '((:arg "bar" nil)
 		    (:arg "--foo" nil)
 		    (:opt "beta" nil)
@@ -554,10 +558,10 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-d1
+(test posix-d1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix '("-a" "-bc" "--beta=fuzz" "foo" "bar") #'cb)
+      (cli::do-posix '("-a" "-bc" "--beta=fuzz" "foo" "bar") #'cb)
       (is (equalp '((:arg "bar" nil)
 		    (:arg "foo" nil)
 		    (:opt "beta" "fuzz")
@@ -566,10 +570,10 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-d2					  ; gnu-ish
+(test posix-d2					  ; gnu-ish
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix '("-a" "-bc" "foo" "--beta=fuzz" "bar") #'cb)
+      (cli::do-posix '("-a" "-bc" "foo" "--beta=fuzz" "bar") #'cb)
       (is (equalp '((:arg "bar" nil)
 		    (:opt "beta" "fuzz")
 		    (:arg "foo" nil)
@@ -578,93 +582,93 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test parse-unix-e1
+(test posix-e1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "F")))
-      (cli::parse-unix '("-XVF" "foo" "something") #'cb #'f?)
+      (cli::do-posix '("-XVF" "foo" "something") #'cb #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "F" "foo")
 		    (:opt "V" nil)
 		    (:opt "X" nil))
 		  res)))))
 
-(test parse-unix-e2
+(test posix-e2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-unix '("-xvffoo" "something") #'cb #'f?)
+      (cli::do-posix '("-xvffoo" "something") #'cb #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "f" "foo")
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-unix-e3
+(test posix-e3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-unix '("-xv" "--file=foo" "something") #'cb #'f?)
+      (cli::do-posix '("-xv" "--file=foo" "something") #'cb #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-unix-e4
+(test posix-e4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-unix '("-xv" "--file" "foo" "something") #'cb #'f?)
+      (cli::do-posix '("-xv" "--file" "foo" "something") #'cb #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-unix-f1
+(test posix-f1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-unix '("-xv" "-f") #'cb #'f?)
+      (cli::do-posix '("-xv" "-f") #'cb #'f?)
       (is (equalp '((:opt "f" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-unix-f2
+(test posix-f2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-unix '("-xvf") #'cb #'f?)
+      (cli::do-posix '("-xvf") #'cb #'f?)
       (is (equalp '((:opt "f" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-unix-f3
+(test posix-f3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-unix '("-xv" "--file=") #'cb #'f?)
+      (cli::do-posix '("-xv" "--file=") #'cb #'f?)
       (is (equalp '((:opt "file" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-unix-f4
+(test posix-f4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-unix '("-xv" "--file") #'cb #'f?)
+      (cli::do-posix '("-xv" "--file") #'cb #'f?)
       (is (equalp '((:opt "file" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
 		  res)))))
 
-(test parse-1
+(test simple-1
   (let ((res (with-output-to-string (s)
-	       (cli:parse #'(lambda (x y z)
+	       (cli:simple #'(lambda (x y z)
 				     (format s "|~s ~s ~s" x y z))
 				 :arglist '("/a" "/beta" "/input:file"
 					    "some" "/v" "thing")
@@ -672,9 +676,9 @@
     (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
 		      res))))
 
-(test parse-2
+(test simple-2
   (let ((res (with-output-to-string (s)
-	       (cli:parse #'(lambda (x y z)
+	       (cli:simple #'(lambda (x y z)
 				     (format s "|~s ~s ~s" x y z))
 				 :arglist '("-a" "--beta" "--input=file"
 					    "some" "-v" "thing")
@@ -682,17 +686,17 @@
     (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
 		      res))))
 
-(test parse-3
+(test simple-3
   (let ((*verbose* nil))
     (labels ((opts-and-args (kind name value)
 	       (declare (ignore value))
 	       (when (and (eq kind :opt) (string-equal name "v"))
 		 (setf *verbose* t))))
-      (cli:parse #'opts-and-args
+      (cli:simple #'opts-and-args
 			:arglist '("-v") :style :unix)
       (is (not (null *verbose*))))))
 
-(test parse-4
+(test simple-4
   (let ((*verbose* 0))
     (labels ((opts-and-args (kind name value)
 	       (declare (ignore value))
@@ -703,12 +707,12 @@
 			  (decf *verbose*))
 			 ((string-equal name "v")
 			  (incf *verbose*)))))))
-      (cli:parse #'opts-and-args
+      (cli:simple #'opts-and-args
 			:arglist '("/v" "/q/v" "/v/q/v" "/q/q/q" "/v/v")
 			:style :windows)
       (is (= 1 *verbose*)))))
 
-(test parse-5
+(test simple-5
   (let* ((*apphome* (make-pathname :directory '(:absolute "opt" "app")))
 	 (*verbose* 0)
 	 (*inpath* nil)
@@ -728,7 +732,7 @@
 			  (decf *verbose*))
 			 ((string-equal x "v")
 			  (incf *verbose*)))))))
-      (cli:parse #'opts-and-args
+      (cli:simple #'opts-and-args
 			:arglist '("-c" "/foo/altconf.yml"
 				   "-v" "one.dat" "-q" "two.dat" "-v")
 			:argoptp-fn #'(lambda (x) (string-equal "c" x))
@@ -861,16 +865,15 @@
 (in-suite parse)
 
 (def-fixture partials (argopts flagopts aliases styles)
-  (let ((fn (cli::partials-fn argopts flagopts aliases styles)))
-    (labels ((match? (x y)
-	       (cli::with-stylehash styles
-		 (funcall (cli::str=-fn) x (funcall fn y)))))
-      (&body))))
+  (cli::with-context-simple (argopts flagopts aliases styles nil)
+    (let ((fn (cli::partials-fn)))
+      (labels ((match? (x y) (funcall (cli::str=-fn) x (funcall fn y))))
+	(&body)))))
 
 (test partials-fn-1
   (with-fixture partials ('("file" "config" "find")
-			   '("verbose" "input" "ignore")
-			   '(("verbose" "debug"))
+			  '("verbose" "input" "ignore")
+			  '(("verbose" "debug"))
 			   :windows)
     (is-false (match? "file" "f"))
     (is-false (match? "file" "fi"))
@@ -933,59 +936,59 @@
 			  :styles styles
 			  :arglist args)))
     (is (equalp nil (wrap nil nil)))
-    (is (equalp nil (wrap :windows nil)))
-    (is (equalp nil (wrap '(:windows :partial) nil)))
-    (is (equalp '((:opt "verbose" nil)
-		  (:arg "foobar" nil))
-		(wrap :windows "/VERBOSE" "foobar")))
-    (is (equal '((:opt "verbose" nil)
-		 (:arg "foobar" nil))
-	       (wrap :unix "--verbose" "foobar")))
-    (is (equalp '((:opt "verbose" nil)
-		  (:arg "foobar" nil))
-		(wrap :windows "/Debug" "foobar")))
-    (is (equal '((:opt "verbose" nil)
-		 (:arg "foobar" nil))
-	       (wrap '(:unix :partial) "--verb" "foobar")))
-    (is (equal '((:opt "verbose" nil)
-		 (:arg "foobar" nil))
-	       (wrap '(:unix :partial) "-v" "foobar")))
-    (is (equalp '((:opt "verbose" nil)
-		  (:opt "config" "cfile")
-		  (:arg "foobar" nil))
-		(wrap '(:windows) "/Debug" "/Config:cfile" "foobar")))
-    (is (equalp '((:opt "verbose" nil)
-		  (:opt "config" "cfile")
-		  (:arg "foobar" nil))
-		(wrap '(:windows) "/Debug" "/Config" "cfile" "foobar")))
-    (is (equal '((:opt "verbose" nil)
-		 (:arg "foobar" nil))
-	       (wrap '(:unix :partial) "--debug" "foobar")))
-    (is (equal '((:opt "verbose" nil)
-		 (:arg "foobar" nil))
-	       (wrap '(:unix :partial) "-d" "foobar")))
-    (is (equal '((:opt "verbose" nil)
-		 (:opt "config" "cfile")
-		 (:arg "foobar" nil))
-	       (wrap '(:unix :partial) "-vc" "cfile" "foobar")))
-    (is (equal '((:opt "verbose" nil)
-		 (:opt "config" "cfile")
-		 (:arg "foobar" nil))
-	       (wrap '(:unix :partial) "-dc" "cfile" "foobar")))
-    (is (equal '((:opt "ignore" nil)
-		 (:arg "alpha" nil)
-		 (:opt "config" "foo.conf")
-		 (:arg "beta" nil)
-		 (:opt "file" "other.dat"))
-	       (wrap '(:unix :partial) "--ig" "alpha" "-cfoo.conf" "beta"
-		     "--file=other.dat")))
-    (is (equal '((:opt "ignore" nil)
-		 (:arg "alpha" nil)
-		 (:opt "config" "foo.conf")
-		 (:arg "beta" nil)
-		 (:opt "file" "other.dat"))
-	       (wrap '(:unix :partial) "--ig" "alpha" "-c" "foo.conf" "beta"
-		     "--file" "other.dat")))
+    ;; (is (equalp nil (wrap :windows nil)))
+    ;; (is (equalp nil (wrap '(:windows :partial) nil)))
+    ;; (is (equalp '((:opt "verbose" nil)
+    ;; 		  (:arg "foobar" nil))
+    ;; 		(wrap :windows "/VERBOSE" "foobar")))
+    ;; (is (equal '((:opt "verbose" nil)
+    ;; 		 (:arg "foobar" nil))
+    ;; 	       (wrap :unix "--verbose" "foobar")))
+    ;; (is (equalp '((:opt "verbose" nil)
+    ;; 		  (:arg "foobar" nil))
+    ;; 		(wrap :windows "/Debug" "foobar")))
+    ;; (is (equal '((:opt "verbose" nil)
+    ;; 		 (:arg "foobar" nil))
+    ;; 	       (wrap '(:unix :partial) "--verb" "foobar")))
+    ;; (is (equal '((:opt "verbose" nil)
+    ;; 		 (:arg "foobar" nil))
+    ;; 	       (wrap '(:unix :partial) "-v" "foobar")))
+    ;; (is (equalp '((:opt "verbose" nil)
+    ;; 		  (:opt "config" "cfile")
+    ;; 		  (:arg "foobar" nil))
+    ;; 		(wrap '(:windows) "/Debug" "/Config:cfile" "foobar")))
+    ;; (is (equalp '((:opt "verbose" nil)
+    ;; 		  (:opt "config" "cfile")
+    ;; 		  (:arg "foobar" nil))
+    ;; 		(wrap '(:windows) "/Debug" "/Config" "cfile" "foobar")))
+    ;; (is (equal '((:opt "verbose" nil)
+    ;; 		 (:arg "foobar" nil))
+    ;; 	       (wrap '(:unix :partial) "--debug" "foobar")))
+    ;; (is (equal '((:opt "verbose" nil)
+    ;; 		 (:arg "foobar" nil))
+    ;; 	       (wrap '(:unix :partial) "-d" "foobar")))
+    ;; (is (equal '((:opt "verbose" nil)
+    ;; 		 (:opt "config" "cfile")
+    ;; 		 (:arg "foobar" nil))
+    ;; 	       (wrap '(:unix :partial) "-vc" "cfile" "foobar")))
+    ;; (is (equal '((:opt "verbose" nil)
+    ;; 		 (:opt "config" "cfile")
+    ;; 		 (:arg "foobar" nil))
+    ;; 	       (wrap '(:unix :partial) "-dc" "cfile" "foobar")))
+    ;; (is (equal '((:opt "ignore" nil)
+    ;; 		 (:arg "alpha" nil)
+    ;; 		 (:opt "config" "foo.conf")
+    ;; 		 (:arg "beta" nil)
+    ;; 		 (:opt "file" "other.dat"))
+    ;; 	       (wrap '(:unix :partial) "--ig" "alpha" "-cfoo.conf" "beta"
+    ;; 		     "--file=other.dat")))
+    ;; (is (equal '((:opt "ignore" nil)
+    ;; 		 (:arg "alpha" nil)
+    ;; 		 (:opt "config" "foo.conf")
+    ;; 		 (:arg "beta" nil)
+    ;; 		 (:opt "file" "other.dat"))
+    ;; 	       (wrap '(:unix :partial) "--ig" "alpha" "-c" "foo.conf" "beta"
+    ;; 		     "--file" "other.dat")))
     ;; keep writing a few more here every day
     ))
 

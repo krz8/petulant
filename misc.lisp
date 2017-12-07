@@ -9,6 +9,10 @@ is evaluated in that context."
        ((not it))
      ,@body))
 
+(defparameter *no-doc-fn* (constantly "")
+  "A closure that always returns an empty string.  Useful when dealing
+with aspects of a command-line that may or may not be documented.")
+
 (defun strcat (&rest strings)
   "Concatenate all string arguments together, returning a new string."
   (apply #'concatenate 'string strings))

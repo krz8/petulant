@@ -34,7 +34,7 @@ kind.  In the meantime, this mini-split-sequence hack is good enough.
 	 (push (subseq str i) res))
        (nreverse res)))))
 
-(defun canonicalize-windows-args (strings)
+(defun canonicalize-switch-args (strings)
   "Given a list of strings that represents command line options and
 arguments passed in a Windows environment, break up combined switches
 and return a new list of strings that is easier to parse.  The original
@@ -43,19 +43,19 @@ set of STRINGS is broken down via ISOLATE-SWITCHES.
 Strings like \"\", \"/\", \"//\", and so on are special, we preserve
 them as they are.
 
-   (CANONICALIZE-WINDOWS-ARGS '(\"abc\" nil \"\" \"def\")
+   (CANONICALIZE-SWITCH-ARGS '(\"abc\" nil \"\" \"def\")
 => (\"abc\" \"\" \"def\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"abc\" \"//\" \"def\")
+   (CANONICALIZE-SWITCH-ARGS '(\"abc\" \"//\" \"def\")
 => (\"abc\" \"//\" \"def\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"/abc\" \"def\")
+   (CANONICALIZE-SWITCH-ARGS '(\"/abc\" \"def\")
 => (\"/abc\" \"def\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\")
+   (CANONICALIZE-SWITCH-ARGS '(\"/a/bc\" \"def\")
 => (\"/a\" \"/bc\" \"def\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/ef:gh\")
+   (CANONICALIZE-SWITCH-ARGS '(\"/a/bc\" \"def\" \"/ef:gh\")
 => (\"/a\" \"/bc\" \"def\" \"/ef:gh\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/ef\" \"gh\")
+   (CANONICALIZE-SWITCH-ARGS '(\"/a/bc\" \"def\" \"/ef\" \"gh\")
 => (\"/a\" \"/bc\" \"def\" \"/ef\" \"gh\")
-   (CANONICALIZE-WINDOWS-ARGS '(\"/a/bc\" \"def\" \"/e/f:g/h\")
+   (CANONICALIZE-SWITCH-ARGS '(\"/a/bc\" \"def\" \"/e/f:g/h\")
 => (\"/a\" \"/bc\" \"def\" \"/e\" \"/f:g\" \"/h\""
   (let ((result))
     (labels ((collect (x) (push x result)))
@@ -70,10 +70,9 @@ them as they are.
 	    strings))
     (nreverse result)))
 
-(defun parse-windows (arglist fn
-			  &optional
-			    (swargp-fn (constantly nil))
-			    (chgname-fn #'identity))
+(defun do-switches (arglist fn &optional
+				     (swargp-fn (constantly nil))
+				     (chgname-fn #'identity))
   "This is the low level parser for Windows-style command lines.  If
 you're an end-user of Petulant, you might want to consider calling a
 higher level function; this one is mostly for implementation of other
@@ -110,7 +109,7 @@ Generally speaking, the calls to FN proceed from the head to the tail
 of ARGLIST, and from left to right within each string of ARGLIST.
 This is useful to know in testing, but callers probably should not
 rely on any specific ordering."
-  (do ((av (canonicalize-windows-args arglist)))
+  (do ((av (canonicalize-switch-args arglist)))
       ((null av) t)
     (labels ((swargp (x) (funcall swargp-fn x))
 	     (chgname (x) (funcall chgname-fn x))
@@ -142,7 +141,7 @@ rely on any specific ordering."
 		(opt! f)))))))
       (advance))))
 
-(defun parse-unix (arglist fn
+(defun do-posix (arglist fn
 		       &optional
 			 (argoptp-fn (constantly nil))
 			 (chgname-fn #'identity))
@@ -248,14 +247,14 @@ name, argv[0], or other non-argument information."
   #- (or ccl sbcl clisp acl)
   (error "Petulant needs to be ported to this Lisp environment."))
 
-(defun parse (fn &key arglist argoptp-fn chgname-fn style)
+(defun simple (fn &key arglist argoptp-fn chgname-fn style)
   "This is the simple, low level parser for command-lines.  If you're
 simply using Petulant in your application \(i.e., you aren't
-developing Petulant\), you might want to consider calling a higher
-level function; PARSE is mainly for implementation of other Petulant
-functionality.
+developing or extending Petulant\), you might want to consider calling
+a higher level function; SIMPLE is mainly for implementation of other
+Petulant functionality.
 
-PARSE works through an argument list, a flat list of strings
+SIMPLE works through an argument list, a flat list of strings
 representing the command-line.  It parses this list according to the
 dominant style for a specific operating system \(e.g., hyphen-based
 options under Unix, or slash-based switches under Windows\).
@@ -302,18 +301,22 @@ select between the Unix and Windows command-line parsers.  Otherwise,
 if the current *CONTEXT* has a style hash that is not empty, it is
 used for that purpose.  Otherwise, CL:*FEATURES* determines which
 function is used."
-  (funcall (typecase style
-	     (symbol (or (and (eq :windows style) #'parse-windows)
-			 #'parse-unix))
-	     (list (or (and (member :windows style) #'parse-windows)
-		       #'parse-unix))
-	     (t (let ((stylehash (stylehash *context*)))
-		  (cond ((> (hash-table-count stylehash) 0)
-			 (or (and (gethash :windows stylehash)
-				  #'parse-windows)
-			     #'parse-unix))
-			((member :windows cl:*features*) #'parse-windows)
-			(t #'parse-unix)))))
+  (funcall (cond
+	     ;; WHY is (symbolp null) true?
+	     ((and (symbolp style) (not (null style)))
+	      (or (and (eq :windows style) #'do-switches)
+		  #'do-posix))
+	     ((consp style)
+	      (or (and (member :windows style) #'do-switches)
+		  #'do-posix))
+	     (t
+	      (let ((stylehash (stylehash *context*)))
+		(cond ((> (hash-table-count stylehash) 0)
+		       (or (and (gethash :windows stylehash)
+				#'do-switches)
+			   #'do-posix))
+		      ((member :windows cl:*features*) #'do-switches)
+		      (t #'do-posix)))))
 	   (or arglist (argv))
 	   fn
 	   (or argoptp-fn (constantly nil))

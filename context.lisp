@@ -40,10 +40,6 @@
   of this class becomes the current context of a call through
   Petulant."))
 
-(defparameter *no-doc-fn* (constantly "")
-  "A closure that always returns an empty string.  Useful when dealing
-with aspects of a command-line that may or may not be documented.")
-
 (defun styles-to-hash (styles)
   "Given STYLES, which is a keyword or a list of keywords, populate a
 hash with a complete list of those keywords and any other keywords
@@ -221,6 +217,45 @@ used instead of STR=-FN when creating hash tables, for example."
   "Based on the current *CONTEXT*, return a function yielding true
 when its supplied option string is recognized to require an argument
 value."
-  (lambda (option)
-    (aand (gethash option (opthash *context*))
-	  (not (eq :flag (car it))))))
+  (let ((opthash (opthash *context*)))
+    (lambda (option) (aand (gethash option opthash)
+			   (not (eq :flag (car it)))))))
+
+(defun aliases-fn ()
+  "Return a function that, when passed a string naming an option,
+either returns that option, or returns the option that it is an
+alias for."
+  (let ((alihash (alihash *context*)))
+    (lambda (opt) (or (gethash opt alihash)
+		      opt))))
+
+(defun partials-fn ()
+  "Return a function that takes a string naming an option, returning
+that string or possibly another string to be used as the actual option
+name.  When :PARTIAL appears in the style hash of the current
+*CONTEXT*, the minimum unique strings for every option and aliases in
+*CONTEXT* are computed; the returned function compares its argument to
+this list and if a match is found, the actual option is returned
+\(e.g., supplying \"f\" could return \"file\"\).  When :PARTIAL does
+not so appear, the returned function always returns its argument
+unchanged."
+  (if (stylep :partial)
+      (let ((dict (make-dict :loose (stylep :streq)))
+	    (str= (str=-fn)))
+	(labels ((maybe-add (opt) (unless (dict-word-p dict opt)
+				    (dict-add dict opt))))
+	  (maphash-keys #'maybe-add (opthash *context*))
+	  (maphash-keys #'maybe-add (alihash *context*)))
+	(let ((minwords (minwords dict)))
+	  (lambda (x) 
+	    (block nil
+	      (let ((len (length x)))
+		(mapc (lambda (partial)
+			(destructuring-bind (min max option) partial
+			  (when (and (<= min len max)
+				     (funcall str= x (subseq option 0 len)))
+			    (return option))))
+		      minwords)
+		x)))))
+      #'identity))
+

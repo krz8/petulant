@@ -466,77 +466,6 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
       (showq styles)
       (showq args))))
 
-(defparameter *no-doc-fn* (constantly "")
-  "A closure that always returns an empty string.  Useful when dealing
-with aspects of a command-line that may or may not be documented.")
-
-(defstruct (spec-context (:conc-name nil))
-  "A structure for capturing the context of an invocation of SPEC*.
-There is a mix of hash tables, closures, strings, and lists that are
-all managed in a call to SPEC* and its friends.  This structure
-ensures we don't go nuts passing around five, six, or seven arguments
-across so many functions.  Instead, SPEC* will create an instance of
-this structure based on its arguments, and the functions in the SPEC*
-family will simply operate on this structure.  Slots are provided for
-capturing the original list of options and other values supplied to
-SPEC*, as well as the hash tables and other computed values needed for
-the duration of its call.  CONC-NAME is NIL, thus, slots of a
-SPEC-CONTEXT are retrieved through a function whose name is the slot
-name \(e.g., \(opthash foo\) returns the value of the slot named
-OPTHASH in FOO\)."
-  appname		      ; application name
-  summaryfn		      ; closure providing app summary
-  tailfn		      ; closure providing extra info
-  options		      ; original list of options
-  aliases		      ; original list of aliases
-  arguments		      ; original list of command-line args
-  opthash		      ; maps options to Petulant types
-  dochash		      ; maps options to documentation closures
-  alihash)		      ; maps aliases to options
-
-(defun make-pethash ()
-  "Referencing whatever styles are in effect via the most recent
-WITH-STYLEHASH, return a new hash table with the appropriate test of
-equality baked in.  These hash tables are meant to use option strings
-as their keys."
-  (make-hash-table :test (equal-fn)))
-
-(defun make-context (appname summaryfn tailfn options aliases args)
-  "Create a new instance of SPEC-CONTEXT and return it, with most of
-its slots filled in to support the SPEC* family of functions.  It is
-expected that this is called within a WITH-STYLEHASH context.  While
-most slots are simply set with the arguments supplied, the slots that
-are hashes are initialized by working through the OPTIONS and ALIASES
-lists.  Specifically, every option named in OPTIONS appears in the
-OPTHASH, the value of which is the type specification for the option.
-Every option also appears in the DOCHASH, mapped to a closure
-providing a documentation string for the named option.  The ALIHASH
-maps alternative option names to their proper option name."
-  (let ((opthash (make-pethash))
-	(dochash (make-pethash))
-	(alihash (make-pethash)))
-    (mapc (lambda (optspec)
-	    (let ((opt (car optspec)))
-	      (setf (gethash opt opthash) (cadr optspec)
-		    (gethash opt dochash) (or (caddr optspec) *no-doc-fn*))))
-	  options)
-    (mapc (lambda (alispec)
-	    (let ((opt (car alispec)))
-	      (mapc (lambda (a) (setf (gethash a alihash) opt))
-		    (cdr alispec))))
-	  aliases)
-    (make-spec-context :appname appname :summaryfn (or summaryfn *no-doc-fn*)
-		       :tailfn (or tailfn *no-doc-fn*) :options options
-		       :aliases aliases :arguments args :opthash opthash
-		       :dochash dochash :alihash alihash)))
-
-(defparameter *context* (make-context "" nil nil nil nil nil)
-  "SPEC* binds this to a new context while it executes, so that the
-rest of the functions in the SPEC* family have easy access to all the
-different bits of information with which we've been invoked.  Doing
-this saves us an argument from nearly every single function.  Its
-default contents are valid but empty.")
-
 (defparameter *usage-option-padding* "  "
   "A string providing the left padding \(that is, the indentation\)
 for all options presented in a usage message.  Typically, this is a
@@ -647,7 +576,7 @@ like :FLAG, :READ, :KEY, :ONE-OF, etc."
   "Returns a string describing aliases for the named option, from the
 current context."
   (let ((eqfun (str=-fn))
-	(aliases))
+	aliases)
     (maphash (lambda (k v)
 	       (when (funcall eqfun option v)
 		 (push (strcat (cond
@@ -686,7 +615,7 @@ creating a left margin for the application summary."
   (let* ((name (appname *context*))
 	 (namewidth (min namewidth (+ 3 (length name)))))
     (hanging-par (pad (strcat name ":") namewidth)
-		 (funcall (summaryfn *context*))
+		 (funcall (summary-fn *context*))
 		 :stream stream :indentlength namewidth)
     (terpri stream)))
 
@@ -694,15 +623,15 @@ creating a left margin for the application summary."
   "Render the tail information, if any, of the application onto
 STREAM, along with any extra advice about case and abbreviations."
   (par (strcat
-	(funcall (tailfn *context*))
+	(funcall (tail-fn *context*))
 	(if (and (stylep :unix) (stylep :streq))
-	    " Options are case-insensitive (-x and -X are equivalent)."
+	    " Options are case-insensitive (-x and -X are equivalent). "
 	    "")
 	(if (and (stylep :windows) (stylep :str=))
-	    " Options are case-sensitive (/x and /X are different)."
+	    " Options are case-sensitive (/x and /X are different). "
 	    "")
 	(if (stylep :partial)
-	    " Options may be abbreviated to their shortest unique name."
+	    " Options may be abbreviated to their shortest unique name. "
 	    ""))
        :stream stream))
 
@@ -725,34 +654,6 @@ default sizes."
       (terpri stream))
     (usage-footer stream)))
 
-(defun spec-partials-fn ()
-  "Much like PARTIALS-FN, this returns a function that might remap its
-argument, a string naming an option, into a different option name, by
-implementing the partial matching of options in the current SPEC*
-context.  If :PARTIAL does not appear in the current style hash,
-IDENTITY is returned instead, providing a function that changes
-nothing and implements no partial matches of options.  In fact, this is exactly PARTIALS-FN, just rewritten to use the SPEC* context."
-  (cond
-    ((stylep :partial)
-     (let ((dict (make-dict :loose (stylep :streq)))
-	   (str= (str=-fn)))
-       (labels ((maybe-add (o) (unless (dict-word-p dict o)
-				 (dict-add dict o))))
-	 (maphash-keys #'maybe-add (opthash *context*))
-	 (maphash-keys #'maybe-add (alihash *context*))
-	 (let ((minwords (minwords dict)))
-	   (lambda (x)
-	     (block nil
-	       (let ((len (length x)))
-		 (mapc (lambda (partial)
-			 (destructuring-bind (min max option) partial
-			   (when (and (<= min len max)
-				      (funcall str= x (subseq option 0 len)))
-			     (return option))))
-		       minwords)
-		 x)))))))
-    (t #'identity)))
-
 ;; WWI
 ;; okay, stop
 ;; it's clear that context is a root to everything we're doing, so
@@ -761,7 +662,7 @@ nothing and implements no partial matches of options.  In fact, this is exactly 
 ;; I think. I can see a problem with this approach.
 ;; think about it more.
 
-
+#+nil
 (defun spec* (name summary tail options aliases styles args)
   "Typically invoked from the CLI:SPEC macro.
 
