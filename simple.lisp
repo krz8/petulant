@@ -302,7 +302,6 @@ if the current *CONTEXT* has a style hash that is not empty, it is
 used for that purpose.  Otherwise, CL:*FEATURES* determines which
 function is used."
   (funcall (cond
-	     ;; WHY is (symbolp null) true?
 	     ((and (symbolp style) (not (null style)))
 	      (or (and (eq :windows style) #'do-switches)
 		  #'do-posix))
