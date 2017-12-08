@@ -997,7 +997,7 @@
 (def-suite petulant :description "big kahuna" :in all)
 (in-suite petulant)
 
-(test spec
+(test spec-macro
   (is (equalp '(cli::spec*		; form
 		"nemo"			; name
 		nil			; summary
@@ -1259,3 +1259,30 @@
 			     (:name "foo")
 			     (:style :key :partial)
 			     (:flagopt "verbose" "bar ~a buz" "baz"))))))
+
+(test spec-1
+  (with-bigspec-1 ("one" "two" "three")
+    (is (equal
+	 '((:arg "one" nil)
+	   (:arg "two" nil)
+	   (:arg "three" nil))
+	 values))
+    (is (eq t disposition))))
+    
+    
+;; not only does this not work
+;; why is (:args args) becoming ("args")
+;; test the macro first
+;;
+;; I think there needs to be three return values
+;; option hash
+;; argument list
+;; disposition
+;;
+;; or, no, maybe, instead, introduce some specials via defvar
+;; setf their values
+;; cli:*options*
+;; cli:*arguments*
+;; and then just return a single value: nil, :usage, t
+;;
+;; hmm...

@@ -26,6 +26,17 @@ supplied callback function."
       (push #'identity funcs))
     (apply #'compose funcs)))
 
+(defun parse* (fn)
+  (let ((transformer (transform-option-fn)))
+    (simple (lambda (x y z)
+	      (funcall fn x
+		       (or (and (eq x :opt) (funcall transformer y))
+			   y)
+		       z))
+	      :argoptp-fn (argoptp-fn)
+	      :chgname-fn (compose (aliases-fn) (partials-fn))
+	      :arglist (args *context*))))
+
 (defun parse (fn &key argopts flagopts aliases arglist styles)
   "CLI:PARSE examines the command-line with which an application was
 invoked.  According to given styles and the local environment,
@@ -128,6 +139,8 @@ are silently ignored.
 	    command-line arguments as if in a Windows environment.
 	    Also implies :STREQ."
   (with-context-simple (argopts flagopts aliases styles arglist)
+    (parse* fn)
+    #+nil
     (let ((transformer (transform-option-fn)))
       (simple (lambda (x y z)
 		(case x

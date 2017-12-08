@@ -444,7 +444,7 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 ;;; nice to just see it all in one place.
 
 #+nil
-(defun cli:spec* (name summary tail options aliases styles args)
+(defun spec* (name summary-fn tail-fn options aliases styles args)
   (macrolet ((showq (thing)
 	       `(show (string-downcase (symbol-name ',thing)) ,thing)))
     (flet ((show (label value)
@@ -455,11 +455,11 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 	      (get-universal-time))
       (sleep 3)
       (showq name)
-      (if summary
-	  (format t "summary ~s~%" (funcall summary))
+      (if summary-rn
+	  (format t "summary ~s~%" (funcall summary-fn))
 	  (format t "no summary~%"))
-      (if tail
-	  (format t "tail ~s~%" (funcall tail))
+      (if tail-fn
+	  (format t "tail ~s~%" (funcall tail-fn))
 	  (format t "no tail~%"))
       (showq options)
       (showq aliases)
@@ -649,26 +649,31 @@ default sizes."
     (mapc (lambda (option)
 	    (usage-option option optwidth stream)
 	    (setf printed t))
-	  (sort (hash-table-keys (opthash *context*)) (str<-fn)))
+	  (sort (hash-table-keys (opthash *context*))
+		(str<-fn)))
     (when printed
       (terpri stream))
     (usage-footer stream)))
 
-;; WWI
-;; okay, stop
-;; it's clear that context is a root to everything we're doing, so
-;; let's move it out of here, place it near the bottom of the system?
-;; then write the simple and parse and other wrappers to fill it in
-;; I think. I can see a problem with this approach.
-;; think about it more.
+(defun decode (kind name valstr)
+  "Attempt to decode the string VALSTR according to the KIND of item
+encountered on the command-line \(:ARG or :OPT\) and its name \(a
+string\), using the current *CONTEXT* for type information.  Returns
+two values: a decoded value of VALSTR and an indicator that is true
+when the decoding was successful."
+  (declare (ignore name))
+  (cond
+    ((eq :opt kind)
+     (values nil nil))
+    (t
+     (values valstr t))))
 
-#+nil
-(defun spec* (name summary tail options aliases styles args)
+(defun spec* (name summary-fn tail-fn options aliases styles args)
   "Typically invoked from the CLI:SPEC macro.
 
 NAME is a string identifying the running application.
 
-SUMMARYFN and TAILFN are closures that generate the strings that
+SUMMARY-FN and TAIL-FN are closures that generate the strings that
 appear in a usage message, or NIL.
 
 OPTIONS is a list of option specifications.  Each specification is,
@@ -689,16 +694,18 @@ and so on.
 
 ARGS is a simple list of strings to be processed as a command line,
 rather than the application's actual command line."
-  (with-stylehash styles
-    (let ((*context* (make-context name summary tail options aliases args))
-	  (results nil))
-      (simple (lambda (x y z)
-		(push (list x y z) results))
-	      :argoptp-fn (lambda (o)
-			    (aand (gethash o (opthash *context*))
-				  (not (eq :flag (car it)))))
-	      :chgname-fn (lambda (o)
-			    )
-	      )
-      (usage)
-      results)))
+  (block nil
+    (with-context-full (name summary-fn tail-fn options aliases styles args)
+      (let ((results nil))
+	(parse*
+	 (lambda (kind name valstr)
+	   (when (and (eq :opt kind)
+		      (or (string-equal "help" name)
+			  (string= "?" name)))
+	     (usage)
+	     (return (values nil :usage)))
+	   (multiple-value-bind (value goodp) (decode kind name valstr)
+	     (if goodp
+		 (push (list kind name value) results)
+		 (return (values nil nil))))))
+	(values (nreverse results) t)))))
