@@ -1,5 +1,21 @@
 (in-package #:petulant)
 
+(defvar *options* (make-hash-table)
+  "Holds a hash table mapping options seen on the command-line to
+  their decoded values.  This hash table is typically the one most
+  recently seen by CLI:SPEC.")
+
+(defvar *arguments* nil
+  "Holds a list of command-line argument strings \(not otherwise
+  associated with options\), or NIL if there are none.  This list is
+  typically that most recently seen by CLI:SPEC.")
+
+(defvar *usage* '("?" "help")
+  "A list of option strings that, when encountered by CLI:SPEC, will
+  trigger its full usage message to be generated for the end-user.  If
+  this happens, CLI:SPEC will return :USAGE, CLI:*OPTIONS* will
+  contain an empty hash, and CLI:*ARGUMENTS* will be an empty list.")
+
 ;;; The main point of the CLI:SPEC macro is to parse a number of
 ;;; different forms the caller can provide, including shortcuts and
 ;;; abbreviations.  CLI:SPEC is also where we intend to detect any
@@ -45,7 +61,29 @@
 
 (defmacro spec (&rest forms)
   "Using a series of forms specifying a complete command-line
-interface presented to the user, blah blah blah…
+interface presented to the end-user, a command-line (supplied by
+either the caller or by the Lisp environment) will be parsed.  The
+value returned by CLI:SPEC to the caller is one of the following:
+
+   T - A command-line was found and parsed, results are available in
+   two specials variables after SPEC returns.  CLI:*OPTIONS* is a hash
+   table mapping options to the values of the arguments supplied to
+   them; options without values \(i.e., flags\) will be mapped to the
+   value :FLAG.  CLI:*ARGUMENTS* is a list \(that may be empty\) of
+   strings representing arguments from the command-line that are not
+   associated with options.
+
+   NIL - An error was encountered during the parse of the command-line.
+   The application should consider this attempt at using its
+   command-line as a failure; either unknown options, or option
+   arguments of the wrong type, were encountered.  An error message
+   will have been generated for the end-user.
+
+   :USAGE - The application was invoked with one of the options in
+   CLI:*USAGE*.  A usage message for the end-user will have been
+   generated, CLI:*OPTIONS* will be bound to an empty hash table, and
+   CLI:*ARGUMENTS* will be an empty list.  Technically, option parsing
+   hasn't failed, hence this non-NIL return value.
 
 \(:NAME \"appname\"\) provides a name for the application. Eventually,
 we might tease the name under which we were invoked out of the running
@@ -427,11 +465,20 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
     ;; to it, it's purely an aesthetical thing.  You know, no matter
     ;; how many times I use it, `',foo always feels like I'm abusing
     ;; something...
-    `(petulant::spec* ,name ,summary ,tail
-		      ,(if options `(list ,@options) 'nil)
-		      ,(if aliases `',aliases 'nil)
-		      ,(if styles `',styles 'nil)
-		      ,(if args `',(nreverse args) 'nil))))
+    `(multiple-value-bind (rstatus ropts rargs)
+	 (petulant::spec* ,name ,summary ,tail
+			  ,(if options `(list ,@options) 'nil)
+			  ,(if aliases `',aliases 'nil)
+			  ,(if styles `',styles 'nil)
+			  ,(if args `',(nreverse args) 'nil))
+       (case rstatus
+	 (nil (setf *options* nil 
+		    *arguments* nil))
+	 (:usage (setf *options* nil
+		       *arguments* nil))
+	 (t (setf *options* ropts
+		  *arguments* rargs)))
+       rstatus)))
 
 ;;; This form is for debugging, I'm leaving it in here because we
 ;;; might need it again later.  Primarily, it demonstrates arguments
@@ -464,7 +511,8 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
       (showq options)
       (showq aliases)
       (showq styles)
-      (showq args))))
+      (showq args)
+      (values t nil nil))))
 
 (defparameter *usage-option-padding* "  "
   "A string providing the left padding \(that is, the indentation\)
@@ -696,16 +744,22 @@ ARGS is a simple list of strings to be processed as a command line,
 rather than the application's actual command line."
   (block nil
     (with-context-full (name summary-fn tail-fn options aliases styles args)
-      (let ((results nil))
+      (let ((ropts (mkhash))
+	    (rargs nil))
 	(parse*
 	 (lambda (kind name valstr)
 	   (when (and (eq :opt kind)
 		      (or (string-equal "help" name)
 			  (string= "?" name)))
 	     (usage)
-	     (return (values nil :usage)))
-	   (multiple-value-bind (value goodp) (decode kind name valstr)
-	     (if goodp
-		 (push (list kind name value) results)
-		 (return (values nil nil))))))
-	(values (nreverse results) t)))))
+	     (return (values :usage nil nil)))
+	   (multiple-value-bind (value goodp)
+	       (decode kind name valstr)
+	     (cond
+	       ((not goodp)
+		(return (values nil nil nil)))
+	       ((eq :opt kind)
+		(setf (gethash name ropts) value))
+	       (t
+		(push name rargs))))))
+	(values t ropts (nreverse rargs))))))

@@ -89,6 +89,17 @@ is easily overridden."
 		  :str=))))
     hash))
 
+(defun stylep (key)
+  "Returns true if KEY appears in the style hash of the current
+*CONTEXT*, otherwise NIL."
+  (gethash key (stylehash *context*)))
+
+(defun mkhash ()
+  "Return a new hash table with an equality test that reflects the
+current *CONTEXT*."
+  (make-hash-table :test (or (and (stylep :streq) #'equalp)
+			     #'equal)))
+
 (defun aliases-to-hash (aliases hashtable)
   "Given a set of option ALIASES, add them to the supplied HASHTABLE.
 ALIASES is a list of alias specifications. Each list is, itself, a
@@ -116,20 +127,17 @@ presented to the application by the operating system."
   (let ((stylehash (styles-to-hash styles))
 	(flagtype (list :flag))
 	(argtype (list :string '*)))
-    (labels ((mkhash () (make-hash-table :test (if (gethash :streq stylehash)
-						   #'equalp
-						   #'equal))))
-      (let ((opthash (mkhash)) (dochash (mkhash)) (alihash (mkhash)))
-	(mapc (lambda (o) (setf (gethash o opthash) argtype
-				(gethash o dochash) *no-doc-fn*))
-	      argopts)
-	(mapc (lambda (o) (setf (gethash o opthash) flagtype
-				(gethash o dochash) *no-doc-fn*))
-	      flagopts)
-	(aliases-to-hash aliases alihash)
-	(make-instance 'context
-		       :opthash opthash :dochash dochash :alihash alihash
-		       :stylehash stylehash :args args)))))
+    (let ((opthash (mkhash)) (dochash (mkhash)) (alihash (mkhash)))
+      (mapc (lambda (o) (setf (gethash o opthash) argtype
+			      (gethash o dochash) *no-doc-fn*))
+	    argopts)
+      (mapc (lambda (o) (setf (gethash o opthash) flagtype
+			      (gethash o dochash) *no-doc-fn*))
+	    flagopts)
+      (aliases-to-hash aliases alihash)
+      (make-instance 'context
+		     :opthash opthash :dochash dochash :alihash alihash
+		     :stylehash stylehash :args args))))
 
 (defun make-context-full (appname summary-fn tail-fn optlist aliases
 			  styles args)
@@ -150,22 +158,19 @@ Finally, ARGS is a list of strings that should be used instead of the
 actual command-line presented to the application by the operating
 system."
   (let ((stylehash (styles-to-hash styles)))
-    (labels ((mkhash () (make-hash-table :test (if (gethash :streq stylehash)
-						   #'equalp
-						   #'equal))))
-      (let ((opthash (mkhash)) (dochash (mkhash)) (alihash (mkhash)))
-	(mapc (lambda (optspec)
-		(destructuring-bind (option type docfn) optspec
-		  (setf (gethash option opthash) type
-			(gethash option dochash) (or docfn *no-doc-fn*))))
-	      optlist)
-	(aliases-to-hash aliases alihash)
-	(make-instance 'context
-		       :appname appname
-		       :summary-fn (or summary-fn *no-doc-fn*)
-		       :tail-fn (or tail-fn *no-doc-fn*)
-		       :opthash opthash :dochash dochash :alihash alihash
-		       :stylehash stylehash :args args)))))
+    (let ((opthash (mkhash)) (dochash (mkhash)) (alihash (mkhash)))
+      (mapc (lambda (optspec)
+	      (destructuring-bind (option type docfn) optspec
+		(setf (gethash option opthash) type
+		      (gethash option dochash) (or docfn *no-doc-fn*))))
+	    optlist)
+      (aliases-to-hash aliases alihash)
+      (make-instance 'context
+		     :appname appname
+		     :summary-fn (or summary-fn *no-doc-fn*)
+		     :tail-fn (or tail-fn *no-doc-fn*)
+		     :opthash opthash :dochash dochash :alihash alihash
+		     :stylehash stylehash :args args))))
 
 (defparameter *context* (make-context-simple nil nil nil nil nil)
   "An instance of CONTEXT captures everything we are processing within
@@ -191,11 +196,6 @@ Petulant."
   `(let ((*context* (make-context-full ,appname ,summary-fn ,tail-fn
 				       ,optspecs ,aliases ,styles ,args)))
      ,@body))
-
-(defun stylep (key)
-  "Returns true if KEY appears in the style hash of the current
-*CONTEXT*, otherwise NIL."
-  (gethash key (stylehash *context*)))
 
 (defun str<-fn ()
   "Returns the function comparing strings under the styles set in the
