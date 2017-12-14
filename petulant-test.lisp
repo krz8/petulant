@@ -1298,6 +1298,13 @@
 (test spec-2
   (is (eq t (bigspec-1 "one" "/verbose" "two" "/n" "three")))
   (is (equal '("one" "two" "three") cli:*arguments*))
-  (is (= 3 (hash-table-count cli:*options*)))
+  (is (= 2 (hash-table-count cli:*options*)))
   (is-true (gethash :verbose cli:*options*))
+  (is-true (gethash :dryrun cli:*options*)))
+
+(test spec-3
+  (is (eq t (bigspec-1 "one" "/volume" "10" "two" "/n" "three")))
+  (is (equal '("one" "two" "three") cli:*arguments*))
+  (is (= 2 (hash-table-count cli:*options*)))
+  (is (= 10 (gethash :volume cli:*options*)))
   (is-true (gethash :dryrun cli:*options*)))

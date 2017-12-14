@@ -704,6 +704,19 @@ default sizes."
       (terpri stream))
     (usage-footer stream)))
 
+(defun decode-flag (type valstr)
+  (declare (ignore type valstr))
+  (values :flag t))
+
+(defun decode-string (type valstr)
+  (cond
+    ((eq '* (cadr type))
+     valstr)
+    ((< (cadr type) (length valstr))
+     (subseq valstr 0 (cadr type)))
+    (t
+     valstr)))
+
 (defun decode (kind name valstr)
   "Attempt to decode the string VALSTR according to the KIND of item
 encountered on the command-line \(:ARG or :OPT\) and its name \(a
@@ -712,11 +725,11 @@ two values: a decoded value of VALSTR and an indicator that is true
 when the decoding was successful."
   (case kind
     (:opt
-     (case (car (gethash name (opthash *context*)))
-       (:flag
-	(values :flag t))
-       (t
-	(values nil nil))))
+     (let ((type (gethash name (opthash *context*))))
+       (case (car type)
+	 (:flag (decode-flag type valstr))
+	 (:string (decode-string type valstr))
+	 (t (values nil nil)))))
     (t
      (values name t))))
 
