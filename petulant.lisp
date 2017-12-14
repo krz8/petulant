@@ -16,6 +16,9 @@
   this happens, CLI:SPEC will return :USAGE, CLI:*OPTIONS* will
   contain an empty hash, and CLI:*ARGUMENTS* will be an empty list.")
 
+(defvar _shush_ nil
+  "When true, suppresses certain warnings.  For testing.")
+
 ;;; The main point of the CLI:SPEC macro is to parse a number of
 ;;; different forms the caller can provide, including shortcuts and
 ;;; abbreviations.  CLI:SPEC is also where we intend to detect any
@@ -249,7 +252,8 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
   ;; success.
   (let ((keypkg (find-package :keyword))
 	name summary tail options aliases styles args)
-    (macrolet ((wrn (x &rest y) `(warn ,(strcat "CLI:SPEC: " x) ,@y))
+    (macrolet ((wrn (x &rest y) `(unless _shush_
+				   (warn ,(strcat "CLI:SPEC: " x) ,@y)))
 	       (err (x &rest y) `(error ,(strcat "CLI:SPEC: " x) ,@y)))
       (labels
 	  ((name (form)

@@ -124,8 +124,6 @@ Lisp system, but at the cost of some bells and whistles.
 (defparameter *ws* '(#\Space #\Tab #\Newline #\Return #\Page)
   "A list of common whitespace characters.")
 
-"~{~<~%~1:;~a~>~^ ~}~%~%"
-
 (defun par (text &key (stream *standard-output*))
   "Splits the string TEXT up into individual words, and formats them
 into a nicely wrapped paragraph."
