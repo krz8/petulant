@@ -14,13 +14,19 @@ change the case of the option, they might replace it with a symbol
 from the keyword package, they might substitute aliases or recognize
 partial matches.  The results of passing an option string through the
 composed function is an object (string or keyword) ready for the
-supplied callback function."
+supplied callback function.
+
+This function may look a bit odd with :KEY and :NOKEY.  Typically,
+:KEY triggers the transformation of an option stirng into an option
+keyword.  However, when the CLI:SPEC interface is used, :NOKEY is also
+pushed on the style list.  This ensures that the transformation here
+does not do the keyword mapping, leaving it for CLI:SPEC to perform."
   (let ((funcs nil))
     (when (stylep :down)
       (push #'string-downcase funcs))
     (when (stylep :up)
       (push #'string-upcase funcs))
-    (when (stylep :key)
+    (when (and (stylep :key) (not (stylep :nokey)))
       (push (lambda (x) (intern x "KEYWORD")) funcs))
     (when (null funcs)
       (push #'identity funcs))

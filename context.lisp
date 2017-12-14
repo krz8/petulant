@@ -124,14 +124,12 @@ string in the sublist.  STYLES is a keyword, or list of keywords, that
 influence how Petulant processes a command-line.  Finally, ARGS is a
 list of strings that should be used instead of the actual command-line
 presented to the application by the operating system."
-  (let ((stylehash (styles-to-hash styles))
-	(flagtype (list :flag))
-	(argtype (list :string '*)))
+  (let ((stylehash (styles-to-hash styles)))
     (let ((opthash (mkhash)) (dochash (mkhash)) (alihash (mkhash)))
-      (mapc (lambda (o) (setf (gethash o opthash) argtype
+      (mapc (lambda (o) (setf (gethash o opthash) '(:string *)
 			      (gethash o dochash) *no-doc-fn*))
 	    argopts)
-      (mapc (lambda (o) (setf (gethash o opthash) flagtype
+      (mapc (lambda (o) (setf (gethash o opthash) '(:flag)
 			      (gethash o dochash) *no-doc-fn*))
 	    flagopts)
       (aliases-to-hash aliases alihash)

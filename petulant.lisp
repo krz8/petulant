@@ -1,14 +1,14 @@
 (in-package #:petulant)
 
-(defvar *options* (make-hash-table)
+(defparameter *options* (make-hash-table)
   "Holds a hash table mapping options seen on the command-line to
-  their decoded values.  This hash table is typically the one most
-  recently seen by CLI:SPEC.")
+  their decoded values.  This hash table reflects the most recent
+  successful call to CLI:SPEC.")
 
-(defvar *arguments* nil
+(defparameter *arguments* nil
   "Holds a list of command-line argument strings \(not otherwise
-  associated with options\), or NIL if there are none.  This list is
-  typically that most recently seen by CLI:SPEC.")
+  associated with options\), or NIL if there are none.  This list
+  reflects the most recent successful call to CLI:SPEC.")
 
 (defvar *usage* '("?" "help")
   "A list of option strings that, when encountered by CLI:SPEC, will
@@ -76,17 +76,16 @@ value returned by CLI:SPEC to the caller is one of the following:
    strings representing arguments from the command-line that are not
    associated with options.
 
-   NIL - An error was encountered during the parse of the command-line.
-   The application should consider this attempt at using its
-   command-line as a failure; either unknown options, or option
-   arguments of the wrong type, were encountered.  An error message
-   will have been generated for the end-user.
+   NIL - An error was encountered during the parse of the
+   command-line.  The application should consider this attempt at
+   using its command-line as a failure; either unknown options, or
+   option arguments of the wrong type, were encountered.  An error
+   message will have been generated for the end-user.  CLI:*OPTIONS*
+   and CLI:*ARGUMENTS* are unchanged.
 
    :USAGE - The application was invoked with one of the options in
    CLI:*USAGE*.  A usage message for the end-user will have been
-   generated, CLI:*OPTIONS* will be bound to an empty hash table, and
-   CLI:*ARGUMENTS* will be an empty list.  Technically, option parsing
-   hasn't failed, hence this non-NIL return value.
+   generated.  CLI:*OPTIONS* and CLI:*ARGUMENTS* are unchanged.
 
 \(:NAME \"appname\"\) provides a name for the application. Eventually,
 we might tease the name under which we were invoked out of the running
@@ -475,11 +474,9 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 			  ,(if aliases `',aliases 'nil)
 			  ,(if styles `',styles 'nil)
 			  ,(if args `',(nreverse args) 'nil))
-       (case rstatus
-	 (nil (setf *options* nil 
-		    *arguments* nil))
-	 (:usage (setf *options* nil
-		       *arguments* nil))
+       (cond
+	 ((not rstatus))
+	 ((eq :usage rstatus))
 	 (t (setf *options* ropts
 		  *arguments* rargs)))
        rstatus)))
@@ -713,12 +710,15 @@ encountered on the command-line \(:ARG or :OPT\) and its name \(a
 string\), using the current *CONTEXT* for type information.  Returns
 two values: a decoded value of VALSTR and an indicator that is true
 when the decoding was successful."
-  (declare (ignore name))
-  (cond
-    ((eq :opt kind)
-     (values nil nil))
+  (case kind
+    (:opt
+     (case (car (gethash name (opthash *context*)))
+       (:flag
+	(values :flag t))
+       (t
+	(values nil nil))))
     (t
-     (values valstr t))))
+     (values name t))))
 
 (defun spec* (name summary-fn tail-fn options aliases styles args)
   "Typically invoked from the CLI:SPEC macro.
@@ -747,7 +747,8 @@ and so on.
 ARGS is a simple list of strings to be processed as a command line,
 rather than the application's actual command line."
   (block nil
-    (with-context-full (name summary-fn tail-fn options aliases styles args)
+    (with-context-full (name summary-fn tail-fn options aliases
+			     (cons :nokey styles) args)
       (let ((ropts (mkhash))
 	    (rargs nil))
 	(parse*
@@ -763,7 +764,10 @@ rather than the application's actual command line."
 	       ((not goodp)
 		(return (values nil nil nil)))
 	       ((eq :opt kind)
-		(setf (gethash name ropts) value))
+		(setf (gethash (or (and (stylep :key) (intern name "KEYWORD"))
+				   name)
+			       ropts)
+		      value))
 	       (t
-		(push name rargs))))))
+		(push value rargs))))))
 	(values t ropts (nreverse rargs))))))

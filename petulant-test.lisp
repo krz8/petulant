@@ -1269,6 +1269,12 @@
 			      (:style :key :partial)
 			      (:flagopt "verbose" "bar ~a buz" "baz")))))))
 
+;;; Okay, problem is that when :KEY is in effect, opthash has a string
+;;; in it, but the value passed to decode is a keyword.
+;;;
+;;; Need to build up opthash differently?  Can't do it in SPEC since we don't
+;;; know when the :STYLE spec arrives, so it's got to be in SPEC*.
+
 (defmacro bigspec-1 (&rest args)
   `(cli:spec (:name "notpax")
 	     (:summary "This is a fake summary of a fake application. ~
@@ -1288,3 +1294,10 @@
   (is (eq t (bigspec-1 "one" "two" "three")))
   (is (equal '("one" "two" "three") cli:*arguments*))
   (is (zerop (hash-table-count cli:*options*))))
+
+(test spec-2
+  (is (eq t (bigspec-1 "one" "/verbose" "two" "/n" "three")))
+  (is (equal '("one" "two" "three") cli:*arguments*))
+  (is (= 3 (hash-table-count cli:*options*)))
+  (is-true (gethash :verbose cli:*options*))
+  (is-true (gethash :dryrun cli:*options*)))
