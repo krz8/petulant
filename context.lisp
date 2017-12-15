@@ -45,29 +45,41 @@
 hash with a complete list of those keywords and any other keywords
 implied by those supplied as well as the running system.  Not only
 does STYLES-TO-HASH effectively \"convert\" the supplied STYLES list
-to a hash, it \"fleshes out\" the list of styles so that it determines
-all explicit and implicit aspects of Petulant's processing based on
-what was originally supplied by the caller.
+into a hash, it \"fleshes out\" the list of styles so that it
+determines all explicit and implicit aspects of Petulant's processing
+based on what was originally supplied by the caller.
 
 First, all keywords in STYLES are added to the returned hash.
 
 Next, we ensure that one of :UNIX or :WINDOWS always appears in the
 hash, but never both.  When one of these are not already present in
-the original list of keywords, CL:*FEATURES* is consulted to determine
-which will appear in the hash.
+the original list of keywords, CL:*FEATURES* is consulted \(or,
+possibly, some other platform-specific feature\) to determine which
+will appear in the hash.
 
 If :KEY appears in the hash, and neither :UP nor :DOWN appear in
 STYLES, then :UP is added to the hash.  In other words, unless
-overridden with :DOWN, :KEY implies :UP.
+overridden with :DOWN, :KEY implies :UP.  When :KEY so appears, option
+strings will be converted to keyword symbols; otherwise, they are left
+as strings.
 
 If :UP or :DOWN appear in the hash, and neither :STREQ nor :STR=
 appear, then :STREQ is added to the hash.  In other words, :UP
-and :DOWN both imply :STREQ unless :STR= is already present.
+and :DOWN both imply :STREQ unless :STR= is already present.  When :UP
+appears in the hash, all lowercase letters appearing in an option
+string is mapped to uppercase; conversely, when :DOWN appears, the
+opposite conversion is applied.
 
 If neither :STREQ nor :STR= appear in the hash, but :WINDOWS does,
 then :STREQ is added to the hash, otherwise :STR= is added.  In other
 words, :WINDOWS implies :STREQ while :UNIX implies :STR=, but either
-is easily overridden."
+is easily overridden.
+
+When :STREQ is present in the hash, string comparisons between known
+options and those appearing on a command-line will be performed
+independent of case, using STRING-EQUAL or EQUALP.  When :STR= is
+present in the hash, those comparisons are performed with STRING= or
+EQUAL."
   (let ((hash (make-hash-table :test #'eq)))
     (labels ((set? (&rest flags) (some (lambda (f) (gethash f hash)) flags))
 	     (set! (&rest flags)
@@ -211,6 +223,23 @@ equality under the styles set in the current *CONTEXT*.  This must be
 used instead of STR=-FN when creating hash tables, for example."
   (if (stylep :streq) #'equalp #'equal))
 
+(defun optname-fn ()
+  "Returns a function that rewrites a supplied option \(as found on a
+command-line\) to a value returned to the caller.  The presence
+of :UP or :DOWN in the styles list of the current *CONTEXT* triggers
+case conversion; the presence of :KEY triggers conversion to a keyword
+value."
+  (let ((funcs nil))
+    (when (stylep :down)
+      (push #'string-downcase funcs))
+    (when (stylep :up)
+      (push #'string-upcase funcs))
+    (when (stylep :key)
+      (push (lambda (x) (intern x "KEYWORD")) funcs))
+    (when (null funcs)
+      (push #'identity funcs))
+    (apply #'compose funcs)))
+
 (defun argoptp-fn ()
   "Based on the current *CONTEXT*, return a function yielding true
 when its supplied option string is recognized to require an argument
@@ -237,23 +266,24 @@ this list and if a match is found, the actual option is returned
 \(e.g., supplying \"f\" could return \"file\"\).  When :PARTIAL does
 not so appear, the returned function always returns its argument
 unchanged."
-  (if (stylep :partial)
-      (let ((dict (make-dict :loose (stylep :streq)))
-	    (str= (str=-fn)))
-	(labels ((maybe-add (opt) (unless (dict-word-p dict opt)
-				    (dict-add dict opt))))
-	  (maphash-keys #'maybe-add (opthash *context*))
-	  (maphash-keys #'maybe-add (alihash *context*)))
-	(let ((minwords (minwords dict)))
-	  (lambda (x) 
-	    (block nil
-	      (let ((len (length x)))
-		(mapc (lambda (partial)
-			(destructuring-bind (min max option) partial
-			  (when (and (<= min len max)
-				     (funcall str= x (subseq option 0 len)))
-			    (return option))))
-		      minwords)
-		x)))))
-      #'identity))
-
+  (cond
+    ((stylep :partial)
+     (let ((dict (make-dict :loose (stylep :streq)))
+	   (str= (str=-fn)))
+       (labels ((maybe-add (opt) (unless (dict-word-p dict opt)
+				   (dict-add dict opt))))
+	 (maphash-keys #'maybe-add (opthash *context*))
+	 (maphash-keys #'maybe-add (alihash *context*)))
+       (let ((minwords (minwords dict)))
+	 (lambda (x) 
+	   (block nil
+	     (let ((len (length x)))
+	       (mapc (lambda (partial)
+		       (destructuring-bind (min max option) partial
+			 (when (and (<= min len max)
+				    (funcall str= x (subseq option 0 len)))
+			   (return option))))
+		     minwords)
+	       x))))))
+    (t
+     #'identity)))
