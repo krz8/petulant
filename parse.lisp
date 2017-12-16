@@ -6,46 +6,12 @@ arguments back.  You can use this as the callback for SIMPLE and
 PARSE."
   (format t "cb~{ ~s~}~%" args))
 
-#+nil
-(defun transform-option-fn ()
-  "Compose a new function that calls other functions to transform its
-single argument, an option name.  These other functions are based on
-the contents of the style hash in the current *CONTEXT*, and might
-change the case of the option, they might replace it with a symbol
-from the keyword package, they might substitute aliases or recognize
-partial matches.  The results of passing an option string through the
-composed function is an object (string or keyword) ready for the
-supplied callback function.
-
-This function may look a bit odd with :KEY and :NOKEY.  Typically,
-:KEY triggers the transformation of an option stirng into an option
-keyword.  However, when the CLI:SPEC interface is used, :NOKEY is also
-pushed on the style list.  This ensures that the transformation here
-does not do the keyword mapping, leaving it for CLI:SPEC to perform."
-  (let ((funcs nil))
-    (when (stylep :down)
-      (push #'string-downcase funcs))
-    (when (stylep :up)
-      (push #'string-upcase funcs))
-    (when (and (stylep :key) (not (stylep :nokey)))
-      (push (lambda (x) (intern x "KEYWORD")) funcs))
-    (when (null funcs)
-      (push #'identity funcs))
-    (apply #'compose funcs)))
-
-#+nil
 (defun parse* (fn)
-  (let ((transformer (transform-option-fn)))
-    (simple (lambda (x y z)
-	      (funcall fn x
-		       (or (and (eq x :opt) (funcall transformer y))
-			   y)
-		       z))
-	      :argoptp-fn (argoptp-fn)
-	      :chgname-fn (compose (aliases-fn) (partials-fn))
-	      :arglist (args *context*))))
-
-(defun parse* (fn)
+  "Invoke the simple argument parser using functions that provide
+common functionality based on the current *CONTEXT*.  Think of it like
+this: SIMPLE provides the understanding of the command-line and
+CONTEXT provides the \"usual\" understanding of flag options, argument
+options, styles, and the like."
   (simple fn
 	  :argoptp-fn (argoptp-fn)
 	  :chgname-fn (compose (aliases-fn) (partials-fn))
@@ -154,19 +120,11 @@ are silently ignored.
 	    Also implies :STREQ."
   (with-context-simple (argopts flagopts aliases styles arglist)
     (let ((renamer (optname-fn)))
-      (parse* (lambda (x y z)
-		(funcall fn
-			 x
-			 (if (eq x :opt)
-			     (funcall renamer y)
-			     y)
-			 z))))
-    #+nil
-    (let ((transformer (transform-option-fn)))
-      (simple (lambda (x y z)
-		(case x
-		  (:opt (funcall fn :opt (funcall transformer y) z))
-		  (:arg (funcall fn :arg y z))))
-	      :argoptp-fn (argoptp-fn)
-	      :chgname-fn (compose (aliases-fn) (partials-fn))
-	      :arglist arglist))))
+      (parse*
+       (lambda (x y z)
+	 (funcall fn
+		  x
+		  (if (eq x :opt)
+		      (funcall renamer y)
+		      y)
+		  z))))))
