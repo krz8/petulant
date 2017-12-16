@@ -1296,7 +1296,7 @@
   (is (zerop (hash-table-count cli:*options*))))
 
 (test spec-2
-  (is (eq t (bigspec-1 "one" "/verbose" "two" "/n" "three")))
+  (is (eq t (bigspec-1 "one" "/Verbose" "two" "/N" "three")))
   (is (equal '("one" "two" "three") cli:*arguments*))
   (is (= 2 (hash-table-count cli:*options*)))
   (is-true (gethash :verbose cli:*options*))

@@ -101,6 +101,20 @@ EQUAL."
 		  :str=))))
     hash))
 
+(defparameter *context* (make-instance 'context
+				       :stylehash (styles-to-hash nil)
+				       :alihash (make-hash-table)
+				       :opthash (make-hash-table)
+				       :dochash (make-hash-table))
+  "An instance of CONTEXT captures everything we are processing within
+any given call to the Petulant API.  Typically, new bindings are
+established through the WITH-CONTEXT-SIMPLE and WITH-CONTEXT-FULL
+macros.  *CONTEXT* has a default value that is an intance of CONTEXT
+not because any processing can actually be carried out with it, but
+simply so that the rest of Petulant need not test for binding to NIL
+values all over the place; the slots of that default *CONTEXT* are
+just barely valid.")
+
 (defun stylep (key)
   "Returns true if KEY appears in the style hash of the current
 *CONTEXT*, otherwise NIL."
@@ -181,15 +195,6 @@ system."
 		     :tail-fn (or tail-fn *no-doc-fn*)
 		     :opthash opthash :dochash dochash :alihash alihash
 		     :stylehash stylehash :args args))))
-
-(defparameter *context* (make-context-simple nil nil nil nil nil)
-  "An instance of CONTEXT captures everything we are processing within
-any given call to the Petulant API.  Typically, new bindings are
-established through the WITH-CONTEXT-SIMPLE and WITH-CONTEXT-FULL
-macros.  *CONTEXT* has a default value that is an intance of CONTEXT
-not because any processing can actually be carried out with it, but
-simply so that the rest of Petulant need not test for binding to NIL
-values all over the place.")
 
 (defmacro with-context-simple ((argopts flagopts aliases style args)
 			       &body body)

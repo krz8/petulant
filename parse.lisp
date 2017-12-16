@@ -6,6 +6,7 @@ arguments back.  You can use this as the callback for SIMPLE and
 PARSE."
   (format t "cb~{ ~s~}~%" args))
 
+#+nil
 (defun transform-option-fn ()
   "Compose a new function that calls other functions to transform its
 single argument, an option name.  These other functions are based on
@@ -32,6 +33,7 @@ does not do the keyword mapping, leaving it for CLI:SPEC to perform."
       (push #'identity funcs))
     (apply #'compose funcs)))
 
+#+nil
 (defun parse* (fn)
   (let ((transformer (transform-option-fn)))
     (simple (lambda (x y z)
@@ -42,6 +44,12 @@ does not do the keyword mapping, leaving it for CLI:SPEC to perform."
 	      :argoptp-fn (argoptp-fn)
 	      :chgname-fn (compose (aliases-fn) (partials-fn))
 	      :arglist (args *context*))))
+
+(defun parse* (fn)
+  (simple fn
+	  :argoptp-fn (argoptp-fn)
+	  :chgname-fn (compose (aliases-fn) (partials-fn))
+	  :arglist (args *context*)))
 
 (defun parse (fn &key argopts flagopts aliases arglist styles)
   "CLI:PARSE examines the command-line with which an application was
@@ -145,7 +153,14 @@ are silently ignored.
 	    command-line arguments as if in a Windows environment.
 	    Also implies :STREQ."
   (with-context-simple (argopts flagopts aliases styles arglist)
-    (parse* fn)
+    (let ((renamer (optname-fn)))
+      (parse* (lambda (x y z)
+		(funcall fn
+			 x
+			 (if (eq x :opt)
+			     (funcall renamer y)
+			     y)
+			 z))))
     #+nil
     (let ((transformer (transform-option-fn)))
       (simple (lambda (x y z)

@@ -181,7 +181,8 @@ acceptable.
   characters can be accepted, but they funky syntax that usually
   defeats the purpose of using a keyword in the first place.  Note
   that the colon that usually introduces a keyword symbol in Lisp is
-  not present in the command-line argument using :KEY.
+  not present in the command-line argument using :KEY.  Thus, the user
+  specifies \"red\" but the application receives :RED.
 
   \(cli:spec … \(:argopt \"color\" :key\) …\)
   $ app --color=red
@@ -252,8 +253,8 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
   (let ((keypkg (find-package :keyword))
 	name summary tail options aliases styles args)
     (macrolet ((wrn (x &rest y) `(unless _shush_
-				   (warn ,(strcat "CLI:SPEC: " x) ,@y)))
-	       (err (x &rest y) `(error ,(strcat "CLI:SPEC: " x) ,@y)))
+				   (warn ,(strcat "SPEC: " x) ,@y)))
+	       (err (x &rest y) `(error ,(strcat "SPEC: " x) ,@y)))
       (labels
 	  ((name (form)
 	     (when name
@@ -760,10 +761,10 @@ and so on.
 ARGS is a simple list of strings to be processed as a command line,
 rather than the application's actual command line."
   (block nil
-    (with-context-full (name summary-fn tail-fn options aliases
-			     (cons :nokey styles) args)
+    (with-context-full (name summary-fn tail-fn options aliases styles args)
       (let ((ropts (mkhash))
-	    (rargs nil))
+	    (rargs nil)
+	    (renamer (optname-fn)))
 	(parse*
 	 (lambda (kind name valstr)
 	   (when (and (eq :opt kind)
@@ -777,10 +778,7 @@ rather than the application's actual command line."
 	       ((not goodp)
 		(return (values nil nil nil)))
 	       ((eq :opt kind)
-		(setf (gethash (or (and (stylep :key) (intern name "KEYWORD"))
-				   name)
-			       ropts)
-		      value))
+		(setf (gethash (funcall renamer name) ropts) value))
 	       (t
 		(push value rargs))))))
 	(values t ropts (nreverse rargs))))))
