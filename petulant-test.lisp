@@ -1,18 +1,22 @@
 (defpackage #:petulant-test
   (:use #:cl #:5am #:iterate #:petulant)
-  (:export #:all #:misc #:trie #:styles #:oldsimple #:oldparse #:petulant))
+  (:export #:all #:misc #:trie #:styles #:parse #:process #:spec))
 
 ;; We're not using :IMPORT-FROM any longer.  We intend Petulant
 ;; functions to be qualified with their package name.  That's why we
 ;; provide CLI as a nickname for PETULANT, so that client code can
-;; simply use (cli:oldparse ...)  and so on.  So, in here, we'll
+;; simply use (cli:process ...)  and so on.  So, in here, we'll
 ;; implement our testing either by those symbols, or by explicitly
 ;; invoking unexported symbols (e.g., cli:split).  Overall, the idea
-;; is to leave as much of as the default packaging in place, without
-;; modification by :IMPORT-FROM, to raise the fidelity of the tests to
-;; something like the actual end user's environment.
+;; is to leave as much of as the default packaging in place (that is
+;; to say, without modification by :IMPORT-FROM), to raise the fidelity
+;; of the tests to something like the actual end user's environment.
 
-;; Hush up certain warnings while we're testing.
+;; Hush up certain warnings while we're testing.  Right now, this just
+;; affects CLI:SPEC when :NAME is not supplied, but we might add other
+;; warnings in the future.  I read somewhere that FiveAM has some
+;; machinery to intercept output streams and even conditions, which
+;; would be so much better than this hack... but it suffices for now.
 
 (setf cli::_shush_ t)
 
@@ -247,8 +251,8 @@
 
 
 
-(def-suite oldsimple :description "simple parser stuff" :in all)
-(in-suite oldsimple)
+(def-suite parse :description "simple parser stuff" :in all)
+(in-suite parse)
 
 (test isolate-switches
   (is (equalp '("a") (cli::isolate-switches "/a")))
@@ -291,14 +295,14 @@
 ;; related functionality.  Pass this stuff, and you're almost home
 ;; free, the rest of Petulant is easy by comparison!
 
-(test switches-a1
+(test windows-a1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-switches '("/a") #'cb)
       (is (= (length res) 1))
       (is (equalp '(:opt "a" nil) (car res))))))
 
-(test switches-a2
+(test windows-a2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-switches '("/a" "/b/c") #'cb)
@@ -307,7 +311,7 @@
       (is (equalp '(:opt "b" nil) (cadr res)))
       (is (equalp '(:opt "a" nil) (caddr res))))))
 
-(test switches-a3
+(test windows-a3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-switches '("/a" "/b/c" "/de") #'cb)
@@ -317,7 +321,7 @@
       (is (equalp '(:opt "b" nil) (caddr res)))
       (is (equalp '(:opt "a" nil) (cadddr res))))))
 
-(test switches-b1
+(test windows-b1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-switches '("/a" "/b/c" "d") #'cb)
@@ -327,7 +331,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test switches-b2
+(test windows-b2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-switches '("/a" "/b/c" "//" "/d") #'cb)
@@ -337,7 +341,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test switches-c1
+(test windows-c1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-switches '("/a" "/alpha" "/b/c" "/beta") #'cb)
@@ -348,7 +352,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test switches-c3
+(test windows-c3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-switches '("/a" "/b/c" "/beta" "foo" "bar") #'cb)
@@ -360,7 +364,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test switches-c4
+(test windows-c4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-switches '("/a" "/b/c" "/beta" "//" "/foo" "bar") #'cb)
@@ -372,7 +376,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test switches-d1
+(test windows-d1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-switches '("/a" "/b/c" "/beta:fuzz" "foo" "bar") #'cb)
@@ -384,7 +388,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test switches-d2					  ; gnu-ish
+(test windows-d2					  ; gnu-ish
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-switches '("/a" "/b/c" "foo" "/beta:fuzz" "bar") #'cb)
@@ -396,7 +400,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test switches-e1
+(test windows-e1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
@@ -407,7 +411,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test switches-e2
+(test windows-e2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
@@ -418,7 +422,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test switches-e3
+(test windows-e3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
@@ -429,7 +433,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test switches-e4
+(test windows-e4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
@@ -440,7 +444,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test switches-f1
+(test windows-f1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
@@ -450,7 +454,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test switches-f2
+(test windows-f2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
@@ -460,7 +464,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test switches-f3
+(test windows-f3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
@@ -470,7 +474,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test switches-f4
+(test windows-f4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
@@ -480,14 +484,14 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test posix-a1
+(test unix-a1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-posix '("-a") #'cb)
       (is (= (length res) 1))
       (is (equalp '(:opt "a" nil) (car res))))))
 
-(test posix-a2
+(test unix-a2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-posix '("-a" "-bc") #'cb)
@@ -496,7 +500,7 @@
       (is (equalp '(:opt "b" nil) (cadr res)))
       (is (equalp '(:opt "a" nil) (caddr res))))))
 
-(test posix-b1
+(test unix-b1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-posix '("-a" "-bc" "d") #'cb)
@@ -506,7 +510,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test posix-b2
+(test unix-b2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-posix '("-a" "-bc" "--" "-d") #'cb)
@@ -516,7 +520,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test posix-c1
+(test unix-c1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-posix '("-a" "--alpha" "-bc" "--beta") #'cb)
@@ -527,7 +531,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test posix-c2
+(test unix-c2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-posix '("-a" "--a" "-bc" "--beta") #'cb)
@@ -538,7 +542,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test posix-c3
+(test unix-c3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-posix '("-a" "--a" "-bc" "--beta" "foo" "bar") #'cb)
@@ -551,7 +555,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test posix-c4
+(test unix-c4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-posix '("-a" "--a" "-bc" "--beta" "--" "--foo" "bar") #'cb)
@@ -564,7 +568,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test posix-d1
+(test unix-d1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-posix '("-a" "-bc" "--beta=fuzz" "foo" "bar") #'cb)
@@ -576,7 +580,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test posix-d2					  ; gnu-ish
+(test unix-d2					  ; gnu-ish
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
       (cli::do-posix '("-a" "-bc" "foo" "--beta=fuzz" "bar") #'cb)
@@ -588,7 +592,7 @@
 		    (:opt "a" nil))
 		  res)))))
 
-(test posix-e1
+(test unix-e1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "F")))
@@ -599,7 +603,7 @@
 		    (:opt "X" nil))
 		  res)))))
 
-(test posix-e2
+(test unix-e2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
@@ -610,7 +614,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test posix-e3
+(test unix-e3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
@@ -621,7 +625,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test posix-e4
+(test unix-e4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
@@ -632,7 +636,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test posix-f1
+(test unix-f1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
@@ -642,7 +646,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test posix-f2
+(test unix-f2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
@@ -652,7 +656,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test posix-f3
+(test unix-f3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
@@ -662,7 +666,7 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test posix-f4
+(test unix-f4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
@@ -672,9 +676,9 @@
 		    (:opt "x" nil))
 		  res)))))
 
-(test oldsimple-1
+(test parse-1
   (let ((res (with-output-to-string (s)
-	       (cli:oldsimple #'(lambda (x y z)
+	       (cli:parse #'(lambda (x y z)
 				     (format s "|~s ~s ~s" x y z))
 				 :arglist '("/a" "/beta" "/input:file"
 					    "some" "/v" "thing")
@@ -682,9 +686,9 @@
     (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
 		      res))))
 
-(test oldsimple-2
+(test parse-2
   (let ((res (with-output-to-string (s)
-	       (cli:oldsimple #'(lambda (x y z)
+	       (cli:parse #'(lambda (x y z)
 				     (format s "|~s ~s ~s" x y z))
 				 :arglist '("-a" "--beta" "--input=file"
 					    "some" "-v" "thing")
@@ -692,17 +696,17 @@
     (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
 		      res))))
 
-(test oldsimple-3
+(test parse-3
   (let ((*verbose* nil))
     (labels ((opts-and-args (kind name value)
 	       (declare (ignore value))
 	       (when (and (eq kind :opt) (string-equal name "v"))
 		 (setf *verbose* t))))
-      (cli:oldsimple #'opts-and-args
+      (cli:parse #'opts-and-args
 			:arglist '("-v") :style :unix)
       (is (not (null *verbose*))))))
 
-(test oldsimple-4
+(test parse-4
   (let ((*verbose* 0))
     (labels ((opts-and-args (kind name value)
 	       (declare (ignore value))
@@ -713,12 +717,12 @@
 			  (decf *verbose*))
 			 ((string-equal name "v")
 			  (incf *verbose*)))))))
-      (cli:oldsimple #'opts-and-args
+      (cli:parse #'opts-and-args
 			:arglist '("/v" "/q/v" "/v/q/v" "/q/q/q" "/v/v")
 			:style :windows)
       (is (= 1 *verbose*)))))
 
-(test oldsimple-5
+(test parse-5
   (let* ((*apphome* (make-pathname :directory '(:absolute "opt" "app")))
 	 (*verbose* 0)
 	 (*inpath* nil)
@@ -738,7 +742,7 @@
 			  (decf *verbose*))
 			 ((string-equal x "v")
 			  (incf *verbose*)))))))
-      (cli:oldsimple #'opts-and-args
+      (cli:parse #'opts-and-args
 			:arglist '("-c" "/foo/altconf.yml"
 				   "-v" "one.dat" "-q" "two.dat" "-v")
 			:argoptp-fn #'(lambda (x) (string-equal "c" x))
@@ -867,8 +871,8 @@
 
 
 
-(def-suite oldparse :description "oldparse support" :in all)
-(in-suite oldparse)
+(def-suite process :description "process support" :in all)
+(in-suite process)
 
 (defmacro with-partials ((argopts flagopts aliases styles) &body body)
   `(cli::with-context-simple (,argopts ,flagopts ,aliases ,styles nil)
@@ -930,7 +934,7 @@
     (is-true (match? "ignore" "ign"))
     (is-true (match? "ignore" "ignore"))))
 
-;; We'll actually do the testing via COLLECT rather than OLDPARSE, as the
+;; We'll actually do the testing via COLLECT rather than PROCESS, as the
 ;; results from the former are much easier to test.  The COLLECT
 ;; wrapper is so simple, it can't really break.
 
@@ -998,16 +1002,13 @@
     ;; keep writing a few more here every day
     ))
 
-;;; maybe rename spec to specmacro
-;;; then spec just has the setf forms in it
-;;; makes it easier to test
 
 
-(def-suite petulant :description "big kahuna" :in all)
-(in-suite petulant)
+(def-suite spec :description "big kahuna" :in all)
+(in-suite spec)
 
-(test oldspec-macro
-  (is (equalp '(cli::oldspec*		; form
+(test spec-macro
+  (is (equalp '(cli::spec*		; form
 		"nemo"			; name
 		nil			; summary
 		nil			; tail
@@ -1015,88 +1016,88 @@
 		nil			; aliases
 		nil			; styles
 		nil) 			; arguments
-	      (caddr (macroexpand '(cli:oldspec)))))
-  (is (equalp '(cli::oldspec* "foo"
+	      (caddr (macroexpand '(cli:spec)))))
+  (is (equalp '(cli::spec* "foo"
 		(lambda () (format nil "bar ~d" 42))
 		(lambda () (format nil "baz ~d" (get-universal-time)))
 		nil nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:summary "bar ~d" 42)
 			      (:tail "baz ~d" (get-universal-time))
 			      (:name "foo"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list (list "verbose" '(:flag) nil))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:name "foo")
 			      (:flagopt "verbose"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list (list "verbose" '(:flag)
 		       (lambda () (format nil "bar baz buz"))))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:name "foo")
 			      (:flagopt "verbose" "bar baz buz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list (list "verbose" '(:flag)
 		       (lambda () (format nil "bar ~a buz" "baz"))))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
 		 (list "file" '(:string *) nil))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "file")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
 		 (list "file" '(:string *) nil))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "file" :string)
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
 		 (list "file" '(:string 50) nil))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "file" (:string 50))
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
 		 (list "file" '(:string 50) (lambda ()
 					      (format nil "bebop"))))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "file" (:string 50) "bebop")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
 		 (list "file" '(:string *) (lambda ()
 					      (format nil "bebop"))))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "file" "bebop")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1104,12 +1105,12 @@
 					     (format nil "bebop")))
 		 (list "alpha" '(:real * *) nil))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "alpha" :real)
 			      (:argopt "file" "bebop")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1117,12 +1118,12 @@
 					     (format nil "bebop")))
 		 (list "alpha" '(:real * *) nil))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "alpha" (:real))
 			      (:argopt "file" "bebop")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1130,12 +1131,12 @@
 					     (format nil "bebop")))
 		 (list "alpha" '(:real 0 *) nil))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "alpha" (:real 0))
 			      (:argopt "file" "bebop")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1143,12 +1144,12 @@
 					     (format nil "bebop")))
 		 (list "alpha" '(:real * 100) nil))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "alpha" (:real * 100))
 			      (:argopt "file" "bebop")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1156,12 +1157,12 @@
 					     (format nil "bebop")))
 		 (list "alpha" '(:real 0 100) nil))
 		nil nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "alpha" (:real 0 100))
 			      (:argopt "file" "bebop")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1169,13 +1170,13 @@
 					     (format nil "bebop")))
 		 (list "alpha" '(:real 0 100) nil))
 		'(("alpha" "transparency" "fade")) nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "alpha" (:real 0 100))
 			      (:alias "alpha" "transparency" "fade")
 			      (:argopt "file" "bebop")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1185,14 +1186,14 @@
 		'(("verbose" "debug")
 		  ("alpha" "transparency" "fade"))
 		nil nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "alpha" (:real 0 100))
 			      (:alias "alpha" "transparency" "fade")
 			      (:aliases "verbose" "debug")
 			      (:argopt "file" "bebop")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1202,7 +1203,7 @@
 		'(("verbose" "debug")
 		  ("alpha" "transparency" "fade"))
 		'(:windows) nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "alpha" (:real 0 100))
 			      (:alias "alpha" "transparency" "fade")
 			      (:style :windows)
@@ -1210,7 +1211,7 @@
 			      (:argopt "file" "bebop")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1220,7 +1221,7 @@
 		'(("verbose" "debug")
 		  ("alpha" "transparency" "fade"))
 		'(:key :windows) nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "alpha" (:real 0 100))
 			      (:alias "alpha" "transparency" "fade")
 			      (:style :windows)
@@ -1229,7 +1230,7 @@
 			      (:argopt "file" "bebop")
 			      (:name "foo")
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1239,7 +1240,7 @@
 		'(("verbose" "debug")
 		  ("alpha" "transparency" "fade"))
 		'(:partial :key :windows) nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "alpha" (:real 0 100))
 			      (:alias "alpha" "transparency" "fade")
 			      (:style :windows)
@@ -1249,7 +1250,7 @@
 			      (:name "foo")
 			      (:style :partial)
 			      (:flagopt "verbose" "bar ~a buz" "baz"))))))
-  (is (equalp '(cli::oldspec* "foo" nil nil
+  (is (equalp '(cli::spec* "foo" nil nil
 		(list
 		 (list "verbose" '(:flag) (lambda ()
 					    (format nil "bar ~a buz" "baz")))
@@ -1259,7 +1260,7 @@
 		'(("verbose" "debug")
 		  ("alpha" "transparency" "fade"))
 		'(:partial :key :windows) nil)
-	      (caddr (macroexpand '(cli:oldspec
+	      (caddr (macroexpand '(cli:spec
 			      (:argopt "alpha" (:real 0 99))
 			      (:alias "alpha" "transparency" "fade")
 			      (:style :windows)
@@ -1272,11 +1273,11 @@
 ;;; Okay, problem is that when :KEY is in effect, opthash has a string
 ;;; in it, but the value passed to decode is a keyword.
 ;;;
-;;; Need to build up opthash differently?  Can't do it in OLDSPEC since we don't
-;;; know when the :STYLE spec arrives, so it's got to be in OLDSPEC*.
+;;; Need to build up opthash differently?  Can't do it in SPEC since we don't
+;;; know when the :STYLE spec arrives, so it's got to be in SPEC*.
 
-(defmacro bigoldspec-1 (&rest args)
-  `(cli:oldspec (:name "notpax")
+(defmacro bigspec-1 (&rest args)
+  `(cli:spec (:name "notpax")
 	     (:summary "This is a fake summary of a fake application. ~
                            So much fake.  Wow.  Not sure how I'll test this ~
                            except by eyeballing it.")
@@ -1290,20 +1291,20 @@
 	     (:argopt "volume" (:integer 0 11) "This one goes to eleven.")
 	     (:args ,@args)))
 
-(test oldspec-1
-  (is (eq t (bigoldspec-1 "one" "two" "three")))
+(test spec-1
+  (is (eq t (bigspec-1 "one" "two" "three")))
   (is (equal '("one" "two" "three") cli:*arguments*))
   (is (zerop (hash-table-count cli:*options*))))
 
-(test oldspec-2
-  (is (eq t (bigoldspec-1 "one" "/Verbose" "two" "/N" "three")))
+(test spec-2
+  (is (eq t (bigspec-1 "one" "/Verbose" "two" "/N" "three")))
   (is (equal '("one" "two" "three") cli:*arguments*))
   (is (= 2 (hash-table-count cli:*options*)))
   (is-true (gethash :verbose cli:*options*))
   (is-true (gethash :dryrun cli:*options*)))
 
-(test oldspec-3
-  (is (eq t (bigoldspec-1 "one" "/volume" "10" "two" "/n" "three")))
+(test spec-3
+  (is (eq t (bigspec-1 "one" "/volume" "10" "two" "/n" "three")))
   (is (equal '("one" "two" "three") cli:*arguments*))
   (is (= 2 (hash-table-count cli:*options*)))
   (is (= 10 (gethash :volume cli:*options*)))

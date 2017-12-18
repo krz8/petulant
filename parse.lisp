@@ -70,9 +70,8 @@ them as they are.
 	    strings))
     (nreverse result)))
 
-(defun do-switches (arglist fn &optional
-				     (swargp-fn (constantly nil))
-				     (chgname-fn #'identity))
+(defun parse-windows (arglist fn &optional (swargp-fn (constantly nil))
+				           (chgname-fn #'identity))
   "This is the low level parser for Windows-style command lines.  If
 you're an end-user of Petulant, you might want to consider calling a
 higher level function; this one is mostly for implementation of other
@@ -141,10 +140,8 @@ rely on any specific ordering."
 		(opt! f)))))))
       (advance))))
 
-(defun do-posix (arglist fn
-		       &optional
-			 (argoptp-fn (constantly nil))
-			 (chgname-fn #'identity))
+(defun parse-unix (arglist fn &optional (argoptp-fn (constantly nil))
+				        (chgname-fn #'identity))
   "This is the low level parser for Unix-style command lines.  If
 you're an end-user of Petulant, you might want to consider calling a
 higher level function; this one is mostly for implementation of other
@@ -247,14 +244,14 @@ name, argv[0], or other non-argument information."
   #- (or ccl sbcl clisp acl)
   (error "Petulant needs to be ported to this Lisp environment."))
 
-(defun oldsimple (fn &key arglist argoptp-fn chgname-fn style)
+(defun parse (fn &key arglist argoptp-fn chgname-fn style)
   "This is the simple, low level parser for command-lines.  If you're
 simply using Petulant in your application \(i.e., you aren't
 developing or extending Petulant\), you might want to consider calling
-a higher level function; OLDSIMPLE is mainly for implementation of other
-Petulant functionality.
+a higher level function; PARSE is mainly for implementation of other
+Petulant \(or Petulant-like\) functionality.
 
-OLDSIMPLE works through an argument list, a flat list of strings
+PARSE works through an argument list, a flat list of strings
 representing the command-line.  It parses this list according to the
 dominant style for a specific operating system \(e.g., hyphen-based
 options under Unix, or slash-based switches under Windows\).
@@ -273,7 +270,7 @@ string of that list.  This is useful to know in testing, but callers
 probably should not rely on any specific ordering.
 
 ARGLIST, if supplied, is a list of strings to parse.  By default,
-OLDSIMPLE will parse a list of strings provided by the Lisp environment
+PARSE will parse a list of strings provided by the Lisp environment
 representing the command-line with which the application was started.
 
 ARGOPTP-FN, if not nil, is a function.  Petulant recognizes certain
@@ -295,27 +292,36 @@ passed through this function before processing continues; it is called
 before ARGOPTP-FN, for example.
 
 STYLE is NIL, a keyword, or a list of keywords that can be used to
-select a particular style of command-line processing.  When STYLE is
-not NIL, its value (the presence of :UNIX or :WINDOWS) is used to
-select between the Unix and Windows command-line parsers.  Otherwise,
-if the current *CONTEXT* has a style hash that is not empty, it is
-used for that purpose.  Otherwise, CL:*FEATURES* determines which
-function is used."
+select a particular style of command-line processing.  The decision
+tree is:
+
+    - Unless STYLE is NIL, its value is considered.  If it is equal
+      to, or contains, the value :WINDOWS, then PARSE-WINDOWS is
+      called; otherwise PARSE-UNIX is called.
+
+    - Unless the current *CONTEXT* lacks a useful \(non-zero\) style
+      hash, it is examined.  If it contains :WINDOWS, then
+      PARSE-WINDOWS is called; otherwise PARSE-UNIX is called.
+
+    - Finally, in the event that STYLE is NIL and the current 
+      *CONTEXT* contains just a placeholder style hash, CL:*FEATURES* is
+      used.  If it contains :WINDOWS, then PARSE-WINDOWS is called.
+      Otherwise, PARSE-UNIX is called."
   (funcall (cond
 	     ((and (symbolp style) (not (null style)))
-	      (or (and (eq :windows style) #'do-switches)
-		  #'do-posix))
+	      (or (and (eq :windows style) #'parse-windows)
+		  #'parse-unix))
 	     ((consp style)
-	      (or (and (member :windows style) #'do-switches)
-		  #'do-posix))
+	      (or (and (member :windows style) #'parse-windows)
+		  #'parse-unix))
 	     (t
 	      (let ((stylehash (stylehash *context*)))
-		(cond ((> (hash-table-count stylehash) 0)
+		(cond (((not (zerop (hash-table-count stylehash))))
 		       (or (and (gethash :windows stylehash)
-				#'do-switches)
-			   #'do-posix))
-		      ((member :windows cl:*features*) #'do-switches)
-		      (t #'do-posix)))))
+				#'parse-windows)
+			   #'parse-unix))
+		      ((member :windows cl:*features*) #'parse-windows)
+		      (t #'parse-unix)))))
 	   (or arglist (argv))
 	   fn
 	   (or argoptp-fn (constantly nil))
