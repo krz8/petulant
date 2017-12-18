@@ -316,7 +316,7 @@ tree is:
 		  #'parse-unix))
 	     (t
 	      (let ((stylehash (stylehash *context*)))
-		(cond (((not (zerop (hash-table-count stylehash))))
+		(cond ((not (zerop (hash-table-count stylehash)))
 		       (or (and (gethash :windows stylehash)
 				#'parse-windows)
 			   #'parse-unix))
