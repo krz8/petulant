@@ -705,34 +705,35 @@ default sizes."
       (terpri stream))
     (usage-footer stream)))
 
-(defun decode-flag (type valstr)
-  (declare (ignore type valstr))
-  (values :flag t))
-
-(defun decode-string (type valstr)
-  (cond
-    ((eq '* (cadr type))
-     valstr)
-    ((< (cadr type) (length valstr))
-     (subseq valstr 0 (cadr type)))
-    (t
-     valstr)))
-
 (defun decode (kind name valstr)
   "Attempt to decode the string VALSTR according to the KIND of item
 encountered on the command-line \(:ARG or :OPT\) and its name \(a
 string\), using the current *CONTEXT* for type information.  Returns
 two values: a decoded value of VALSTR and an indicator that is true
 when the decoding was successful."
-  (case kind
-    (:opt
-     (let ((type (gethash name (opthash *context*))))
-       (case (car type)
-	 (:flag (decode-flag type valstr))
-	 (:string (decode-string type valstr))
-	 (t (values nil nil)))))
-    (t
-     (values name t))))
+  (labels ((err (fmt &rest args)
+	     (apply #'error (strcat "CLI:SPEC: " fmt) args)))
+    (case kind
+      (:opt
+       (let ((type (gethash name (opthash *context*))))
+	 (case (car type)
+	   ;; flags are trivial, they get a "value" of :flag to denote
+	   ;; them in *OPTIONS*
+	   (:flag (values :flag t))
+	   ;; Strings are also very easy, they can't "fail", since we
+	   ;; either truncate them or return them.
+	   (:string (cond
+		      ((eq '* (cadr type))
+		       (values valstr t))
+		      ((< (cadr type) (length valstr))
+		       (values (subseq valstr 0 (cadr type)) t))
+		      (t
+		       (values valstr t))))
+	   ;; Okay, we have no idea what this type is, just fail out of here.
+	   (t (err "unknown argument type ~s" type)
+	      (values nil nil)))))
+      (t
+       (values name t)))))
 
 (defun spec* (name summary-fn tail-fn options aliases styles args)
   "Typically invoked from the CLI:SPEC macro.
