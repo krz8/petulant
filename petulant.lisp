@@ -3,34 +3,34 @@
 (defparameter *options* (make-hash-table)
   "Holds a hash table mapping options seen on the command-line to
   their decoded values.  This hash table reflects the most recent
-  successful call to CLI:SPEC.")
+  successful call to CLI:OLDSPEC.")
 
 (defparameter *arguments* nil
   "Holds a list of command-line argument strings \(not otherwise
   associated with options\), or NIL if there are none.  This list
-  reflects the most recent successful call to CLI:SPEC.")
+  reflects the most recent successful call to CLI:OLDSPEC.")
 
 (defvar *usage* '("?" "help")
-  "A list of option strings that, when encountered by CLI:SPEC, will
+  "A list of option strings that, when encountered by CLI:OLDSPEC, will
   trigger its full usage message to be generated for the end-user.  If
-  this happens, CLI:SPEC will return :USAGE, CLI:*OPTIONS* will
+  this happens, CLI:OLDSPEC will return :USAGE, CLI:*OPTIONS* will
   contain an empty hash, and CLI:*ARGUMENTS* will be an empty list.")
 
 (defvar _shush_ nil
   "When true, suppresses certain warnings.  For testing.")
 
-;;; The main point of the CLI:SPEC macro is to parse a number of
+;;; The main point of the CLI:OLDSPEC macro is to parse a number of
 ;;; different forms the caller can provide, including shortcuts and
-;;; abbreviations.  CLI:SPEC is also where we intend to detect any
+;;; abbreviations.  CLI:OLDSPEC is also where we intend to detect any
 ;;; errors as well.  We push as much of the error and warning activity
-;;; to this macro as we can, so that CLI:SPEC* can proceed "trusting"
+;;; to this macro as we can, so that CLI:OLDSPEC* can proceed "trusting"
 ;;; that it input is correct and *very* regular.
 ;;;
 ;;; By regular, we mean that everything for a given type follows the
-;;; same form by the time it gets to CLI:SPEC*.  Consider option
+;;; same form by the time it gets to CLI:OLDSPEC*.  Consider option
 ;;; specifications, for example.  Regardless of the different :ARGOPT
 ;;; and :FLAGOPT forms, the omitted types, partial types, and fully
-;;; specified types, the optional documentation, CLI:SPEC* is provided
+;;; specified types, the optional documentation, CLI:OLDSPEC* is provided
 ;;; a simple list where the first element is always the name of an
 ;;; option, the second element is always a full type specification,
 ;;; and the third element is always a closure providing documentation.
@@ -46,7 +46,7 @@
 ;;; to capture the caller's full specification, including those other
 ;;; functions to be called, into the closure without quoting and later
 ;;; re-evaluating those arguments.  It would be wrong to evaluate
-;;; everything when CLI:SPEC is called, so we have to ensure that
+;;; everything when CLI:OLDSPEC is called, so we have to ensure that
 ;;; evaluation is delayed until actually needed, but it's crazy to try
 ;;; and quote everything now and later pass it all to EVAL or
 ;;; something like that.  Closures are the natural way to capture a
@@ -62,14 +62,14 @@
 ;;; the same manner as DEFCLASS.  It also will make it so easy to
 ;;; extend this in the future with other forms when necessary.
 
-(defmacro spec (&rest forms)
+(defmacro oldspec (&rest forms)
   "Using a series of forms specifying a complete command-line
 interface presented to the end-user, a command-line (supplied by
 either the caller or by the Lisp environment) will be parsed.  The
-value returned by CLI:SPEC to the caller is one of the following:
+value returned by CLI:OLDSPEC to the caller is one of the following:
 
    T - A command-line was found and parsed, results are available in
-   two specials variables after SPEC returns.  CLI:*OPTIONS* is a hash
+   two specials variables after OLDSPEC returns.  CLI:*OPTIONS* is a hash
    table mapping options to the values of the arguments supplied to
    them; options without values \(i.e., flags\) will be mapped to the
    value :FLAG.  CLI:*ARGUMENTS* is a list \(that may be empty\) of
@@ -184,9 +184,9 @@ acceptable.
   not present in the command-line argument using :KEY.  Thus, the user
   specifies \"red\" but the application receives :RED.
 
-  \(cli:spec … \(:argopt \"color\" :key\) …\)
+  \(cli:oldspec … \(:argopt \"color\" :key\) …\)
   $ app --color=red
-  CLI:SPEC returns :RED as the argument of \"color\".
+  CLI:OLDSPEC returns :RED as the argument of \"color\".
 
 - The pseudo-type :ONE-OF can be used to introduce a list of strings
   that the user may supply as an argument to the option.  The list
@@ -211,20 +211,20 @@ acceptable.
 
   That said, here is an example of using the :READ pseudo-type:
 
-  1. \(cli:spec … \(:argopt \"foo\" :read\) …\)
+  1. \(cli:oldspec … \(:argopt \"foo\" :read\) …\)
 
   2. $ app '--foo=#\(1 22 333 44 5\)'
 
-  3. CLI:SPEC returns an array \(vector\) of five items as the
+  3. CLI:OLDSPEC returns an array \(vector\) of five items as the
      argument value of the \"foo\" option.
 
   Another example:
 
-  1. \(cli:spec … \(:argopt \"foo\" :read\) …\)
+  1. \(cli:oldspec … \(:argopt \"foo\" :read\) …\)
 
   2. C:\\Users\\krz> app /foo:\(erase-disk\)
 
-  3. CLI:SPEC returns a list of one item, the symbol ERASE-DISK, as the
+  3. CLI:OLDSPEC returns a list of one item, the symbol ERASE-DISK, as the
      argument of the \"foo\" option.
 
 \(:ALIAS \"option\" \"alias\" [\"alias\" …]\) establishes one or more
@@ -235,7 +235,7 @@ option accumulate. \(aka :ALIASES\)
    \(:alias \"alpha\" \"fade\" \"transparency\"\)
 
 \(:STYLE style [style …]\) supplies one or more style options, as
-documented in CLI:PARSE, to influence the parsing of the
+documented in CLI:OLDPARSE, to influence the parsing of the
 command-line. Multiple instances of :STYLE accumulate. \(aka :STYLES\)
 
    \(:style :key :unix\)
@@ -243,18 +243,18 @@ command-line. Multiple instances of :STYLE accumulate. \(aka :STYLES\)
 \(:ARG \"command-line-arg\" [\"command-line-arg\" ...]\) supplies one
 or more strings to be used instead of the application's actual
 command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
-  ;; CLI:SPEC provides hand-holding.  So much hand-holding.  I figure
-  ;; if someone is using CLI:SPEC and not CLI:GET or CLI:PARSE, they
+  ;; CLI:OLDSPEC provides hand-holding.  So much hand-holding.  I figure
+  ;; if someone is using CLI:OLDSPEC and not CLI:COLLECT or CLI:OLDPARSE, they
   ;; want all the functionality (including the kitchen sink).  So,
   ;; we'll give it to them, catching as many problem situations as we
-  ;; can.  If the caller can get through CLI:SPEC without warnings or
+  ;; can.  If the caller can get through CLI:OLDSPEC without warnings or
   ;; errors, there's no reason for them to expect anything but
   ;; success.
   (let ((keypkg (find-package :keyword))
 	name summary tail options aliases styles args)
     (macrolet ((wrn (x &rest y) `(unless _shush_
-				   (warn ,(strcat "SPEC: " x) ,@y)))
-	       (err (x &rest y) `(error ,(strcat "SPEC: " x) ,@y)))
+				   (warn ,(strcat "OLDSPEC: " x) ,@y)))
+	       (err (x &rest y) `(error ,(strcat "OLDSPEC: " x) ,@y)))
       (labels
 	  ((name (form)
 	     (when name
@@ -470,7 +470,7 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
     ;; how many times I use it, `',foo always feels like I'm abusing
     ;; something...
     `(multiple-value-bind (rstatus ropts rargs)
-	 (petulant::spec* ,name ,summary ,tail
+	 (petulant::oldspec* ,name ,summary ,tail
 			  ,(if options `(list ,@options) 'nil)
 			  ,(if aliases `',aliases 'nil)
 			  ,(if styles `',styles 'nil)
@@ -486,21 +486,21 @@ command-line.  Multiple instances of :ARG accumulate. \(aka :ARGS\)"
 ;;; might need it again later.  Primarily, it demonstrates arguments
 ;;; to the various documentation forms aren't actually evaluated until
 ;;; needed: you should see a three second difference between the
-;;; timestamp printed by CLI:SPEC* and any documentation form to
-;;; CLI:SPEC that uses (GET-UNIVERSAL-TIME).  Secondarily, it pprints
-;;; its other options, so we can see just what CLI:SPEC is passing us.
+;;; timestamp printed by CLI:OLDSPEC* and any documentation form to
+;;; CLI:OLDSPEC that uses (GET-UNIVERSAL-TIME).  Secondarily, it pprints
+;;; its other options, so we can see just what CLI:OLDSPEC is passing us.
 ;;; Of course, MACROEXPAND is equally useful in this role, but it was
 ;;; nice to just see it all in one place.
 
 #+nil
-(defun spec* (name summary-fn tail-fn options aliases styles args)
+(defun oldspec* (name summary-fn tail-fn options aliases styles args)
   (macrolet ((showq (thing)
 	       `(show (string-downcase (symbol-name ',thing)) ,thing)))
     (flet ((show (label value)
 	     (princ label)
 	     (pprint value)
 	     (terpri)))
-      (format t "cli:spec* starting at ~d~%pausing three seconds~%"
+      (format t "cli:oldspec* starting at ~d~%pausing three seconds~%"
 	      (get-universal-time))
       (sleep 3)
       (showq name)
@@ -734,8 +734,8 @@ when the decoding was successful."
     (t
      (values name t))))
 
-(defun spec* (name summary-fn tail-fn options aliases styles args)
-  "Typically invoked from the CLI:SPEC macro.
+(defun oldspec* (name summary-fn tail-fn options aliases styles args)
+  "Typically invoked from the CLI:OLDSPEC macro.
 
 NAME is a string identifying the running application.
 
@@ -765,7 +765,7 @@ rather than the application's actual command line."
       (let ((ropts (mkhash))
 	    (rargs nil)
 	    (renamer (optname-fn)))
-	(parse*
+	(oldparse*
 	 (lambda (kind name valstr)
 	   (when (and (eq :opt kind)
 		      (or (string-equal "help" name)

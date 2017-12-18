@@ -247,14 +247,14 @@ name, argv[0], or other non-argument information."
   #- (or ccl sbcl clisp acl)
   (error "Petulant needs to be ported to this Lisp environment."))
 
-(defun simple (fn &key arglist argoptp-fn chgname-fn style)
+(defun oldsimple (fn &key arglist argoptp-fn chgname-fn style)
   "This is the simple, low level parser for command-lines.  If you're
 simply using Petulant in your application \(i.e., you aren't
 developing or extending Petulant\), you might want to consider calling
-a higher level function; SIMPLE is mainly for implementation of other
+a higher level function; OLDSIMPLE is mainly for implementation of other
 Petulant functionality.
 
-SIMPLE works through an argument list, a flat list of strings
+OLDSIMPLE works through an argument list, a flat list of strings
 representing the command-line.  It parses this list according to the
 dominant style for a specific operating system \(e.g., hyphen-based
 options under Unix, or slash-based switches under Windows\).
@@ -273,7 +273,7 @@ string of that list.  This is useful to know in testing, but callers
 probably should not rely on any specific ordering.
 
 ARGLIST, if supplied, is a list of strings to parse.  By default,
-SIMPLE will parse a list of strings provided by the Lisp environment
+OLDSIMPLE will parse a list of strings provided by the Lisp environment
 representing the command-line with which the application was started.
 
 ARGOPTP-FN, if not nil, is a function.  Petulant recognizes certain

@@ -3,10 +3,10 @@
 (defun cb (&rest args)
   "A test function for debugging parsers that just echoes its
 arguments back.  You can use this as the callback for SIMPLE and
-PARSE."
+OLDPARSE."
   (format t "cb~{ ~s~}~%" args))
 
-(defun parse* (fn)
+(defun oldparse* (fn)
   "Invoke the simple argument parser using functions that provide
 common functionality based on the current *CONTEXT*.  Think of it like
 this: SIMPLE provides the understanding of the command-line and
@@ -17,13 +17,13 @@ options, styles, and the like."
 	  :chgname-fn (compose (aliases-fn) (partials-fn))
 	  :arglist (args *context*)))
 
-(defun parse (fn &key argopts flagopts aliases arglist styles)
-  "CLI:PARSE examines the command-line with which an application was
+(defun oldparse (fn &key argopts flagopts aliases arglist styles)
+  "CLI:OLDPARSE examines the command-line with which an application was
 invoked.  According to given styles and the local environment,
 options (aka switches) and arguments are recognized.
 
 FN is a function supplied by the caller, which is invoked for each
-option or argument identified by CLI:PARSE.  Each call to FN has three
+option or argument identified by CLI:OLDPARSE.  Each call to FN has three
 arguments.  The first is the keyword :OPT or :ARG, indicating whether
 an option \(switch\) or an non-option argument was found.  When :ARG,
 the second argument is a string, an argument from the command-line
@@ -40,42 +40,42 @@ patterns on the command-line \(such as \"-f\" \"foo.psd\", or
 \"/file\" \"foo.psd\"\).  Simply place the option (no leading hyphens
 or slashes) as a string in this list.  The call below would recognize
 both \"-f\" and \"--file\" as requiring an argument.  ARGOPTS does not
-limit the options that PARSE handles, even those with arguments; it
-merely expands the options and switches that PARSE can recognize as
+limit the options that OLDPARSE handles, even those with arguments; it
+merely expands the options and switches that OLDPARSE can recognize as
 requiring arguments.
 
-   \(cli:parse … :argopts '\(\"f\" \"file\"\) … \)
+   \(cli:oldparse … :argopts '\(\"f\" \"file\"\) … \)
 
-\(Note that \"f\" in that call to CLI:PARSE is better handled by an
+\(Note that \"f\" in that call to CLI:OLDPARSE is better handled by an
 alias below, or by the use of :PARTIAL in STYLES; its presence here is
 merely for example.\)
 
 FLAGOPTS, if supplied, is a list of all the options \(short or long\)
 that do not take an argument.  This argument has no effect on
-CLI:PARSE unless :PARTIAL appears in STYLES; see :PARTIAL below.
+CLI:OLDPARSE unless :PARTIAL appears in STYLES; see :PARTIAL below.
 
-   \(cli:parse … :flagopts '\(\"verbose\" \"debug\" \"trace\"\) … \)
+   \(cli:oldparse … :flagopts '\(\"verbose\" \"debug\" \"trace\"\) … \)
 
 ALIASES can be used to supply one or more alternative options that,
 when encountered, are considered aliases for another option.  ALIASES
 is a list of lists.  Every element of ALIASES is a list naming the
 primary option first, followed by all aliases for it.  For example, in
 the call below, \"/delay\" \"/sleep\" and \"/wait\" would all be
-recognized by CLI:PARSE, but processed as if \"/delay\" were seen.
+recognized by CLI:OLDPARSE, but processed as if \"/delay\" were seen.
 Also, the FN supplied by the caller would only be invoked with
 \"delay\" even when \"sleep\" or \"wait\" was found on the
 command-line.
 
-  \(cli:parse … :aliases '\(\(\"alpha\" \"transparency\"\)
+  \(cli:oldparse … :aliases '\(\(\"alpha\" \"transparency\"\)
                                \(\"delay\" \"sleep\" \"wait\"\)
                                \(\"file\" \"f\"\)\) … \)
 
-ARGLIST causes CLI:PARSE to process a specified list of strings,
+ARGLIST causes CLI:OLDPARSE to process a specified list of strings,
 instead of the default command-line that was supplied to the
 application.  These strings are parsed exactly as if they appeared on
 a command-line, each string corresponding to one \"word\".
 
-   \(cli:parse … :arglist '\(\"-xv\" \"-f\" \"foo.tar\"\) … \)
+   \(cli:oldparse … :arglist '\(\"-xv\" \"-f\" \"foo.tar\"\) … \)
 
 STYLES is a keyword, or a list of keywords, that influence Petulant's
 behavior.  Recognized keywords are as follows; unrecognized keywords
@@ -120,7 +120,7 @@ are silently ignored.
 	    Also implies :STREQ."
   (with-context-simple (argopts flagopts aliases styles arglist)
     (let ((renamer (optname-fn)))
-      (parse*
+      (oldparse*
        (lambda (x y z)
 	 (funcall fn
 		  x
