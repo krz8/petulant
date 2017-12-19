@@ -70,14 +70,14 @@ them as they are.
 	    strings))
     (nreverse result)))
 
-(defun parse-windows (fn arglist &optional (swargp-fn (constantly nil))
+(defun parse-windows (fn cmdline &optional (swargp-fn (constantly nil))
 				           (chgname-fn #'identity))
   "This is the low level parser for Windows-style command lines.  If
 you're an end-user of Petulant, you might want to consider calling a
 higher level function; this one is mostly for implementation of other
 Petulant functionality.
 
-`PARSE-WINDOWS` works through `ARGLIST`, a flat list of strings
+`PARSE-WINDOWS` works through `CMDLINE`, a flat list of strings
 delivered from some OS-specific wrapper in the Lisp environment
 parsing it according to most Windows behaviors.  As switches are
 identified, `SWARGP-FN` is called to determine if that switch takes an
@@ -106,10 +106,10 @@ function before processing continues; it is called before `SWARGP-FN`,
 for example.
 
 Generally speaking, the calls to `FN` proceed from the head to the
-tail of `ARGLIST`, and from left to right within each string of
-`ARGLIST`.  This is useful to know in testing, but callers probably
+tail of `CMDLINE`, and from left to right within each string of
+`CMDLINE`.  This is useful to know in testing, but callers probably
 should not rely on any specific ordering."
-  (do ((av (canonicalize-switch-args arglist)))
+  (do ((av (canonicalize-switch-args cmdline)))
       ((null av) t)
     (labels ((swargp (x) (funcall swargp-fn x))
 	     (chgname (x) (funcall chgname-fn x))
@@ -141,14 +141,14 @@ should not rely on any specific ordering."
 		(opt! f)))))))
       (advance))))
 
-(defun parse-unix (fn arglist &optional (argoptp-fn (constantly nil))
+(defun parse-unix (fn cmdline &optional (argoptp-fn (constantly nil))
 				        (chgname-fn #'identity))
   "This is the low level parser for Unix-style command lines.  If
 you're an end-user of Petulant, you might want to consider calling a
 higher level function; this one is mostly for implementation of other
 Petulant functionality.
 
-`PARSE-UNIX` works through `ARGLIST`, a flat list of strings from a
+`PARSE-UNIX` works through `CMDLINE`, a flat list of strings from a
 command line, parsing it according to most POSIX and GNU behaviors.
 As options are identified, `ARGOPTP-FN` is called to determine if that
 option takes an argument.
@@ -162,7 +162,7 @@ string\) found on the command line, eliding any leading dashes, and
 the third argument is any argument to that option or NIL.
 
 `ARGOPTP-FN`, if supplied, is a mechanism for the caller to indicate
-when an option, long or short, should take the next word in `ARGLIST`
+when an option, long or short, should take the next word in `CMDLINE`
 as an argument.  The default binding of `ARGOPTP-FN` always returns
 NIL, indicating that any ambiguous option is assumed not to take an
 argument.  The only non-ambiguous option with an argument are long
@@ -176,10 +176,10 @@ this function before processing continues; it is called before
 `ARGOPTP-FN`, for example.
 
 Generally speaking, the calls to `FN` proceed from the head to the
-tail of `ARGLIST`, and from left to right within each string of
-`ARGLIST`.  This is useful to know in testing, but callers probably
+tail of `CMDLINE`, and from left to right within each string of
+`CMDLINE`.  This is useful to know in testing, but callers probably
 should not rely on any specific ordering."
-  (do ((av arglist))
+  (do ((av cmdline))
       ((null av) t)
     (labels ((argoptp (x) (funcall argoptp-fn x))
 	     (chgname (x) (funcall chgname-fn x))
@@ -281,19 +281,32 @@ convenient for one-time usage, and there is also `CLI:DEFPARSER` to
 provide the binding of a command-line parser to a global symbol.  See
 the documentation for those functions for further information.
 
-The parser returned by `CLI:MAKE-PARSER` takes two arguments.
+The parser returned by `CLI:MAKE-PARSER` takes one mandatory argument,
+a function \(typically a closure\) to be called for each option or
+argument seen on a command-line.  Additionally, the parser takes two
+keyword arguments:
 
-1. A function \(typically, a closure\) to be called for each option
-   or argument seen on the command-line.
-2. A proper list of strings taken as a command-line to parse.
+- `:COMMAND-LINE` can be used to supply a proper list of strings to
+  be processed as a command line.  The default for this keyword is
+  NIL.  The keyword `:ARGS` is a synonym for brevity.
+- `:USE-OS-COMMAND-LINE` can be used to toggle the use of the
+  command-line provided to the Lisp environment by the operating system.
+  The default for this keyword is T.  The keyword `:OS` is a synonym for
+  brevity.
 
-The returned parser will process the command-line according to the
-dominant style for a specific operating system \(e.g., hyphen-based
-options under Unix, slash-based switches under Windows\).  The
-supplied function is called for each option/switch \(with or without
-an argument\) and every non-option argument identified during parsing.
-Each call receives three arguments.  The first argument is always
-`:ARG` or `:OPT`.
+With these keywords, the parser can optionally process a command-line
+provided by the application \(perhaps from a service definition,
+configuration file, or some other source, or even for testing\), but
+easily work with the command-line provided to the application by
+`CLI:ARGV`.
+
+The returned parser will process specified command-line according to
+the dominant style for a specific operating system \(e.g.,
+hyphen-based options under Unix, slash-based switches under Windows\).
+The supplied function is called for each option/switch \(with or
+without an argument\) and every non-option argument identified during
+parsing.  Each call receives three arguments.  The first argument is
+always `:ARG` or `:OPT`.
 
 - When `:ARG`, the second argument is a non-switch argument string
   from the command line, and the third argument is NIL.
@@ -307,16 +320,16 @@ right within each string of that list.  This is useful to know in
 testing, but callers probably should not rely on any specific
 ordering.
 
-`ARGOPTP-FN`, if not NIL, is a function.  Petulant recognizes certain
-long options \(`--foo=bar`\) and switches \(`/foo:bar`\) that
-unambiguously present an option taking an argument.  However, Petulant
-cannot know for certain when a short option takes an option \(e.g.,
-`-f` `bar`\), nor can it discern when long options lacking an equal
-character \(e.g., `--foo` `bar`\) or a switch lacking a colon
-character \(e.g., `/foo` `bar`\) take an argument.  To address this,
-the caller can supply a function taking the name of the option as a
-string \(`f` or `foo`\) and returning true or false to indicate if it
-takes an argument.
+`ARGOPTP-FN`, if not NIL, is a function.  Certainly, Petulant
+recognizes certain long options \(`--foo=bar`\) and switches
+\(`/foo:bar`\) that unambiguously present an option taking an
+argument.  However, Petulant cannot know for certain when a short
+option takes an option \(e.g., `-f` `bar`\), nor can it discern when
+long options lacking an equal character \(e.g., `--foo` `bar`\) or a
+switch lacking a colon character \(e.g., `/foo` `bar`\) take an
+argument.  To address this, the caller can supply a function taking
+the name of the option as a string \(`f` or `foo`\) and returning true
+or false to indicate if it takes an argument.
 
 `CHGNAME-FN`, if not NIL, can be used to change a detected switch from
 yone value to another, taking a string naming the switch \(option\) and
@@ -329,9 +342,9 @@ before `ARGOPTP-FN`, for example.
 used to select a particular style of command-line processing.  The
 decision tree is:
 
-- Unless `STYLE` is NIL, its value is considered.  If it is equal to,
-  or contains, the value `:WINDOWS`, then Windows-style processing is
-  used; otherwise, Unix-style processing is selected.
+- Unless `STYLE` is NIL, its value is considered.  If it is equal to
+  or contains the value `:WINDOWS`, then Windows-style command-line
+  processing is used; otherwise, Unix-style processing is selected.
 
 - Unless the current `*CONTEXT*` lacks a useful \(non-zero\) style
   hash, it is examined.  If it contains `:WINDOWS`, then Windows-style
@@ -339,22 +352,22 @@ decision tree is:
 
 - Finally, in the event that `STYLE` is NIL and the current
   `*CONTEXT*` contains just a placeholder style hash, `CL:*FEATURES*`
-  is returned.  If it contains `:WINDOWS`, then Windows-style
+  is examined.  If it contains `:WINDOWS`, then Windows-style
   processing is used; otherwise, Unix-style processing is selected."
   (let ((parser (parse-unix-or-windows-fn style))
 	(argoptp (or argoptp-fn (constantly nil)))
 	(chgname (or chgname-fn #'identity)))
-    (lambda (fn command-line)
-      (funcall parser command-line fn argoptp chgname))))
+    (lambda (fn &key command-line args (use-os-command-line t) (os t))
+      (let ((use-os (and use-os-command-line os))
+	    (args (or command-line args)))
+	(funcall parser
+		 fn
+		 (or command-line args (and use-os (argv)))
+		 argoptp
+		 chgname)))))
 
-;;; Can't easily specify a NIL command line list.
-;;;
-;;; Need this in order to useful parse subfiles and other configuration
-;;; files, that might possibly have an empty command-line.
-;;;
-;;; A keyword indicating "use the OS" might be right here.
-
-(defun parse (fn &key arglist argoptp-fn chgname-fn style)
+(defun parse (fn &key command-line args (use-os-command-line t) (os t)
+		   argoptp-fn chgname-fn style)
   "This is a simple, low level parser for command-lines.  If you're
 simply using Petulant in your application \(i.e., you aren't
 developing or extending Petulant\), you might want to consider calling
@@ -365,22 +378,22 @@ other Petulant \(or Petulant-like\) functionality.
 multiple command-lines parsed in your application, you are more likely
 better served by `CLI:DEFPARSER`.
 
-Most arguments to `CLI:PARSE` are described by `CLI:MAKE-PARSER`.
-There is also `ARGLIST`, which can be used to supply a proper list of
-string to interpret as a command-line; otherwise, the command-line
-supplied to the application by the operating system is used
-instead (as provided by `CLI:ARGV`)."
+Keyword arguments to `CLI:PARSE` are described by `CLI:MAKE-PARSER`
+and by the parser it returns."
   (funcall (make-parser :argoptp-fn argoptp-fn
 			:chgname-fn chgname-fn
 			:style style)
 	   fn
-	   (or arglist (argv))))
+	   :command-line command-line
+	   :args args
+	   :use-os-command-line use-os-command-line
+	   :os os))
 
-(defmacro defparser (name args &rest forms)
+(defmacro defparser (name dummy &rest forms)
   "Defines a named simple, low-level Petulant parser. `NAME` is a
-symbol naming the new parser. `ARGS` is, currently, unsused and should
-be NIL.  The forms, seen below, are as documented in `CLI:MAKE-PARSER`.
-If a form is seen more than once, the last instance \"wins\".
+symbol naming the new parser. `DUMMY` is currently unused and should
+be NIL.  `FORMS`, seen below, are as documented in `CLI:MAKE-PARSER`.
+If a given form is seen more than once, the last instance \"wins\".
 
     \(cli:defparser foobar \(\)
       \"An optional docstring for the FOOBAR low-level command-line parser.\"
@@ -388,28 +401,26 @@ If a form is seen more than once, the last instance \"wins\".
       \(:chgname-fn …\)
       \(:style …\)\)
 
-Later, `FOOBAR` may be called with one or two arguments.  The first argument
-is a function to call as the command-line is processed, and the second
-optional argument provides the command-line to be parsed.
+Continuing that example, `FOOBAR` may later be called, providing a mandatory
+function argument and up to two keywords as described for the function
+returned by `CLI:MAKE-PARSER`.
 
-    \(foobar \(lambda …\)\)"
-  (declare (ignore args))
+    \(foobar \(lambda …\)\)
+    ;; or
+    \(foobar \(lambda …\) :args '\(\"-v\" \"one\" \"two\"\)\)"
+  (declare (ignore dummy))
   (let ((docstring "A Petulant command-line parser.")
 	argoptp-fn chgname-fn style)
     (when (stringp (car forms))
       (setf docstring (car forms)
 	    forms (cdr forms)))
     (mapc (lambda (form)
-	    (cond
-	      ((eq :argoptp-fn (car form))
-	       (setf argoptp-fn (cadr form)))
-	      ((eq :chgname-fn (car form))
-	       (setf chgname-fn (cadr form)))
-	      ((eq :style (car form))
-	       (setf style (cadr form)))
-	      (t
-	       (error "CLI:DEFPARSER: (~s …) is not a recognized form."
-		      (car form)))))
+	    (case (car form)
+	      (:argoptp-fn (setf argoptp-fn (cadr form)))
+	      (:chgname-fn (setf chgname-fn (cadr form)))
+	      (:style      (setf style (cadr form)))
+	      (t           (error "CLI:DEFPARSER: (~s …) is not a ~
+                                   recognized form." (car form)))))
 	  forms)
     `(setf (symbol-function ',name) (make-parser :argoptp-fn ,argoptp-fn
 						 :chgname-fn ,chgname-fn
