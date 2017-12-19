@@ -1270,19 +1270,13 @@
 			      (:style :key :partial)
 			      (:flagopt "verbose" "bar ~a buz" "baz")))))))
 
-;;; Okay, problem is that when :KEY is in effect, opthash has a string
-;;; in it, but the value passed to decode is a keyword.
-;;;
-;;; Need to build up opthash differently?  Can't do it in SPEC since we don't
-;;; know when the :STYLE spec arrives, so it's got to be in SPEC*.
-
-(defmacro notpax (&rest args)
+(defmacro notpax0 (&rest forms)
   `(cli:spec (:name "notpax")
 	     (:summary "This is a fake summary of a fake application. ~
                            So much fake.  Wow.  Not sure how I'll test this ~
                            except by eyeballing it.")
 	     (:tail "Forty-two is ~r." 42)
-	     (:style :windows :partial)
+	     (:style :windows)
 	     (:argopt "alpha" (:real 0 100) "Blah-de-blah blah.")
 	     (:argopt "label" (:string 8) "Just a string that is limited to ~
                                            eight characters.")
@@ -1291,79 +1285,109 @@
 	     (:flagopt "dryrun")
 	     (:alias "dryrun" "n")
 	     (:argopt "volume" (:integer 0 11) "This one goes to eleven.")
-	     (:args ,@args)))
+	     ,@forms))
 
 (test notpax-1
-  (is (eq t (notpax "one" "two" "three")))
-  (is (equal '("one" "two" "three") cli:*arguments*))
-  (is (zerop (hash-table-count cli:*options*))))
+      (is (eq t (notpax0)))
+      (is (null cli:*arguments*))
+      (is (zerop (hash-table-count cli:*options*))))
+
+(defmacro notpax (&rest args)
+    `(notpax0 (:args ,@args)))
 
 (test notpax-2
-  (is (eq t (notpax "one" "/Verbose" "two" "/N" "three")))
-  (is (equal '("one" "two" "three") cli:*arguments*))
-  (is (= 2 (hash-table-count cli:*options*)))
-  (is-true (gethash "verbose" cli:*options*))
-  (is-true (gethash "dryrun" cli:*options*)))
+      (is (eq t (notpax "one" "two" "three")))
+      (is (equal '("one" "two" "three") cli:*arguments*))
+      (is (zerop (hash-table-count cli:*options*))))
 
-(test notpax-3
-  (is (eq t (notpax "one" "/lab:foobar" "two" "/n" "three")))
-  (is (equal '("one" "two" "three") cli:*arguments*))
-  (is (= 2 (hash-table-count cli:*options*)))
-  (is (string= "foobar" (gethash "label" cli:*options*)))
-  (is-true (gethash "dryrun" cli:*options*)))
+;; (defmacro notpax (&rest args)
+;;   `(cli:spec (:name "notpax")
+;; 	     (:summary "This is a fake summary of a fake application. ~
+;;                            So much fake.  Wow.  Not sure how I'll test this ~
+;;                            except by eyeballing it.")
+;; 	     (:tail "Forty-two is ~r." 42)
+;; 	     (:style :windows :partial)
+;; 	     (:argopt "alpha" (:real 0 100) "Blah-de-blah blah.")
+;; 	     (:argopt "label" (:string 8) "Just a string that is limited to ~
+;;                                            eight characters.")
+;; 	     (:alias "alpha" "transparency" "fade")
+;; 	     (:flagopt "verbose")
+;; 	     (:flagopt "dryrun")
+;; 	     (:alias "dryrun" "n")
+;; 	     (:argopt "volume" (:integer 0 11) "This one goes to eleven.")
+;; 	     (:args ,@args)))
 
-(test notpax-4
-  (is (eq t (notpax "one" "/l" "foobar" "two" "/n" "three")))
-  (is (equal '("one" "two" "three") cli:*arguments*))
-  (is (= 2 (hash-table-count cli:*options*)))
-  (is (string= "foobar" (gethash "label" cli:*options*)))
-  (is-true (gethash "dryrun" cli:*options*)))
+;; (test notpax-1
+;;   (is (eq t (notpax "one" "two" "three")))
+;;   (is (equal '("one" "two" "three") cli:*arguments*))
+;;   (is (zerop (hash-table-count cli:*options*))))
 
-(test notpax-5
-  (is (eq t (notpax "one" "/LAb" "foobar" "two" "/n" "three")))
-  (is (equal '("one" "two" "three") cli:*arguments*))
-  (is (= 2 (hash-table-count cli:*options*)))
-  (is (string= "foobar" (gethash "label" cli:*options*)))
-  (is-true (gethash "dryrun" cli:*options*)))
+;; (test notpax-2
+;;   (is (eq t (notpax "one" "/Verbose" "two" "/N" "three")))
+;;   (is (equal '("one" "two" "three") cli:*arguments*))
+;;   (is (= 2 (hash-table-count cli:*options*)))
+;;   (is-true (gethash "verbose" cli:*options*))
+;;   (is-true (gethash "dryrun" cli:*options*)))
 
-(test notpax-6
-  (is (eq t (notpax "one" "/L" "foobar" "two" "/n" "three")))
-  (is (equal '("one" "two" "three") cli:*arguments*))
-  (is (= 2 (hash-table-count cli:*options*)))
-  (is (string= "foobar" (gethash "label" cli:*options*)))
-  (is-true (gethash "dryrun" cli:*options*)))
+;; (test notpax-3
+;;   (is (eq t (notpax "one" "/lab:foobar" "two" "/n" "three")))
+;;   (is (equal '("one" "two" "three") cli:*arguments*))
+;;   (is (= 2 (hash-table-count cli:*options*)))
+;;   (is (string= "foobar" (gethash "label" cli:*options*)))
+;;   (is-true (gethash "dryrun" cli:*options*)))
 
-(defmacro downspec (&rest args)
-  `(cli:spec (:name "notpax-down")
-	     (:summary "This is a fake summary of a fake application. ~
-                           So much fake.  Wow.  Not sure how I'll test this ~
-                           except by eyeballing it.")
-	     (:tail "Forty-two is ~r." 42)
-	     (:style :down :windows :partial)
-	     (:argopt "alpha" (:real 0 100) "Blah-de-blah blah.")
-	     (:argopt "label" (:string 8) "Just a string that is limited to ~
-                                           eight characters.")
-	     (:alias "alpha" "transparency" "fade")
-	     (:flagopt "verbose")
-	     (:flagopt "dryrun")
-	     (:alias "dryrun" "n")
-	     (:argopt "volume" (:integer 0 11) "This one goes to eleven.")
-	     (:args ,@args)))
+;; (test notpax-4
+;;   (is (eq t (notpax "one" "/l" "foobar" "two" "/n" "three")))
+;;   (is (equal '("one" "two" "three") cli:*arguments*))
+;;   (is (= 2 (hash-table-count cli:*options*)))
+;;   (is (string= "foobar" (gethash "label" cli:*options*)))
+;;   (is-true (gethash "dryrun" cli:*options*)))
 
-(defmacro keyspec (&rest args)
-  `(cli:spec (:name "notpax-key")
-	     (:summary "This is a fake summary of a fake application. ~
-                           So much fake.  Wow.  Not sure how I'll test this ~
-                           except by eyeballing it.")
-	     (:tail "Forty-two is ~r." 42)
-	     (:style :key :windows :partial)
-	     (:argopt "alpha" (:real 0 100) "Blah-de-blah blah.")
-	     (:argopt "label" (:string 8) "Just a string that is limited to ~
-                                           eight characters.")
-	     (:alias "alpha" "transparency" "fade")
-	     (:flagopt "verbose")
-	     (:flagopt "dryrun")
-	     (:alias "dryrun" "n")
-	     (:argopt "volume" (:integer 0 11) "This one goes to eleven.")
-	     (:args ,@args)))
+;; (test notpax-5
+;;   (is (eq t (notpax "one" "/LAb" "foobar" "two" "/n" "three")))
+;;   (is (equal '("one" "two" "three") cli:*arguments*))
+;;   (is (= 2 (hash-table-count cli:*options*)))
+;;   (is (string= "foobar" (gethash "label" cli:*options*)))
+;;   (is-true (gethash "dryrun" cli:*options*)))
+
+;; (test notpax-6
+;;   (is (eq t (notpax "one" "/L" "foobar" "two" "/n" "three")))
+;;   (is (equal '("one" "two" "three") cli:*arguments*))
+;;   (is (= 2 (hash-table-count cli:*options*)))
+;;   (is (string= "foobar" (gethash "label" cli:*options*)))
+;;   (is-true (gethash "dryrun" cli:*options*)))
+
+;; (defmacro downspec (&rest args)
+;;   `(cli:spec (:name "notpax-down")
+;; 	     (:summary "This is a fake summary of a fake application. ~
+;;                            So much fake.  Wow.  Not sure how I'll test this ~
+;;                            except by eyeballing it.")
+;; 	     (:tail "Forty-two is ~r." 42)
+;; 	     (:style :down :windows :partial)
+;; 	     (:argopt "alpha" (:real 0 100) "Blah-de-blah blah.")
+;; 	     (:argopt "label" (:string 8) "Just a string that is limited to ~
+;;                                            eight characters.")
+;; 	     (:alias "alpha" "transparency" "fade")
+;; 	     (:flagopt "verbose")
+;; 	     (:flagopt "dryrun")
+;; 	     (:alias "dryrun" "n")
+;; 	     (:argopt "volume" (:integer 0 11) "This one goes to eleven.")
+;; 	     (:args ,@args)))
+
+;; (defmacro keyspec (&rest args)
+;;   `(cli:spec (:name "notpax-key")
+;; 	     (:summary "This is a fake summary of a fake application. ~
+;;                            So much fake.  Wow.  Not sure how I'll test this ~
+;;                            except by eyeballing it.")
+;; 	     (:tail "Forty-two is ~r." 42)
+;; 	     (:style :key :windows :partial)
+;; 	     (:argopt "alpha" (:real 0 100) "Blah-de-blah blah.")
+;; 	     (:argopt "label" (:string 8) "Just a string that is limited to ~
+;;                                            eight characters.")
+;; 	     (:alias "alpha" "transparency" "fade")
+;; 	     (:flagopt "verbose")
+;; 	     (:flagopt "dryrun")
+;; 	     (:alias "dryrun" "n")
+;; 	     (:argopt "volume" (:integer 0 11) "This one goes to eleven.")
+;; 	     (:args ,@args)))
 

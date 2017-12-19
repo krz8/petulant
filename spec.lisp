@@ -13,8 +13,7 @@
 (defvar *usage* '("?" "help")
   "A list of option strings that, when encountered by CLI:SPEC, will
   trigger its full usage message to be generated for the end-user.  If
-  this happens, CLI:SPEC will return :USAGE, CLI:*OPTIONS* will
-  contain an empty hash, and CLI:*ARGUMENTS* will be an empty list.")
+  this happens, CLI:SPEC will return :USAGE.")
 
 (defvar _shush_ nil
   "When true, suppresses certain warnings.  For testing.")
