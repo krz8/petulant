@@ -15,7 +15,7 @@ options, styles, and the like."
   (parse fn
 	 :argoptp-fn (argoptp-fn)
 	 :chgname-fn (compose (aliases-fn) (partials-fn))
-	 :arglist (args *context*)))
+	 :args (args *context*)))
 
 (defun process (fn &key argopts flagopts aliases arglist styles)
   "CLI:PROCESS examines the command-line with which an application was

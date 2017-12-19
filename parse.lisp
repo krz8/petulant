@@ -324,9 +324,9 @@ ordering.
 recognizes certain long options \(`--foo=bar`\) and switches
 \(`/foo:bar`\) that unambiguously present an option taking an
 argument.  However, Petulant cannot know for certain when a short
-option takes an option \(e.g., `-f` `bar`\), nor can it discern when
-long options lacking an equal character \(e.g., `--foo` `bar`\) or a
-switch lacking a colon character \(e.g., `/foo` `bar`\) take an
+option takes an option \(e.g., `-f bar`\), nor can it discern when
+long options lacking an equal character \(e.g., `--foo bar`\) or a
+switch lacking a colon character \(e.g., `/foo bar`\) take an
 argument.  To address this, the caller can supply a function taking
 the name of the option as a string \(`f` or `foo`\) and returning true
 or false to indicate if it takes an argument.
@@ -375,7 +375,7 @@ a higher level function; `CLI:PARSE` is mainly for implementation of
 other Petulant \(or Petulant-like\) functionality.
 
 `CLI:PARSE` is intended as a \"one time\" parser.  If there are
-multiple command-lines parsed in your application, you are more likely
+multiple command-lines parsed in your application, you are likely
 better served by `CLI:DEFPARSER`.
 
 Keyword arguments to `CLI:PARSE` are described by `CLI:MAKE-PARSER`
