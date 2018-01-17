@@ -1,6 +1,6 @@
 (defpackage #:petulant-test
   (:use #:cl #:5am #:iterate #:petulant)
-  (:export #:all #:misc #:trie #:styles #:parse #:process #:spec))
+  (:export #:all #:trie #:misc #:context #:parse #:process #:spec))
 
 ;; We're not using :IMPORT-FROM any longer.  We intend Petulant
 ;; functions to be qualified with their package name.  That's why we
@@ -24,6 +24,125 @@
 
 (in-package #:petulant-test)
 (def-suite all :description "all petulant tests")
+
+
+
+(def-suite trie :description "trie support" :in all)
+(in-suite trie)
+
+(test make-trie
+  (let ((x0 (cli::make-trie))
+	(x1 (cli::make-trie :test #'equalp)))
+    (is-true (typep x0 'cli::trie))
+    (is-true (typep x1 'cli::trie))
+    (is-true (hash-table-p (cli::trie-table x0)))
+    (is (equal 'equal (hash-table-test (cli::trie-table x0))))
+    (is-true (hash-table-p (cli::trie-table x1)))
+    (is (equal 'equalp (hash-table-test (cli::trie-table x1))))))
+
+(test make-similar-trie
+  (let ((x0 (cli::make-similar-trie (cli::make-trie)))
+	(x1 (cli::make-similar-trie (cli::make-trie :test #'equalp))))
+    (is-true (hash-table-p (cli::trie-table x0)))
+    (is (equal 'equal (hash-table-test (cli::trie-table x0))))
+    (is-true (hash-table-p (cli::trie-table x1)))
+    (is (equal 'equalp (hash-table-test (cli::trie-table x1))))))
+
+;; The first time trie-at is called for a given position, it
+;; should create it anew.  All subsequent times, it should return
+;; what was created (kind of a caching or memoization game).
+
+(test trie-at
+  (let ((root (cli::make-trie)))
+    (is-true (zerop (hash-table-count (cli::trie-table root))))
+    (let ((sub1 (cli::trie-at root 1)))
+      (is-true (= 1 (hash-table-count (cli::trie-table root))))
+      (is (eq 'cli::trie (type-of sub1)))
+      (is (eq sub1 (cli::trie-at root 1)))
+      (is-true (= 1 (hash-table-count (cli::trie-table root))))
+      (let ((sub2 (cli::trie-at root 2)))
+	(is-true (= 2 (hash-table-count (cli::trie-table root))))
+	(is (eq 'cli::trie (type-of sub2)))
+	(is (eq sub2 (cli::trie-at root 2)))
+	(is-true (= 2 (hash-table-count (cli::trie-table root))))
+	(is (not (eq sub1 (cli::trie-at root 2))))
+	(is-true (= 2 (hash-table-count (cli::trie-table root))))
+	(is (not (eq sub2 (cli::trie-at root 1))))
+	(is-true (= 2 (hash-table-count (cli::trie-table root))))))))
+
+(test make-dict
+  (let ((x0 (cli::make-dict))
+	(x1 (cli::make-dict :test #'equalp)))
+    (is-true (typep x0 'cli::trie))
+    (is-true (typep x1 'cli::trie))
+    (is-true (typep x0 'cli::dict))
+    (is-true (typep x1 'cli::dict))
+    (is-true (hash-table-p (cli::trie-table x0)))
+    (is (equal 'equal (hash-table-test (cli::trie-table x0))))
+    (is-true (hash-table-p (cli::trie-table x1)))
+    (is (equal 'equalp (hash-table-test (cli::trie-table x1))))
+    (is-true (zerop (cli::dict-count x0)))
+    (is-true (zerop (cli::dict-count x1)))
+    (is-false (cli::dict-term-p x0))
+    (is-false (cli::dict-term-p x1))))
+
+(test dict-add
+  (let ((d0 (cli::make-dict))
+	(d1 (cli::make-dict :test #'equalp)))
+    (is-false (cli::dict-word-p d0 "foo"))
+    (is-false (cli::dict-word-p d1 "foo"))
+    (cli::dict-add d0 "foo")
+    (cli::dict-add d1 "foo")
+    (is-true (cli::dict-word-p d0 "foo"))
+    (is-true (cli::dict-word-p d1 "foo"))
+    (is-false (cli::dict-word-p d0 "Foo"))
+    (is-true (cli::dict-word-p d1 "Foo"))
+    (is-false (cli::dict-word-p d0 "beta"))
+    (is-false (cli::dict-word-p d0 "bets"))
+    (is-false (cli::dict-word-p d0 "bet"))
+    (cli::dict-add d0 "bet")
+    (is-false (cli::dict-word-p d0 "beta"))
+    (is-false (cli::dict-word-p d0 "bets"))
+    (is-true (cli::dict-word-p d0 "bet"))
+    (cli::dict-add d0 "bet")	        ; do it again, nothing should change
+    (is-false (cli::dict-word-p d0 "beta"))
+    (is-false (cli::dict-word-p d0 "bets"))
+    (is-true (cli::dict-word-p d0 "bet"))
+    (cli::dict-add d0 "bets")
+    (is-false (cli::dict-word-p d0 "beta"))
+    (is-true (cli::dict-word-p d0 "bets"))
+    (is-true (cli::dict-word-p d0 "bet"))
+    (cli::dict-add d0 "beta")
+    (is-true (cli::dict-word-p d0 "beta"))
+    (is-true (cli::dict-word-p d0 "bets"))
+    (is-true (cli::dict-word-p d0 "bet"))
+    (cli::dict-add d0 "beta")		; do it again, nothing should change
+    (is-true (cli::dict-word-p d0 "beta"))
+    (is-true (cli::dict-word-p d0 "bets"))
+    (is-true (cli::dict-word-p d0 "bet"))
+    (is-false (cli::dict-word-p d0 "a"))
+    (is-false (cli::dict-word-p d0 "at"))
+    (is-false (cli::dict-word-p d0 "atom"))
+    (cli::dict-add d0 "atom")
+    (is-false (cli::dict-word-p d0 "a"))
+    (is-false (cli::dict-word-p d0 "at"))
+    (is-true (cli::dict-word-p d0 "atom"))
+    (cli::dict-add d0 "at")
+    (is-false (cli::dict-word-p d0 "a"))
+    (is-true (cli::dict-word-p d0 "at"))
+    (is-true (cli::dict-word-p d0 "atom"))))
+
+(test minwords
+  (let ((dict (cli::make-dict)))
+    (mapc (lambda (w) (cli::dict-add dict w))
+	  '("zebra" "atom" "beta" "bets" "ignore" "at" "beat" "input"
+	    "fee" "fi" "fo" "fum" "alpha"))
+    (is (equal '((2 5 "alpha") (3 4 "atom") (3 4 "beat")
+		 (2 3 "fee") (2 3 "fum")
+		 (2 6 "ignore") (2 5 "input") (1 5 "zebra"))
+	       (sort (cli::minwords dict) #'string-lessp :key #'caddr)))))
+
+
 
 (def-suite misc :description "petulant misc utilities" :in all)
 (in-suite misc)
@@ -135,8 +254,8 @@
 
 
 
-(def-suite styles :in all)
-(in-suite styles)
+(def-suite context :in all)
+(in-suite context)
 
 (defmacro with-stylehash ((&rest styles) &body body)
   `(let ((hash (cli::styles-to-hash ',styles)))
@@ -680,7 +799,7 @@
   (let ((res (with-output-to-string (s)
 	       (cli:parse (lambda (x y z)
 			    (format s "|~s ~s ~s" x y z))
-			  :args '("/a" "/beta" "/input:file"
+			  :argv '("/a" "/beta" "/input:file"
 				  "some" "/v" "thing")
 			  :style :windows))))
     (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
@@ -690,7 +809,7 @@
   (let ((res (with-output-to-string (s)
 	       (cli:parse (lambda (x y z)
 			    (format s "|~s ~s ~s" x y z))
-			  :args '("-a" "--beta" "--input=file"
+			  :argv '("-a" "--beta" "--input=file"
 				  "some" "-v" "thing")
 			  :style :unix))))
     (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
@@ -702,7 +821,7 @@
 	       (declare (ignore value))
 	       (when (and (eq kind :opt) (string-equal name "v"))
 		 (setf *verbose* t))))
-      (cli:parse #'opts-and-args :args '("-v") :style :unix)
+      (cli:parse #'opts-and-args :argv '("-v") :style :unix)
       (is (not (null *verbose*))))))
 
 (test parse-4
@@ -717,7 +836,7 @@
 			 ((string-equal name "v")
 			  (incf *verbose*)))))))
       (cli:parse #'opts-and-args
-		 :args '("/v" "/q/v" "/v/q/v" "/q/q/q" "/v/v")
+		 :argv '("/v" "/q/v" "/v/q/v" "/q/q/q" "/v/v")
 		 :style :windows)
       (is (= 1 *verbose*)))))
 
@@ -742,7 +861,7 @@
 			 ((string-equal x "v")
 			  (incf *verbose*)))))))
       (cli:parse #'opts-and-args
-		 :args '("-c" "/foo/altconf.yml"
+		 :argv '("-c" "/foo/altconf.yml"
 			 "-v" "one.dat" "-q" "two.dat" "-v")
 		 :argoptp-fn (lambda (x) (string-equal "c" x))
 		 :style :unix)
@@ -753,120 +872,6 @@
 
 
 
-(def-suite trie :description "trie support" :in all)
-(in-suite trie)
-
-(test make-trie
-  (let ((x0 (cli::make-trie))
-	(x1 (cli::make-trie :loose t)))
-    (is-true (typep x0 'cli::trie))
-    (is-true (typep x1 'cli::trie))
-    (is-true (hash-table-p (cli::trie-table x0)))
-    (is (equal 'equal (hash-table-test (cli::trie-table x0))))
-    (is-true (hash-table-p (cli::trie-table x1)))
-    (is (equal 'equalp (hash-table-test (cli::trie-table x1))))))
-
-(test make-similar-trie
-  (let ((x0 (cli::make-similar-trie (cli::make-trie)))
-	(x1 (cli::make-similar-trie (cli::make-trie :loose t))))
-    (is-true (hash-table-p (cli::trie-table x0)))
-    (is (equal 'equal (hash-table-test (cli::trie-table x0))))
-    (is-true (hash-table-p (cli::trie-table x1)))
-    (is (equal 'equalp (hash-table-test (cli::trie-table x1))))))
-
-;; The first time trie-at is called for a given position, it
-;; should create it anew.  All subsequent times, it should return
-;; what was created (kind of a caching or memoization game).
-
-(test trie-at
-  (let ((root (cli::make-trie)))
-    (is-true (zerop (hash-table-count (cli::trie-table root))))
-    (let ((sub1 (cli::trie-at root 1)))
-      (is-true (= 1 (hash-table-count (cli::trie-table root))))
-      (is (eq 'cli::trie (type-of sub1)))
-      (is (eq sub1 (cli::trie-at root 1)))
-      (is-true (= 1 (hash-table-count (cli::trie-table root))))
-      (let ((sub2 (cli::trie-at root 2)))
-	(is-true (= 2 (hash-table-count (cli::trie-table root))))
-	(is (eq 'cli::trie (type-of sub2)))
-	(is (eq sub2 (cli::trie-at root 2)))
-	(is-true (= 2 (hash-table-count (cli::trie-table root))))
-	(is (not (eq sub1 (cli::trie-at root 2))))
-	(is-true (= 2 (hash-table-count (cli::trie-table root))))
-	(is (not (eq sub2 (cli::trie-at root 1))))
-	(is-true (= 2 (hash-table-count (cli::trie-table root))))))))
-
-(test make-dict
-  (let ((x0 (cli::make-dict))
-	(x1 (cli::make-dict :loose t)))
-    (is-true (typep x0 'cli::trie))
-    (is-true (typep x1 'cli::trie))
-    (is-true (typep x0 'cli::dict))
-    (is-true (typep x1 'cli::dict))
-    (is-true (hash-table-p (cli::trie-table x0)))
-    (is (equal 'equal (hash-table-test (cli::trie-table x0))))
-    (is-true (hash-table-p (cli::trie-table x1)))
-    (is (equal 'equalp (hash-table-test (cli::trie-table x1))))
-    (is-true (zerop (cli::dict-count x0)))
-    (is-true (zerop (cli::dict-count x1)))
-    (is-false (cli::dict-term-p x0))
-    (is-false (cli::dict-term-p x1))))
-
-(test dict-add
-  (let ((d0 (cli::make-dict))
-	(d1 (cli::make-dict :loose t)))
-    (is-false (cli::dict-word-p d0 "foo"))
-    (is-false (cli::dict-word-p d1 "foo"))
-    (cli::dict-add d0 "foo")
-    (cli::dict-add d1 "foo")
-    (is-true (cli::dict-word-p d0 "foo"))
-    (is-true (cli::dict-word-p d1 "foo"))
-    (is-false (cli::dict-word-p d0 "Foo"))
-    (is-true (cli::dict-word-p d1 "Foo"))
-    (is-false (cli::dict-word-p d0 "beta"))
-    (is-false (cli::dict-word-p d0 "bets"))
-    (is-false (cli::dict-word-p d0 "bet"))
-    (cli::dict-add d0 "bet")
-    (is-false (cli::dict-word-p d0 "beta"))
-    (is-false (cli::dict-word-p d0 "bets"))
-    (is-true (cli::dict-word-p d0 "bet"))
-    (cli::dict-add d0 "bet")	        ; do it again, nothing should change
-    (is-false (cli::dict-word-p d0 "beta"))
-    (is-false (cli::dict-word-p d0 "bets"))
-    (is-true (cli::dict-word-p d0 "bet"))
-    (cli::dict-add d0 "bets")
-    (is-false (cli::dict-word-p d0 "beta"))
-    (is-true (cli::dict-word-p d0 "bets"))
-    (is-true (cli::dict-word-p d0 "bet"))
-    (cli::dict-add d0 "beta")
-    (is-true (cli::dict-word-p d0 "beta"))
-    (is-true (cli::dict-word-p d0 "bets"))
-    (is-true (cli::dict-word-p d0 "bet"))
-    (cli::dict-add d0 "beta")		; do it again, nothing should change
-    (is-true (cli::dict-word-p d0 "beta"))
-    (is-true (cli::dict-word-p d0 "bets"))
-    (is-true (cli::dict-word-p d0 "bet"))
-    (is-false (cli::dict-word-p d0 "a"))
-    (is-false (cli::dict-word-p d0 "at"))
-    (is-false (cli::dict-word-p d0 "atom"))
-    (cli::dict-add d0 "atom")
-    (is-false (cli::dict-word-p d0 "a"))
-    (is-false (cli::dict-word-p d0 "at"))
-    (is-true (cli::dict-word-p d0 "atom"))
-    (cli::dict-add d0 "at")
-    (is-false (cli::dict-word-p d0 "a"))
-    (is-true (cli::dict-word-p d0 "at"))
-    (is-true (cli::dict-word-p d0 "atom"))))
-
-(test minwords
-  (let ((dict (cli::make-dict)))
-    (mapc (lambda (w) (cli::dict-add dict w))
-	  '("zebra" "atom" "beta" "bets" "ignore" "at" "beat" "input"
-	    "fee" "fi" "fo" "fum" "alpha"))
-    (is (equal '((2 5 "alpha") (3 4 "atom") (3 4 "beat")
-		 (2 3 "fee") (2 3 "fum")
-		 (2 6 "ignore") (2 5 "input") (1 5 "zebra"))
-	       (sort (cli::minwords dict) #'string-lessp :key #'caddr)))))
 
 
 
@@ -1292,7 +1297,7 @@
       (is (zerop (hash-table-count cli:*options*))))
 
 (defmacro notpax (&rest args)
-    `(notpax0 (:args ,@args)))
+    `(notpax0 (:argv ,@args)))
 
 (test notpax-2
       (is (eq t (notpax "one" "two" "three")))
@@ -1314,7 +1319,7 @@
 ;; 	     (:flagopt "dryrun")
 ;; 	     (:alias "dryrun" "n")
 ;; 	     (:argopt "volume" (:integer 0 11) "This one goes to eleven.")
-;; 	     (:args ,@args)))
+;; 	     (:argv ,@args)))
 
 ;; (test notpax-1
 ;;   (is (eq t (notpax "one" "two" "three")))
@@ -1371,7 +1376,7 @@
 ;; 	     (:flagopt "dryrun")
 ;; 	     (:alias "dryrun" "n")
 ;; 	     (:argopt "volume" (:integer 0 11) "This one goes to eleven.")
-;; 	     (:args ,@args)))
+;; 	     (:argv ,@args)))
 
 ;; (defmacro keyspec (&rest args)
 ;;   `(cli:spec (:name "notpax-key")
@@ -1388,5 +1393,5 @@
 ;; 	     (:flagopt "dryrun")
 ;; 	     (:alias "dryrun" "n")
 ;; 	     (:argopt "volume" (:integer 0 11) "This one goes to eleven.")
-;; 	     (:args ,@args)))
+;; 	     (:argv ,@args)))
 

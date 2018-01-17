@@ -48,12 +48,12 @@ being dissected, this turns out as many SETF clauses of the variables
 named in VARS that can be resolved against the length of STRING.  When
 N is 0, a dangling SETF with no forms is avoided and NIL is returned.
 
-   \(wc/make-setfs 0 'foo '\(a b c\)\)
-=> NIL
-   \(wc/make-setfs 1 'foo '\(a b c\)\)
-=> \(SETF A \(CHAR FOO 0\)\)
-   \(wc/make-setfs 3 'foo '\(a b c\)\)
-=> \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\) C \(CHAR FOO 2\)\)"
+       \(wc/make-setfs 0 'foo '\(a b c\)\)
+    => NIL
+       \(wc/make-setfs 1 'foo '\(a b c\)\)
+    => \(SETF A \(CHAR FOO 0\)\)
+       \(wc/make-setfs 3 'foo '\(a b c\)\)
+    => \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\) C \(CHAR FOO 2\)\)"
   (when (> n 0)
     `(setf ,@(iterate (for i from 0 below n)
 		      (for v in vars)
@@ -65,19 +65,19 @@ Specifically, the clause to be executed when the string's length is N.
 When N is equal to, or greater than, the number of variable named in
 the list VARS, a default case clause (T) is emitted.
 
-   \(wc/make-case-clause 0 'foo '\(a b c\)\)
-=> \(0 NIL\)
-   \(wc/make-case-clause 1 'foo '\(a b c\)\)
-=> \(1 \(SETF A \(CHAR FOO 0\)\)\)
-   \(wc/make-case-clause 2 'foo '\(a b c\)\)
-=> \(2 \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\)\)\)
-   \(wc/make-case-clause 3 'foo '\(a b c\)\)
-=> \(T \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\) C \(CHAR FOO 2\)\)\)
-   \(wc/make-case-clause 4 'foo '\(a b c\)\)
-=> \(T \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\) C \(CHAR FOO 2\)\)\)
+       \(wc/make-case-clause 0 'foo '\(a b c\)\)
+    => \(0 NIL\)
+       \(wc/make-case-clause 1 'foo '\(a b c\)\)
+    => \(1 \(SETF A \(CHAR FOO 0\)\)\)
+       \(wc/make-case-clause 2 'foo '\(a b c\)\)
+    => \(2 \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\)\)\)
+       \(wc/make-case-clause 3 'foo '\(a b c\)\)
+    => \(T \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\) C \(CHAR FOO 2\)\)\)
+       \(wc/make-case-clause 4 'foo '\(a b c\)\)
+    => \(T \(SETF A \(CHAR FOO 0\) B \(CHAR FOO 1\) C \(CHAR FOO 2\)\)\)
 
-Note that at 3, which is the largest value that '\(A B C\) permits,
-the case selector turns to T."
+In the example above, note that at 3, which is the largest value that
+'\(A B C\) permits, the case selector turns to T."
   `(,(if (>= n (length vars)) t n)
     ,(wc/make-setfs n string vars)))
 
@@ -85,9 +85,9 @@ the case selector turns to T."
   "Evaluate BODY after binding the variables in VARS to the first characters
 of the STRING.  The variables are NIL when STRING is not long enough.
 
-   (WITH-CHARS (A B C D) \"foo\"
-     (LIST A B C D))
-=> (#\\f #\\o #\\o NIL)"
+       (with-chars (a b c d) \"foo\"
+	 (list a b c d))
+    => (#\\f #\\o #\\o NIL)"
   (let ((nvars (length vars)))
     (once-only (string)
       `(let ,vars
@@ -103,8 +103,8 @@ it up on boundaries where any character in the list CHAR-BAG match.
 This is a lot like SPLIT-SEQUENCE, possibly faster depending on the
 Lisp system, but at the cost of some bells and whistles.
 
-   \(SPLIT '\(#\Space #\Tab #\Newline #\Return\) \"  hello,  world  \"\)
-=> \(\"hello,\" \"world\"\)"
+       \(split '\(#\Space #\Tab #\Newline #\Return\) \"  hello,  world  \"\)
+    => \(\"hello,\" \"world\"\)"
   (flet ((bagp (ch) (member ch char-bag)))
     (cond
       ((zerop (length string))
@@ -152,22 +152,22 @@ appears at the right of STRING, no matter how long the resulting
 string is.  This is used to set off a tag in a paragraph with a
 hanging tag, as in an option in a usage message.
 
-   \(PAD \"foo\" 8) => \"foo     \"
-   \(PAD \"foo\" 5) => \"foo  \"
-   \(PAD \"foo\" 2) => \"foo  \"
+    \(pad \"foo\" 8) => \"foo     \"
+    \(pad \"foo\" 5) => \"foo  \"
+    \(pad \"foo\" 2) => \"foo  \"
 
-   \(PAD \"blah\" 3 0\) => \"blah\" 
-   \(PAD \"blah\" 3 1\) => \"blah \" 
-   \(PAD \"blah\" 3 2\) => \"blah  \" 
-   \(PAD \"blah\" 4 0\) => \"blah\" 
-   \(PAD \"blah\" 4 1\) => \"blah \" 
-   \(PAD \"blah\" 4 2\) => \"blah  \" 
-   \(PAD \"blah\" 5 0\) => \"blah \" 
-   \(PAD \"blah\" 5 1\) => \"blah \" 
-   \(PAD \"blah\" 5 2\) => \"blah  \" 
-   \(PAD \"blah\" 6 0\) => \"blah  \" 
-   \(PAD \"blah\" 6 1\) => \"blah  \" 
-   \(PAD \"blah\" 6 2\) => \"blah  \""
+    \(pad \"blah\" 3 0\) => \"blah\" 
+    \(pad \"blah\" 3 1\) => \"blah \" 
+    \(pad \"blah\" 3 2\) => \"blah  \" 
+    \(pad \"blah\" 4 0\) => \"blah\" 
+    \(pad \"blah\" 4 1\) => \"blah \" 
+    \(pad \"blah\" 4 2\) => \"blah  \" 
+    \(pad \"blah\" 5 0\) => \"blah \" 
+    \(pad \"blah\" 5 1\) => \"blah \" 
+    \(pad \"blah\" 5 2\) => \"blah  \" 
+    \(pad \"blah\" 6 0\) => \"blah  \" 
+    \(pad \"blah\" 6 1\) => \"blah  \" 
+    \(pad \"blah\" 6 2\) => \"blah  \""
   (let ((str (string-right-trim *ws* string)))
     (strcat str (make-string (max minpad (- minlength (length str)))
 			     :initial-element #\Space))))

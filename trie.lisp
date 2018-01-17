@@ -23,13 +23,11 @@
 ;;; of speed doing so, but it's more than worth it for the space
 ;;; savings.  Taking just a little bit of care, a hash table can be
 ;;; used in place of a vector-based trie with almost no change to the
-;;; calling code.  But, at the bottom of the hierarchy, a trie can
-;;; be represented by a hash table; everything from here on up is
-;;; artifice to make certain uses easier.
+;;; calling code.
 ;;;
 ;;; Rather than a bare hash-table, we'll write a class; it gives us a
 ;;; handy place for an application to specialize a Sparse Trie for its
-;;; own uses through inheritance.
+;;; own uses through inheritance (as we do with dict below).
 
 (defclass trie ()
   ((table :accessor trie-table :type hash-table
@@ -41,12 +39,22 @@
   instead use MAKE-TRIE in order to keep the TABLE and EQFN slots
   properly in sync."))
 
-(defun make-trie (&key loose)
-  "Create a new empty TRIE node.  The underlying hash table will use
-EQUAL to compare keys, unless LOOSE is true, which will cause the hash
-table to use EQUALP instead."
-  (make-instance 'trie :table (make-hash-table
-			       :test (if loose #'equalp #'equal))))
+(defun make-trie (&key (test #'equal))
+  "Create a new empty TRIE node.  TEST designates the equality
+function used in the underlying hash table; #'EQUAL is the default
+value, while #'EQ #'EQL and #'EQUALP may also be specified.
+Typically, use #'EQUALP for case-insensitive string-based tables, and
+use the default #'EQUAL for case-sensitive strings."
+  (make-instance 'trie :table (make-hash-table :test test)))
+
+(defgeneric trie-eq (trie)
+  (:documentation "Returns the test function used in the hash table
+  underlying the supplied TRIE object.  The value returned should be
+  one of #'EQ #'EQL #'EQUAL and #'EQUALP."))
+
+(defmethod trie-eq ((trie trie))
+  "Returns the test function used in the underlying hash tabe of TRIE."
+  (hash-table-test (trie-table trie)))
 
 (defgeneric make-similar-trie (trie)
   (:documentation "Create and return a new trie of the same type as
@@ -63,14 +71,14 @@ There is no linkage between the supplied TRIE and the newly created
 trie.  For most classes and subclasses of TRIE, this method will
 suffice."
   (make-instance (type-of trie)
-		 :table (make-hash-table
-			 :test (hash-table-test (trie-table trie)))))
+		 :table (make-hash-table :test (trie-eq trie))))
 
 (defgeneric trie-at (trie key)
   (:documentation "Given any kind of TRIE, return the subtrie
   associated with KEY within it.  If KEY is not presently associated
   with anything, a new subtrie of the same type as TRIE is created and
-  associated with it."))
+  associated with it.  In other words, TRIE may be modified such that a
+  trie is always returned associated with KEY."))
 
 (defmethod trie-at ((trie trie) key)
   "Given any kind of TRIE, return a subtrie associated with KEY within
@@ -169,12 +177,11 @@ For most classes and subclasses of TRIE, this method will suffice."
   words, specialized for Petulant's need to find minimum length unique
   substrings.  Words are added via DICT-ADD."))
 
-(defun make-dict (&key loose)
-  "Create a new empty dictionary.  The underlying hash table will use
-EQUAL to compare keys, unless LOOSE is true, which will cause the hash
-table to use EQUALP instead."
-  (make-instance 'dict :table (make-hash-table
-			       :test (if loose #'equalp #'equal))))
+(defun make-dict (&key (test #'equal))
+  "Create a new empty dictionary.  The underlying hash table will use TEST
+to compare keys, defaulting to #'EQUAL unless TEST is specified with one
+of #'EQ #'EQL #'EQUAL or #'EQUALP."
+  (make-instance 'dict :table (make-hash-table :test test)))
 
 (defgeneric dict-word-p (dict word)
   (:documentation "Returns true if WORD has been added to DICT via DICT-ADD."))

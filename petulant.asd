@@ -10,18 +10,20 @@
   :homepage "http://github.com/krz8/petulant/"
   :long-description "Petulant provides option and argument processing
 under both Windows and Unix-like systems.  Code using Petulant accepts
-a command line like /a /b/c /out:foo \\bar\\baz under Windows, as well
-as -a -bc --out=foo /bar/baz under Unix-like systems.  Also, Petulant
-generally requires much less specification of its expected options
-than typical getopt(3)-like libraries (and in many cases, no
-specification at all is necessary).  Both functional and data
-interfaces are provided to the caller."
+a command line like `/a /b/c /out:foo \\bar\\baz` under Windows, as well
+as `-a -bc --out=foo /bar/baz` under Unix-like systems, with no change
+to the application.  Also, Petulant generally requires less
+specification of its expected options than typical getopt(3)-like
+libraries, although \"kitchen sink\" specification of option types and
+validation is also supported.  Both functional and data interfaces are
+provided to the caller."
 
+  :serial t
   :components ((:file "pkg")
-	       (:file "trie" :depends-on ("pkg"))
-	       (:file "misc" :depends-on ("pkg"))
-	       (:file "context" :depends-on ("pkg" "misc"))
-	       (:file "parse" :depends-on ("pkg" "misc" "context"))
-	       (:file "process" :depends-on ("pkg" "trie" "misc" "context"))
-	       (:file "collect" :depends-on ("pkg" "process"))
-	       (:file "spec" :depends-on ("pkg" "misc" "process"))))
+	       (:file "trie")
+	       (:file "misc")
+	       (:file "context")
+	       (:file "parse")
+	       (:file "process")
+	       (:file "collect")
+	       (:file "spec")))
