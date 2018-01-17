@@ -369,7 +369,6 @@
 
 
 
-
 (def-suite parse :description "simple parser stuff" :in all)
 (in-suite parse)
 
@@ -407,12 +406,13 @@
 	      (cli::canonicalize-switch-args '("/a/bc" "def" "/e/f:g/h")))))
 
 ;; These are broken up because, when you reuse values in the tests,
-;; it's not immediately in five-am to know which specific test fails.
-;; Yes, using different test values in every test would mitigate this,
-;; but come on, who has time for that?  So, we'll just do a1 a2 a3 for
-;; specific related functionality and a. b. c. for more general
-;; related functionality.  Pass this stuff, and you're almost home
-;; free, the rest of Petulant is easy by comparison!
+;; it's not immediately apparent in Five-AM to know which specific
+;; test fails.  Yes, using different test values in every test would
+;; mitigate this, but come on, who has time for that?  So, we'll just
+;; do a1 a2 a3 for specific related functionality and a. b. c. for
+;; more general related functionality.  This is the tough stuff: pass
+;; this stuff, and you're almost home free, the rest of Petulant is
+;; easy by comparison!
 
 (test windows-a1
   (let (res)
@@ -523,7 +523,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-windows #'cb '("/x/v/f" "foo" "something") #'f?)
+      (cli::parse-windows #'cb '("/x/v/f" "foo" "something")
+			  :optargp-fn #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "f" "foo")
 		    (:opt "v" nil)
@@ -534,7 +535,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-windows #'cb '("/x/v/f:foo" "something") #'f?)
+      (cli::parse-windows #'cb '("/x/v/f:foo" "something")
+			  :optargp-fn #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "f" "foo")
 		    (:opt "v" nil)
@@ -545,7 +547,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-windows #'cb '("/x/v" "/file:foo" "something") #'f?)
+      (cli::parse-windows #'cb '("/x/v" "/file:foo" "something")
+			  :optargp-fn #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
 		    (:opt "v" nil)
@@ -556,7 +559,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-windows #'cb '("/x/v" "/file" "foo" "something") #'f?)
+      (cli::parse-windows #'cb '("/x/v" "/file" "foo" "something")
+			  :optargp-fn #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
 		    (:opt "v" nil)
@@ -567,7 +571,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-windows #'cb '("/x/v" "/f") #'f?)
+      (cli::parse-windows #'cb '("/x/v" "/f")
+			  :optargp-fn #'f?)
       (is (equalp '((:opt "f" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
@@ -577,7 +582,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-windows #'cb '("/x/v/f") #'f?)
+      (cli::parse-windows #'cb '("/x/v/f")
+			  :optargp-fn #'f?)
       (is (equalp '((:opt "f" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
@@ -587,7 +593,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-windows #'cb '("/x/v" "/file:") #'f?)
+      (cli::parse-windows #'cb '("/x/v" "/file:")
+			  :optargp-fn #'f?)
       (is (equalp '((:opt "file" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
@@ -597,7 +604,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-windows #'cb '("/x/v" "/file") #'f?)
+      (cli::parse-windows #'cb '("/x/v" "/file")
+			  :optargp-fn #'f?)
       (is (equalp '((:opt "file" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
@@ -715,7 +723,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "F")))
-      (cli::parse-unix #'cb '("-XVF" "foo" "something") #'f?)
+      (cli::parse-unix #'cb '("-XVF" "foo" "something")
+		       :optargp-fn #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "F" "foo")
 		    (:opt "V" nil)
@@ -726,7 +735,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-unix #'cb '("-xvffoo" "something") #'f?)
+      (cli::parse-unix #'cb '("-xvffoo" "something")
+		       :optargp-fn #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "f" "foo")
 		    (:opt "v" nil)
@@ -737,7 +747,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-unix #'cb '("-xv" "--file=foo" "something") #'f?)
+      (cli::parse-unix #'cb '("-xv" "--file=foo" "something")
+		       :optargp-fn #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
 		    (:opt "v" nil)
@@ -748,7 +759,8 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-unix #'cb '("-xv" "--file" "foo" "something") #'f?)
+      (cli::parse-unix #'cb '("-xv" "--file" "foo" "something")
+		       :optargp-fn #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
 		    (:opt "v" nil)
@@ -759,7 +771,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-unix #'cb '("-xv" "-f") #'f?)
+      (cli::parse-unix #'cb '("-xv" "-f") :optargp-fn #'f?)
       (is (equalp '((:opt "f" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
@@ -769,7 +781,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-unix #'cb '("-xvf") #'f?)
+      (cli::parse-unix #'cb '("-xvf") :optargp-fn #'f?)
       (is (equalp '((:opt "f" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
@@ -779,7 +791,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-unix #'cb '("-xv" "--file=") #'f?)
+      (cli::parse-unix #'cb '("-xv" "--file=") :optargp-fn #'f?)
       (is (equalp '((:opt "file" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
@@ -789,7 +801,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-unix #'cb '("-xv" "--file") #'f?)
+      (cli::parse-unix #'cb '("-xv" "--file") :optargp-fn #'f?)
       (is (equalp '((:opt "file" nil)
 		    (:opt "v" nil)
 		    (:opt "x" nil))
