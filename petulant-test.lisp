@@ -567,49 +567,84 @@
 		    (:opt "x" nil))
 		  res)))))
 
+;;; This comment also appears at unix-f1; if you change something
+;;; here or in windows-f1 through windows-f5, you probably ought to update
+;;; unix-f1 through unix-f9 as well.
+;;;
+;;; Generally, "missing" arguments to options are indicated with
+;;; either empty strings or NIL, depending on their context.  An empty
+;;; string should occur not just with an explicit empty string on the
+;;; command-line, but also when the argument appears in the option's
+;;; presentation. /foo: and --foo= are the Windows and POSIX ways to
+;;; see that happen.  A NIL indicates a *missing* argument, which is
+;;; typically when an option is seen, the argument is determined to
+;;; appear in the next command-line string, but the command-line ends.
+;;;
+;;; C:\> app /file:foo.dat               "foo.dat"
+;;; C:\> app /file foo.dat               "foo.dat"
+;;; C:\> app /file ""                    ""         (does this work in Windows?)
+;;; C:\> app /file                       NIL
+;;; C:\> app /file:                      ""
+;;;
+;;; $ app --file=foo.dat                 "foo.dat"
+;;; $ app --file foo.dat                 "foo.dat"
+;;; $ app --file ''                      ""
+;;; $ app --file                         NIL
+;;; $ app --file=                        ""
+;;; $ app -ffoo.dat                      "foo.dat"
+;;; $ app -f foo.dat                     "foo.dat"
+;;; $ app -f ''                          ""
+;;; $ app -f                             NIL
+
 (test windows-f1
   (let (res)
-    (labels ((cb (kind key value) (push (list kind key value) res))
-	     (f? (x) (string= x "f")))
-      (cli::parse-windows #'cb '("/x/v" "/f")
-			  :optargp-fn #'f?)
-      (is (equalp '((:opt "f" nil)
-		    (:opt "v" nil)
-		    (:opt "x" nil))
-		  res)))))
+    (cli::parse-windows
+     (lambda (kind key value) (push (list kind key value) res))
+     '("/foo" "/file:foo.dat")
+     :optargp-fn (lambda (x) (string= x "file")))
+    (is (equalp '((:opt "file" "foo.dat")
+		  (:opt "foo" nil))
+		res))))
 
 (test windows-f2
   (let (res)
-    (labels ((cb (kind key value) (push (list kind key value) res))
-	     (f? (x) (string= x "f")))
-      (cli::parse-windows #'cb '("/x/v/f")
-			  :optargp-fn #'f?)
-      (is (equalp '((:opt "f" nil)
-		    (:opt "v" nil)
-		    (:opt "x" nil))
-		  res)))))
+    (cli::parse-windows
+     (lambda (kind key value) (push (list kind key value) res))
+     '("/foo" "/file" "foo.dat")
+     :optargp-fn (lambda (x) (string= x "file")))
+    (is (equalp '((:opt "file" "foo.dat")
+		  (:opt "foo" nil))
+		res))))
 
 (test windows-f3
   (let (res)
-    (labels ((cb (kind key value) (push (list kind key value) res))
-	     (f? (x) (string= x "file")))
-      (cli::parse-windows #'cb '("/x/v" "/file:")
-			  :optargp-fn #'f?)
-      (is (equalp '((:opt "file" nil)
-		    (:opt "v" nil)
-		    (:opt "x" nil))
-		  res)))))
+    (cli::parse-windows
+     (lambda (kind key value) (push (list kind key value) res))
+     '("/foo" "/file" "")
+     :optargp-fn (lambda (x) (string= x "file")))
+    (is (equalp '((:opt "file" "")
+		  (:opt "foo" nil))
+		res))))
 
 (test windows-f4
   (let (res)
-    (labels ((cb (kind key value) (push (list kind key value) res))
-	     (f? (x) (string= x "file")))
-      (cli::parse-windows #'cb '("/x/v" "/file")
-			  :optargp-fn #'f?)
-      (is (equalp '((:opt "file" nil)
-		    (:opt "v" nil)
-		    (:opt "x" nil))
-		  res)))))
+    (cli::parse-windows
+     (lambda (kind key value) (push (list kind key value) res))
+     '("/foo" "/file")
+     :optargp-fn (lambda (x) (string= x "file")))
+    (is (equalp '((:opt "file" nil)
+		  (:opt "foo" nil))
+		res))))
+
+(test windows-f5
+  (let (res)
+    (cli::parse-windows
+     (lambda (kind key value) (push (list kind key value) res))
+     '("/foo" "/file:")
+     :optargp-fn (lambda (x) (string= x "file")))
+    (is (equalp '((:opt "file" "")
+		  (:opt "foo" nil))
+		res))))
 
 (test unix-a1
   (let (res)
@@ -767,46 +802,124 @@
 		    (:opt "x" nil))
 		  res)))))
 
+;;; This comment also appears at windows-f1; if you change something
+;;; here or in unix-f1 through unix-f9, you probably ought to update
+;;; windows-f1 through windows-f5 as well.
+;;;
+;;; Generally, "missing" arguments to options are indicated with
+;;; either empty strings or NIL, depending on their context.  An empty
+;;; string should occur not just with an explicit empty string on the
+;;; command-line, but also when the argument appears in the option's
+;;; presentation. /foo: and --foo= are the Windows and POSIX ways to
+;;; see that happen.  A NIL indicates a *missing* argument, which is
+;;; typically when an option is seen, the argument is determined to
+;;; appear in the next command-line string, but the command-line ends.
+;;;
+;;; C:\> app /file:foo.dat               "foo.dat"
+;;; C:\> app /file foo.dat               "foo.dat"
+;;; C:\> app /file ""                    ""         (does this work in Windows?)
+;;; C:\> app /file                       NIL
+;;; C:\> app /file:                      ""
+;;;
+;;; $ app --file=foo.dat                 "foo.dat"
+;;; $ app --file foo.dat                 "foo.dat"
+;;; $ app --file ''                      ""
+;;; $ app --file                         NIL
+;;; $ app --file=                        ""
+;;; $ app -ffoo.dat                      "foo.dat"
+;;; $ app -f foo.dat                     "foo.dat"
+;;; $ app -f ''                          ""
+;;; $ app -f                             NIL
+
 (test unix-f1
   (let (res)
-    (labels ((cb (kind key value) (push (list kind key value) res))
-	     (f? (x) (string= x "f")))
-      (cli::parse-unix #'cb '("-xv" "-f") :optargp-fn #'f?)
-      (is (equalp '((:opt "f" nil)
-		    (:opt "v" nil)
-		    (:opt "x" nil))
-		  res)))))
+    (cli::parse-unix
+     (lambda (kind key value) (push (list kind key value) res))
+     '("--foo" "--file=foo.dat")
+     :optargp-fn (lambda (x) (string= x "file")))
+    (is (equalp '((:opt "file" "foo.dat")
+		  (:opt "foo" nil))
+		res))))
 
 (test unix-f2
   (let (res)
-    (labels ((cb (kind key value) (push (list kind key value) res))
-	     (f? (x) (string= x "f")))
-      (cli::parse-unix #'cb '("-xvf") :optargp-fn #'f?)
-      (is (equalp '((:opt "f" nil)
-		    (:opt "v" nil)
-		    (:opt "x" nil))
-		  res)))))
+    (cli::parse-unix
+     (lambda (kind key value) (push (list kind key value) res))
+     '("--foo" "--file" "foo.dat")
+     :optargp-fn (lambda (x) (string= x "file")))
+    (is (equalp '((:opt "file" "foo.dat")
+		  (:opt "foo" nil))
+		res))))
 
 (test unix-f3
   (let (res)
-    (labels ((cb (kind key value) (push (list kind key value) res))
-	     (f? (x) (string= x "file")))
-      (cli::parse-unix #'cb '("-xv" "--file=") :optargp-fn #'f?)
-      (is (equalp '((:opt "file" nil)
-		    (:opt "v" nil)
-		    (:opt "x" nil))
-		  res)))))
+    (cli::parse-unix
+     (lambda (kind key value) (push (list kind key value) res))
+     '("--foo" "--file" "")
+     :optargp-fn (lambda (x) (string= x "file")))
+    (is (equalp '((:opt "file" "")
+		  (:opt "foo" nil))
+		res))))
 
 (test unix-f4
   (let (res)
-    (labels ((cb (kind key value) (push (list kind key value) res))
-	     (f? (x) (string= x "file")))
-      (cli::parse-unix #'cb '("-xv" "--file") :optargp-fn #'f?)
-      (is (equalp '((:opt "file" nil)
-		    (:opt "v" nil)
-		    (:opt "x" nil))
-		  res)))))
+    (cli::parse-unix
+     (lambda (kind key value) (push (list kind key value) res))
+     '("--foo" "--file")
+     :optargp-fn (lambda (x) (string= x "file")))
+    (is (equalp '((:opt "file" nil)
+		  (:opt "foo" nil))
+		res))))
 
+(test unix-f5
+  (let (res)
+    (cli::parse-unix
+     (lambda (kind key value) (push (list kind key value) res))
+     '("--foo" "--file=")
+     :optargp-fn (lambda (x) (string= x "file")))
+    (is (equalp '((:opt "file" "")
+		  (:opt "foo" nil))
+		res))))
+
+(test unix-f6
+  (let (res)
+    (cli::parse-unix
+     (lambda (kind key value) (push (list kind key value) res))
+     '("-vffoo.dat")
+     :optargp-fn (lambda (x) (string= x "f")))
+    (is (equalp '((:opt "f" "foo.dat")
+		  (:opt "v" nil))
+		res))))
+
+(test unix-f7
+  (let (res)
+    (cli::parse-unix
+     (lambda (kind key value) (push (list kind key value) res))
+     '("-vf" "foo.dat")
+     :optargp-fn (lambda (x) (string= x "f")))
+    (is (equalp '((:opt "f" "foo.dat")
+		  (:opt "v" nil))
+		res))))
+
+(test unix-f8
+  (let (res)
+    (cli::parse-unix
+     (lambda (kind key value) (push (list kind key value) res))
+     '("-vf" "")
+     :optargp-fn (lambda (x) (string= x "f")))
+    (is (equalp '((:opt "f" "")
+		  (:opt "v" nil))
+		res))))
+
+(test unix-f9
+  (let (res)
+    (cli::parse-unix
+     (lambda (kind key value) (push (list kind key value) res))
+     '("-vf")
+     :optargp-fn (lambda (x) (string= x "f")))
+    (is (equalp '((:opt "f" nil)
+		  (:opt "v" nil))
+		res))))
 (test parse-1
   (let ((res (with-output-to-string (s)
 	       (cli:parse (lambda (x y z)

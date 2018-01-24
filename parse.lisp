@@ -142,16 +142,15 @@ should not rely on any specific ordering."
 	 (arg! str))
 	((position #\: str)				     ; "/foo:…"
 	 (opt! (chgopt (subseq str 1 it))
-	       (unless (= it (1- len))		             ; "/foo:xyz"
-		 (subseq str (1+ it)))))
+	       (subseq str (1+ it))))
 	(t
 	 (let ((sw (chgopt (subseq str 1))))
 	   (cond
 	     ((optargp sw)                                    ; "/foo" "xyz"
 	      (opt! sw (cadr av))
 	      (advance))  ; skip next arg that we just used
-	     (t                                              ; "/foo"
-	      (opt! sw)))))))))
+	     (t                                              ; "/foo" end
+	      (opt! sw nil)))))))))
 
 (defun parse-unix (fn cmdline &key
 				(chgopt-fn #'identity)
@@ -223,13 +222,12 @@ should not rely on any specific ordering."
 				     o))))
 		 (cond
 		   (i                                       ; "--foo=…"
-		    (opt! f (unless (= i (1- (length o)))   ; "--foo="
-			      (subseq o (1+ i)))))          ; "--foo=xyz"
+		    (opt! f (subseq o (1+ i))))
 		   ((argoptp f)                             ; "--foo" "xyz"
 		    (opt! f (cadr av))
 		    (advance))
 		   (t                                       ; "--foo"
-		    (opt! f)))))
+		    (opt! f nil)))))
 	     (short (opt)
 	       (iterate
 		 (for i index-of-string opt)
@@ -238,7 +236,7 @@ should not rely on any specific ordering."
 		 (let ((f (chgopt c)))
 		   (cond
 		     ((not (argoptp f))			    ; "-fgh"
-		      (opt! f))
+		      (opt! f nil))
 		     ((< i (1- (length opt)))		    ; "-ffile"
 		      (opt! f (subseq opt (1+ i)))
 		      (finish))
