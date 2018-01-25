@@ -920,6 +920,7 @@
     (is (equalp '((:opt "f" nil)
 		  (:opt "v" nil))
 		res))))
+
 (test parse-1
   (let ((res (with-output-to-string (s)
 	       (cli:parse (lambda (x y z)
@@ -988,7 +989,7 @@
       (cli:parse #'opts-and-args
 		 :argv '("-c" "/foo/altconf.yml"
 			 "-v" "one.dat" "-q" "two.dat" "-v")
-		 :argoptp-fn (lambda (x) (string-equal "c" x))
+		 :optargp-fn (lambda (x) (string-equal "c" x))
 		 :style :unix)
       (is (= 1 *verbose*))
       (is (equalp (pathname "one.dat") *inpath*))

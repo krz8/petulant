@@ -384,18 +384,17 @@ decision tree is:
   otherwise, Unix-style processing is selected."
   (let ((parser (parse-unix-or-windows-fn style)))
     (lambda (fn &key command-line argv (use-os-command-line t) (os t))
-      (aif (or command-line
-	       argv
-	       (and use-os-command-line os (app-command-line)))
-	   (funcall parser fn it
-		    :optargp-fn optargp-fn
-		    :chgopt-fn chgopt-fn)
-	   (error "Petulant: bad usage of :COMMAND-LINE :ARGV ~
-                   :USE-OS-COMMAND-LINE or :OS keyword arguments appears in ~
-                   call to a parser returned by CLI:MAKE-PARSER.")))))
+      (funcall parser fn (or command-line
+			     argv
+			     (and use-os-command-line os (app-command-line)))
+	       :optargp-fn optargp-fn
+	       :chgopt-fn chgopt-fn))))
 
-(defun parse (fn &key command-line argv (use-os-command-line t) (os t)
-		   optargp-fn chgopt-fn style)
+(defun parse (fn &key command-line argv
+		   (use-os-command-line t) (os t)
+		   (optargp-fn (constantly nil))
+		   (chgopt-fn #'identity)
+		   style)
   "This is a simple, low level parser for command-lines.  If you're
 simply using Petulant in your application \(i.e., you aren't
 developing or extending Petulant\), you might want to consider calling
@@ -446,7 +445,7 @@ returned by CLI:MAKE-PARSER.
 	    forms (cdr forms)))
     (mapc (lambda (form)
 	    (case (car form)
-	      (:optargp-fn  (setf optargp-fn (cadr form)))
+	      (:optargp-fn (setf optargp-fn (cadr form)))
 	      (:chgopt-fn  (setf chgopt-fn (cadr form)))
 	      (:style      (setf style (cadr form)))
 	      (t           (error "CLI:DEFPARSER: (~s …) is not a ~
