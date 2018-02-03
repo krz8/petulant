@@ -998,6 +998,61 @@
 
 
 
+(def-suite process :description "process support" :in all)
+(in-suite process)
+
+(defmacro process-not-really-tar-at-all (fn cmdline)
+  `(cli:process ,fn
+		:argopts '("file")
+		:flagopts '("verbose" "extract" "create" "update"
+			    "list")
+		:aliases '(("verbose" "v")
+			   ("extract" "x")
+			   ("create" "c")
+			   ("update" "u")
+			   ("list" "t" "toc")
+			   ("file" "f"))
+		:styles :unix
+		:argv ,cmdline))
+
+(test process-1
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("--extract" "--verbose" "--file=foo.tar" "one" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-2
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("-x" "--verbose" "--file=foo.tar" "one" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-x
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("-xvf" "foo.tar" "one" "two"))
+    (is (equal '((:arg "two")
+		 (:arg "one")
+		 (:opt "file" "foo.tar")
+		 (:opt "verbose" nil)
+		 (:opt "extract" nil))
+	       res))))
+
+
+
 
 
 
