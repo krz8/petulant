@@ -1,8 +1,8 @@
 (in-package #:petulant)
 
 (defun cb (&rest args)
-  "A test function for debugging parsers that just echoes its
-arguments back.  You can use this as the callback for parsers and
+  "A test function for debugging scanners that just echoes its
+arguments back.  You can use this as the callback for scanners and
 processors."
   (format t "cb~{ ~s~}~%" args))
 
@@ -77,14 +77,14 @@ option processor's behavior.  Recognized keywords are as follows;
 unrecognized keywords are silently ignored.
 
 - :STR= String matching between ARGOPTS, FLAGOPTS, ALIASES, and the
-  command-line being parsed is usually sensitive to case except when
+  command-line being scanned is usually sensitive to case except when
   running under Windows.  :STR= exists solely to override any folding
   semantics implied by :WINDOWS, :UNIX, :UP, :DOWN, :KEY, and the
   local Lisp environment.  Overrides :STREQ.  Its name is meant to be
   evocative of STRING=.
 
 - :STREQ Ensures that string matching between ARGOPTS, FLAGOPTS,
-  ALIASES, and the command-line being parsed is insensitive
+  ALIASES, and the command-line being scanned is insensitive
   to case \(unless :STR= is present\).  Its name is meant
   to be evocative of STRING-EQUAL.
 
@@ -118,11 +118,11 @@ unrecognized keywords are silently ignored.
                         …\)"
   (with-context-simple (argopts flagopts aliases styles)
     (let* ((keyify (maybe-chgopt-key-fn))
-	   (parser (make-parser :optargp (optargp-fn)
+	   (scanner (make-scanner :optargp (optargp-fn)
 				:chgopt (compose (aliases-fn) (partials-fn)
 						 (maybe-chgopt-case-fn)))))
       (lambda (fn &key argv)
-	(funcall parser
+	(funcall scanner
 		 (lambda (x y z)
 		   (funcall fn x
 			    (or (and (eq :opt x)
@@ -140,7 +140,7 @@ processor on every invocation; if you have multiple command-lines to
 process, you are better served by CLI:MAKE-PROCESSOR.
 
 CLI:PROCESS combines the arguments of both CLI:MAKE-PROCESSOR and the
-processor/parser it generates.  That is, it takes from the caller:
+processor/scanner it generates.  That is, it takes from the caller:
 
 - FN, a function that will be invoked with three arguments for each
   option (aka switch) found on the command-line and for each standalone
@@ -169,7 +169,7 @@ processor/parser it generates.  That is, it takes from the caller:
 - :ARGV, a proper list of strings to be used instead of the actual
   command-line argument with which the application was invoked.
 
-See CLI:MAKE-PROCESSOR or even CLI:MAKE-PARSER for more details."
+See CLI:MAKE-PROCESSOR or even CLI:MAKE-SCANNER for more details."
   (funcall (make-processor :argopts argopts :flagopts flagopts
 			   :aliases aliases :styles styles)
 	   fn

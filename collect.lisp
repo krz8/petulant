@@ -30,7 +30,7 @@ own FN which simply collects its arguments into a list.  For example,
                             (\"list\" \"t\" \"toc\")
                             (\"file\" \"f\"))
                  :styles :unix
-                 :args '(\"-xvf\" \"foo.tar\" \"one\" \"two\"))
+                 :argv '(\"-xvf\" \"foo.tar\" \"one\" \"two\"))
 
 returns
 
@@ -41,3 +41,4 @@ returns
 	     :argopts argopts :flagopts flagopts :aliases aliases
 	     :styles styles :argv argv)
     (nreverse results)))
+ 

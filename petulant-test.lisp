@@ -1,6 +1,6 @@
 (defpackage #:petulant-test
   (:use #:cl #:5am #:iterate #:petulant)
-  (:export #:all #:trie #:misc #:context #:parse #:process #:spec))
+  (:export #:all #:trie #:misc #:context #:scan #:process #:spec))
 
 ;; We're not using :IMPORT-FROM any longer.  We intend Petulant
 ;; functions to be qualified with their package name.  That's why we
@@ -369,8 +369,8 @@
 
 
 
-(def-suite parse :description "simple parser stuff" :in all)
-(in-suite parse)
+(def-suite scan :description "simple scanner stuff" :in all)
+(in-suite scan)
 
 (test isolate-switches
   (is (equalp '("a") (cli::isolate-switches "/a")))
@@ -417,14 +417,14 @@
 (test windows-a1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows #'cb '("/a"))
+      (cli::scan-windows #'cb '("/a"))
       (is (= (length res) 1))
       (is (equalp '(:opt "a" nil) (car res))))))
 
 (test windows-a2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows #'cb '("/a" "/b/c"))
+      (cli::scan-windows #'cb '("/a" "/b/c"))
       (is (= (length res) 3))
       (is (equalp '(:opt "c" nil) (car res)))
       (is (equalp '(:opt "b" nil) (cadr res)))
@@ -433,7 +433,7 @@
 (test windows-a3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows #'cb '("/a" "/b/c" "/de"))
+      (cli::scan-windows #'cb '("/a" "/b/c" "/de"))
       (is (= (length res) 4))
       (is (equalp '(:opt "de" nil) (car res)))
       (is (equalp '(:opt "c" nil) (cadr res)))
@@ -443,7 +443,7 @@
 (test windows-b1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows #'cb '("/a" "/b/c" "d"))
+      (cli::scan-windows #'cb '("/a" "/b/c" "d"))
       (is (equalp '((:arg "d" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
@@ -453,7 +453,7 @@
 (test windows-b2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows #'cb '("/a" "/b/c" "//" "/d"))
+      (cli::scan-windows #'cb '("/a" "/b/c" "//" "/d"))
       (is (equalp '((:arg "/d" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
@@ -463,7 +463,7 @@
 (test windows-c1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows #'cb '("/a" "/alpha" "/b/c" "/beta"))
+      (cli::scan-windows #'cb '("/a" "/alpha" "/b/c" "/beta"))
       (is (equalp '((:opt "beta" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
@@ -474,7 +474,7 @@
 (test windows-c3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows #'cb '("/a" "/b/c" "/beta" "foo" "bar"))
+      (cli::scan-windows #'cb '("/a" "/b/c" "/beta" "foo" "bar"))
       (is (equalp '((:arg "bar" nil)
 		    (:arg "foo" nil)
 		    (:opt "beta" nil)
@@ -486,7 +486,7 @@
 (test windows-c4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows #'cb '("/a" "/b/c" "/beta" "//" "/foo" "bar"))
+      (cli::scan-windows #'cb '("/a" "/b/c" "/beta" "//" "/foo" "bar"))
       (is (equalp '((:arg "bar" nil)
 		    (:arg "/foo" nil)
 		    (:opt "beta" nil)
@@ -498,7 +498,7 @@
 (test windows-d1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows #'cb '("/a" "/b/c" "/beta:fuzz" "foo" "bar"))
+      (cli::scan-windows #'cb '("/a" "/b/c" "/beta:fuzz" "foo" "bar"))
       (is (equalp '((:arg "bar" nil)
 		    (:arg "foo" nil)
 		    (:opt "beta" "fuzz")
@@ -510,7 +510,7 @@
 (test windows-d2					  ; gnu-ish
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-windows #'cb '("/a" "/b/c" "foo" "/beta:fuzz" "bar"))
+      (cli::scan-windows #'cb '("/a" "/b/c" "foo" "/beta:fuzz" "bar"))
       (is (equalp '((:arg "bar" nil)
 		    (:opt "beta" "fuzz")
 		    (:arg "foo" nil)
@@ -523,7 +523,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-windows #'cb '("/x/v/f" "foo" "something")
+      (cli::scan-windows #'cb '("/x/v/f" "foo" "something")
 			  :optargp #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "f" "foo")
@@ -535,7 +535,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-windows #'cb '("/x/v/f:foo" "something")
+      (cli::scan-windows #'cb '("/x/v/f:foo" "something")
 			  :optargp #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "f" "foo")
@@ -547,7 +547,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-windows #'cb '("/x/v" "/file:foo" "something")
+      (cli::scan-windows #'cb '("/x/v" "/file:foo" "something")
 			  :optargp #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
@@ -559,7 +559,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-windows #'cb '("/x/v" "/file" "foo" "something")
+      (cli::scan-windows #'cb '("/x/v" "/file" "foo" "something")
 			  :optargp #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
@@ -598,7 +598,7 @@
 
 (test windows-f1
   (let (res)
-    (cli::parse-windows
+    (cli::scan-windows
      (lambda (kind key value) (push (list kind key value) res))
      '("/foo" "/file:foo.dat")
      :optargp (lambda (x) (string= x "file")))
@@ -608,7 +608,7 @@
 
 (test windows-f2
   (let (res)
-    (cli::parse-windows
+    (cli::scan-windows
      (lambda (kind key value) (push (list kind key value) res))
      '("/foo" "/file" "foo.dat")
      :optargp (lambda (x) (string= x "file")))
@@ -618,7 +618,7 @@
 
 (test windows-f3
   (let (res)
-    (cli::parse-windows
+    (cli::scan-windows
      (lambda (kind key value) (push (list kind key value) res))
      '("/foo" "/file" "")
      :optargp (lambda (x) (string= x "file")))
@@ -628,7 +628,7 @@
 
 (test windows-f4
   (let (res)
-    (cli::parse-windows
+    (cli::scan-windows
      (lambda (kind key value) (push (list kind key value) res))
      '("/foo" "/file")
      :optargp (lambda (x) (string= x "file")))
@@ -638,7 +638,7 @@
 
 (test windows-f5
   (let (res)
-    (cli::parse-windows
+    (cli::scan-windows
      (lambda (kind key value) (push (list kind key value) res))
      '("/foo" "/file:")
      :optargp (lambda (x) (string= x "file")))
@@ -649,14 +649,14 @@
 (test unix-a1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix #'cb '("-a"))
+      (cli::scan-unix #'cb '("-a"))
       (is (= (length res) 1))
       (is (equalp '(:opt "a" nil) (car res))))))
 
 (test unix-a2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix #'cb '("-a" "-bc"))
+      (cli::scan-unix #'cb '("-a" "-bc"))
       (is (= (length res) 3))
       (is (equalp '(:opt "c" nil) (car res)))
       (is (equalp '(:opt "b" nil) (cadr res)))
@@ -665,7 +665,7 @@
 (test unix-b1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix #'cb '("-a" "-bc" "d"))
+      (cli::scan-unix #'cb '("-a" "-bc" "d"))
       (is (equalp '((:arg "d" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
@@ -675,7 +675,7 @@
 (test unix-b2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix #'cb '("-a" "-bc" "--" "-d"))
+      (cli::scan-unix #'cb '("-a" "-bc" "--" "-d"))
       (is (equalp '((:arg "-d" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
@@ -685,7 +685,7 @@
 (test unix-c1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix #'cb '("-a" "--alpha" "-bc" "--beta"))
+      (cli::scan-unix #'cb '("-a" "--alpha" "-bc" "--beta"))
       (is (equalp '((:opt "beta" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
@@ -696,7 +696,7 @@
 (test unix-c2
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix #'cb '("-a" "--a" "-bc" "--beta"))
+      (cli::scan-unix #'cb '("-a" "--a" "-bc" "--beta"))
       (is (equalp '((:opt "beta" nil)
 		    (:opt "c" nil)
 		    (:opt "b" nil)
@@ -707,7 +707,7 @@
 (test unix-c3
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix #'cb '("-a" "--a" "-bc" "--beta" "foo" "bar"))
+      (cli::scan-unix #'cb '("-a" "--a" "-bc" "--beta" "foo" "bar"))
       (is (equalp '((:arg "bar" nil)
 		    (:arg "foo" nil)
 		    (:opt "beta" nil)
@@ -720,7 +720,7 @@
 (test unix-c4
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix #'cb '("-a" "--a" "-bc" "--beta" "--" "--foo" "bar"))
+      (cli::scan-unix #'cb '("-a" "--a" "-bc" "--beta" "--" "--foo" "bar"))
       (is (equalp '((:arg "bar" nil)
 		    (:arg "--foo" nil)
 		    (:opt "beta" nil)
@@ -733,7 +733,7 @@
 (test unix-d1
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix #'cb '("-a" "-bc" "--beta=fuzz" "foo" "bar"))
+      (cli::scan-unix #'cb '("-a" "-bc" "--beta=fuzz" "foo" "bar"))
       (is (equalp '((:arg "bar" nil)
 		    (:arg "foo" nil)
 		    (:opt "beta" "fuzz")
@@ -745,7 +745,7 @@
 (test unix-d2					  ; gnu-ish
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res)))
-      (cli::parse-unix #'cb '("-a" "-bc" "foo" "--beta=fuzz" "bar"))
+      (cli::scan-unix #'cb '("-a" "-bc" "foo" "--beta=fuzz" "bar"))
       (is (equalp '((:arg "bar" nil)
 		    (:opt "beta" "fuzz")
 		    (:arg "foo" nil)
@@ -758,7 +758,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "F")))
-      (cli::parse-unix #'cb '("-XVF" "foo" "something")
+      (cli::scan-unix #'cb '("-XVF" "foo" "something")
 		       :optargp #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "F" "foo")
@@ -770,7 +770,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "f")))
-      (cli::parse-unix #'cb '("-xvffoo" "something")
+      (cli::scan-unix #'cb '("-xvffoo" "something")
 		       :optargp #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "f" "foo")
@@ -782,7 +782,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-unix #'cb '("-xv" "--file=foo" "something")
+      (cli::scan-unix #'cb '("-xv" "--file=foo" "something")
 		       :optargp #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
@@ -794,7 +794,7 @@
   (let (res)
     (labels ((cb (kind key value) (push (list kind key value) res))
 	     (f? (x) (string= x "file")))
-      (cli::parse-unix #'cb '("-xv" "--file" "foo" "something")
+      (cli::scan-unix #'cb '("-xv" "--file" "foo" "something")
 		       :optargp #'f?)
       (is (equalp '((:arg "something" nil)
 		    (:opt "file" "foo")
@@ -833,7 +833,7 @@
 
 (test unix-f1
   (let (res)
-    (cli::parse-unix
+    (cli::scan-unix
      (lambda (kind key value) (push (list kind key value) res))
      '("--foo" "--file=foo.dat")
      :optargp (lambda (x) (string= x "file")))
@@ -843,7 +843,7 @@
 
 (test unix-f2
   (let (res)
-    (cli::parse-unix
+    (cli::scan-unix
      (lambda (kind key value) (push (list kind key value) res))
      '("--foo" "--file" "foo.dat")
      :optargp (lambda (x) (string= x "file")))
@@ -853,7 +853,7 @@
 
 (test unix-f3
   (let (res)
-    (cli::parse-unix
+    (cli::scan-unix
      (lambda (kind key value) (push (list kind key value) res))
      '("--foo" "--file" "")
      :optargp (lambda (x) (string= x "file")))
@@ -863,7 +863,7 @@
 
 (test unix-f4
   (let (res)
-    (cli::parse-unix
+    (cli::scan-unix
      (lambda (kind key value) (push (list kind key value) res))
      '("--foo" "--file")
      :optargp (lambda (x) (string= x "file")))
@@ -873,7 +873,7 @@
 
 (test unix-f5
   (let (res)
-    (cli::parse-unix
+    (cli::scan-unix
      (lambda (kind key value) (push (list kind key value) res))
      '("--foo" "--file=")
      :optargp (lambda (x) (string= x "file")))
@@ -883,7 +883,7 @@
 
 (test unix-f6
   (let (res)
-    (cli::parse-unix
+    (cli::scan-unix
      (lambda (kind key value) (push (list kind key value) res))
      '("-vffoo.dat")
      :optargp (lambda (x) (string= x "f")))
@@ -893,7 +893,7 @@
 
 (test unix-f7
   (let (res)
-    (cli::parse-unix
+    (cli::scan-unix
      (lambda (kind key value) (push (list kind key value) res))
      '("-vf" "foo.dat")
      :optargp (lambda (x) (string= x "f")))
@@ -903,7 +903,7 @@
 
 (test unix-f8
   (let (res)
-    (cli::parse-unix
+    (cli::scan-unix
      (lambda (kind key value) (push (list kind key value) res))
      '("-vf" "")
      :optargp (lambda (x) (string= x "f")))
@@ -913,7 +913,7 @@
 
 (test unix-f9
   (let (res)
-    (cli::parse-unix
+    (cli::scan-unix
      (lambda (kind key value) (push (list kind key value) res))
      '("-vf")
      :optargp (lambda (x) (string= x "f")))
@@ -921,9 +921,9 @@
 		  (:opt "v" nil))
 		res))))
 
-(test parse-1
+(test scan-1
   (let ((res (with-output-to-string (s)
-	       (cli:parse (lambda (x y z)
+	       (cli:scan (lambda (x y z)
 			    (format s "|~s ~s ~s" x y z))
 			  :argv '("/a" "/beta" "/input:file"
 				  "some" "/v" "thing")
@@ -931,9 +931,9 @@
     (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
 		      res))))
 
-(test parse-2
+(test scan-2
   (let ((res (with-output-to-string (s)
-	       (cli:parse (lambda (x y z)
+	       (cli:scan (lambda (x y z)
 			    (format s "|~s ~s ~s" x y z))
 			  :argv '("-a" "--beta" "--input=file"
 				  "some" "-v" "thing")
@@ -941,16 +941,16 @@
     (is (string-equal "|:OPT \"a\" NIL|:OPT \"beta\" NIL|:OPT \"input\" \"file\"|:ARG \"some\" NIL|:OPT \"v\" NIL|:ARG \"thing\" NIL"
 		      res))))
 
-(test parse-3
+(test scan-3
   (let ((*verbose* nil))
     (labels ((opts-and-args (kind name value)
 	       (declare (ignore value))
 	       (when (and (eq kind :opt) (string-equal name "v"))
 		 (setf *verbose* t))))
-      (cli:parse #'opts-and-args :argv '("-v") :style :unix)
+      (cli:scan #'opts-and-args :argv '("-v") :style :unix)
       (is (not (null *verbose*))))))
 
-(test parse-4
+(test scan-4
   (let ((*verbose* 0))
     (labels ((opts-and-args (kind name value)
 	       (declare (ignore value))
@@ -961,12 +961,12 @@
 			  (decf *verbose*))
 			 ((string-equal name "v")
 			  (incf *verbose*)))))))
-      (cli:parse #'opts-and-args
+      (cli:scan #'opts-and-args
 		 :argv '("/v" "/q/v" "/v/q/v" "/q/q/q" "/v/v")
 		 :style :windows)
       (is (= 1 *verbose*)))))
 
-(test parse-5
+(test scan-5
   (let* ((*apphome* (make-pathname :directory '(:absolute "opt" "app")))
 	 (*verbose* 0)
 	 (*inpath* nil)
@@ -986,7 +986,7 @@
 			  (decf *verbose*))
 			 ((string-equal x "v")
 			  (incf *verbose*)))))))
-      (cli:parse #'opts-and-args
+      (cli:scan #'opts-and-args
 		 :argv '("-c" "/foo/altconf.yml"
 			 "-v" "one.dat" "-q" "two.dat" "-v")
 		 :optargp (lambda (x) (string-equal "c" x))

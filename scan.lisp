@@ -71,16 +71,16 @@ them as they are.
     (nreverse result)))
 
 
-(defun parse-windows (fn cmdline &key
+(defun scan-windows (fn cmdline &key
 				   (chgopt #'identity)
 				   (optargp (constantly nil)))
-  "This is the low level parser for Windows-style command lines.  If
+  "This is the low level scanner for Windows-style command lines.  If
 you're an end-user of Petulant, you might want to consider calling a
 higher level function; this one is mostly for implementation of other
-Petulant functionality.  At least consider PARSE instead of
-PARSE-WINDOWS.
+Petulant functionality.  At least consider SCAN instead of
+SCAN-WINDOWS.
 
-PARSE-WINDOWS works through CMDLINE, a proper list of strings,
+SCAN-WINDOWS works through CMDLINE, a proper list of strings,
 calling FN for each switch or argument encountered on that supplied
 command-line.  Each call to FN has three arguments.  The first
 argument is either :ARG or :OPT, indicating if a standalone
@@ -152,16 +152,16 @@ should not rely on any specific ordering."
 	     (t                                              ; "/foo" end
 	      (opt! sw nil)))))))))
 
-(defun parse-unix (fn cmdline &key
+(defun scan-unix (fn cmdline &key
 				(chgopt #'identity)
 				(optargp (constantly nil)))
-  "This is the low level parser for Unix-style \(POSIX\) command
+  "This is the low level scanner for Unix-style \(POSIX\) command
 lines.  If you're an end-user of Petulant, you might want to consider
 calling a higher level function; this one is mostly for implementation
-of other Petulant functionality.  At least consider PARSE instead of
-PARSE-UNIX.
+of other Petulant functionality.  At least consider SCAN instead of
+SCAN-UNIX.
 
-PARSE-UNIX works through CMDLINE, a proper list of strings,
+SCAN-UNIX works through CMDLINE, a proper list of strings,
 calling FN for each option or argument encountered on that supplied
 command-line.  Each call to FN has three arguments.  The first
 argument is either :ARG or :OPT, indicating if a standalone
@@ -204,7 +204,7 @@ tail of CMDLINE, and from left to right within each string of
 CMDLINE.  This is useful to know in testing, but callers probably
 should not rely on any specific ordering."
   ;; this all works, but it could use a little refactoring, like we
-  ;; did in PARSE-WINDOWS.  A DO* instead of DO might let us get rid
+  ;; did in SCAN-WINDOWS.  A DO* instead of DO might let us get rid
   ;; of some of the worse patterns in here...
   (do ((av cmdline))
       ((null av) t)
@@ -259,29 +259,29 @@ should not rely on any specific ordering."
 	   (short (car av)))))
       (advance))))
 
-(defun parse-unix-or-windows-fn (style)
-  "Returns either PARSE-UNIX or PARSE-WINDOWS, based on STYLE. STYLE
+(defun scan-unix-or-windows-fn (style)
+  "Returns either SCAN-UNIX or SCAN-WINDOWS, based on STYLE. STYLE
 is NIL, a keyword, or a list of keywords that can be used to select a
 particular style of command-line processing.  This implements the
-decision tree described in CLI:MAKE-PARSER."
+decision tree described in CLI:MAKE-SCANNER."
   (let ((stylehash (stylehash *context*)))
     (cond
       ((and (symbolp style) (not (null style)))
        (or (and (eq :windows style)
-		#'parse-windows)
-	   #'parse-unix))
+		#'scan-windows)
+	   #'scan-unix))
       ((consp style)
        (or (and (member :windows style)
-		#'parse-windows)
-	   #'parse-unix))
+		#'scan-windows)
+	   #'scan-unix))
       ((not (zerop (hash-table-count stylehash)))
        (or (and (gethash :windows stylehash)
-		#'parse-windows)
-	   #'parse-unix))
+		#'scan-windows)
+	   #'scan-unix))
       (t
        (or (and (member :windows cl:*features*)
-		#'parse-windows)
-	   #'parse-unix)))))
+		#'scan-windows)
+	   #'scan-unix)))))
 
 (defun app-command-line ()
   "Returns a list of strings representing the command-line with which
@@ -295,34 +295,34 @@ the executable name \(also known as the image name or argv[0]\)."
   #-(or ccl sbcl clisp acl)
   (error "Petulant needs to be ported to this Lisp environment."))
 
-(defun make-parser (&key style
+(defun make-scanner (&key style
 		      (chgopt #'identity)
 		      (optargp (constantly nil)))
-  "This creates a simple low-level parser for command-lines.  If
+  "This creates a simple low-level scanner for command-lines.  If
 you're simply using Petulant in your application \(i.e., you aren't
 developing or extending Petulant\), you might want to consider calling
-a higher level function; CLI:MAKE-PARSER is primarily intended for the
+a higher level function; CLI:MAKE-SCANNER is primarily intended for the
 implementation of other Petulant \(or Petulant-like\) functionality.
 
-There is also the simpler function CLI:PARSE which is more convenient
-for one-time usage, and there is also CLI:DEFPARSER to provide the
-binding of a command-line parser to a symbol in the current package.
+There is also the simpler function CLI:SCAN which is more convenient
+for one-time usage, and there is also CLI:DEFSCANNER to provide the
+binding of a command-line scanner to a symbol in the current package.
 See the documentation for those functions for further information.
 
-The parser returned by CLI:MAKE-PARSER takes one mandatory argument, a
+The scanner returned by CLI:MAKE-SCANNER takes one mandatory argument, a
 function \(typically a closure\) to be called for each option or
-argument seen on a command-line.  Additionally, the returned parser
+argument seen on a command-line.  Additionally, the returned scanner
 may be called with the keyword argument :ARGV, supplying a proper list
-of strings to be parsed as a command-line; if this argument is
+of strings to be scanned as a command-line; if this argument is
 omitted, the command-line with which the application was invoked will
 be used instead \(as provided by the operating system and the Lisp
-environment\).  With :ARGV, the parser can optionally process a
+environment\).  With :ARGV, the scanner can optionally process a
 command-line provided by the application itself \(perhaps from a
 service definition, configuration file, or some other source, or even
 for testing\), but easily work with the command-line provided to the
 application via CLI:APP-COMMAND-LINE.
 
-The returned parser will process specified command-line according to
+The returned scanner will process specified command-line according to
 the dominant style for a specific operating system \(e.g.,
 hyphen-based options under Unix, slash-based switches under Windows\).
 The supplied function is called for each option/switch \(with or
@@ -376,56 +376,56 @@ decision tree is:
   contains just a placeholder style hash, CL:*FEATURES* is examined.
   If it contains :WINDOWS, then Windows-style processing is used;
   otherwise, Unix-style processing is selected."
-  (let ((parser (parse-unix-or-windows-fn style)))
+  (let ((scanner (scan-unix-or-windows-fn style)))
     (lambda (fn &key argv)
-      (funcall parser fn (or argv (app-command-line))
+      (funcall scanner fn (or argv (app-command-line))
 	       :optargp optargp
 	       :chgopt chgopt))))
 
-(defun parse (fn &key argv style (optargp (constantly nil))
-		   (chgopt #'identity))
-  "This is a simple, low level parser for command-lines.  If you're
+(defun scan (fn &key argv style (optargp (constantly nil))
+		  (chgopt #'identity))
+  "This is a simple, low level scanner for command-lines.  If you're
 simply using Petulant in your application \(i.e., you aren't
 developing or extending Petulant\), you might want to consider calling
-a higher level function; CLI:PARSE is mainly for implementation of
-other Petulant \(or Petulant-like\) functionality.
+a higher level function, e.g., CLI:SIMPLE; CLI:SCAN is mainly for
+implementation of other Petulant \(or Petulant-like\) functionality.
 
-CLI:PARSE is intended as a \"one time\" parser.  If there are multiple
-command-lines parsed in your application, or even multiple parsings of
-the some command-line, you are likely better served by CLI:DEFPARSER
-or CLI:MAKE-PARSER.
+CLI:SCAN is intended as a \"one time\" scanner.  If there are multiple
+command-lines scanned in your application, or even multiple parsings of
+the some command-line, you are likely better served by CLI:DEFSCANNER
+or CLI:MAKE-SCANNER.
 
-Arguments to CLI:PARSE are the union of those taken by CLI:MAKE-PARSER
-and the parser it returns."
-  (funcall (make-parser :optargp optargp
-			:chgopt chgopt
-			:style style)
+Arguments to CLI:SCAN are the union of those taken by CLI:MAKE-SCANNER
+and the scanner it returns."
+  (funcall (make-scanner :optargp optargp
+			 :chgopt chgopt
+			 :style style)
 	   fn
 	   :argv argv))
 
-(defmacro defparser (name dummy &rest forms)
-  "Defines a named low-level Petulant parser. NAME is a symbol naming
-the new parser. DUMMY is currently unused and should be NIL \(it
-exists only so DEFPARSER resembles other defining forms\).  FORMS, seen
+(defmacro defscanner (name dummy &rest forms)
+  "Defines a named low-level Petulant scanner. NAME is a symbol naming
+the new scanner. DUMMY is currently unused and should be NIL \(it
+exists only so DEFSCANNER resembles other defining forms\).  FORMS, seen
 below, share meaning with the keyword arguments of the same name in
-CLI:MAKE-PARSER.  If a given form is seen more than once, the last
+CLI:MAKE-SCANNER.  If a given form is seen more than once, the last
 instance \"wins\".
 
-    \(cli:defparser foobar \(\)
-      \"An optional docstring for the FOOBAR low-level command-line parser.\"
+    \(cli:defscanner foobar \(\)
+      \"An optional docstring for the FOOBAR low-level command-line scanner.\"
       \(:optargp …\)
       \(:chgopt …\)
       \(:style …\)\)
 
 Continuing that example, FOOBAR may later be called, providing a
 mandatory function argument and optionally the :ARGV keyword argument,
-as described for the function returned by CLI:MAKE-PARSER.
+as described for the function returned by CLI:MAKE-SCANNER.
 
     \(foobar \(lambda …\)\)
     ;; or
     \(foobar \(lambda …\) :argv '\(\"-v\" \"one\" \"two\"\)\)"
   (declare (ignore dummy))
-  (let ((docstring "A Petulant low-level command-line parser.")
+  (let ((docstring "A Petulant low-level command-line scanner.")
 	optargp chgopt style)
     (when (stringp (car forms))
       (setf docstring (car forms)
@@ -435,10 +435,10 @@ as described for the function returned by CLI:MAKE-PARSER.
 	      (:optargp (setf optargp (cadr form)))
 	      (:chgopt  (setf chgopt (cadr form)))
 	      (:style   (setf style (cadr form)))
-	      (t        (error "CLI:DEFPARSER: (~s …) is not a ~
+	      (t        (error "CLI:DEFSCANNER: (~s …) is not a ~
                                    recognized form." (car form)))))
 	  forms)
-    `(setf (symbol-function ',name) (make-parser :optargp ,optargp
+    `(setf (symbol-function ',name) (make-scanner :optargp ,optargp
 						 :chgopt ,chgopt
 						 :style ,style)
 	   (documentation ',name 'function) ,docstring)))

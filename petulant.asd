@@ -23,7 +23,7 @@ provided to the caller."
 	       (:file "trie")
 	       (:file "misc")
 	       (:file "context")
-	       (:file "parse")
+	       (:file "scan")
 	       (:file "process")
 	       (:file "collect")
 	       (:file "spec")))
