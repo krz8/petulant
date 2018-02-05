@@ -1039,21 +1039,77 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-x
+(test process-3
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("-x" "-v" "--file=foo.tar" "one" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-4
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("-xv" "--file=foo.tar" "one" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-5
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("-xv" "--file" "foo.tar" "one" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-6
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("-xv" "-f" "foo.tar" "one" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-7
   (let (res)
     (process-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-xvf" "foo.tar" "one" "two"))
-    (is (equal '((:arg "two")
-		 (:arg "one")
-		 (:opt "file" "foo.tar")
+    (is (equal '((:opt "extract" nil)
 		 (:opt "verbose" nil)
-		 (:opt "extract" nil))
-	       res))))
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
 
-
-
-
+(test process-8
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("-xvffoo.tar" "one" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
 
 
 ;; (def-suite process :description "process support" :in all)

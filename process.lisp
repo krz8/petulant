@@ -117,9 +117,10 @@ unrecognized keywords are silently ignored.
     \(cli:make-processor :styles '\(:unix :key\)
                         …\)"
   (with-context-simple (argopts flagopts aliases styles)
-    (let ((parser (make-parser :optargp (optargp-fn)
-			       :chgopt (maybe-chgopt-case-fn)))
-	  (keyify (maybe-chgopt-key-fn)))
+    (let* ((keyify (maybe-chgopt-key-fn))
+	   (parser (make-parser :optargp (optargp-fn)
+				:chgopt (compose (partials-fn) (aliases-fn)
+						 (maybe-chgopt-case-fn)))))
       (lambda (fn &key argv)
 	(funcall parser
 		 (lambda (x y z)

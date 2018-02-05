@@ -241,28 +241,34 @@ Otherwise, the function simply returns its argument unchanged."
 (defun optargp-fn ()
   "Based on the current *CONTEXT*, return a function yielding true
 when its supplied option string is recognized to require an argument
-value."
+value.  Specifically, when a supplied option exists in the option
+hash of our current *CONTEXT* defined for any type *but* a flag."
   (let ((opthash (opthash *context*)))
     (lambda (option) (aand (gethash option opthash)
 			   (not (eq :flag (car it)))))))
 
 (defun aliases-fn ()
-  "Return a function that, when passed a string naming an option,
-either returns that option, or returns the option for which it is an
-alias."
+  "Construct and return a function that, when passed a string naming
+an option, either returns that option, or returns the option for which
+it is an alias.  Case sensitivity is handled in the underlying hash
+table itself, so it isn't necessary to worry about :UP :DOWN :STREQ
+or :STR= here."
   (let ((alihash (alihash *context*)))
     (lambda (opt) (or (gethash opt alihash)
 		      opt))))
 
 (defun partials-fn ()
-  "Return a function that takes a string naming an option, returning
-that string or possibly another string to be used as the actual option
-name.  When :PARTIAL appears in the style hash of the current
-*CONTEXT*, the minimum unique strings for every option and aliases in
-*CONTEXT* are computed, and the returned function compares its
-argument to this list and if a match is found, the actual option is
-returned \(e.g., supplying \"f\" could return \"file\"\).  When
-:PARTIAL does not so appear, the returned function always returns
+  "Construct and return a function that takes a string naming an
+option, returning that string or possibly another string to be used as
+the actual option name.  When :PARTIAL appears in the style hash of
+the current *CONTEXT*, the minimum unique strings for every option and
+aliases in *CONTEXT* are computed, and the returned function compares
+its argument to this list and if a match is found, the actual option
+is returned \(e.g., supplying \"f\" could return \"file\"\).  Like
+ALIASES-FN, there's no need to worry about :STREQ :STR= :UP or :DOWN
+here.
+
+When :PARTIAL does not so appear, the returned function always returns
 its argument unchanged."
   (cond
     ((stylep :partial)
