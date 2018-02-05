@@ -1111,6 +1111,58 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
+(test process-9
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("-xtvffoo.tar" "one" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "list" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-11
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("-xvffoo.tar" "one" "--toc" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:opt "list" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-12
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("-xvffoo.tar" "one" "--list" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:opt "list" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-13
+  (let (res)
+    (process-not-really-tar-at-all
+     (lambda (&rest args) (push args res))
+     '("-xvffoo.tar" "one" "-t" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:opt "list" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
 
 ;; (def-suite process :description "process support" :in all)
 ;; (in-suite process)
