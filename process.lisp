@@ -119,7 +119,7 @@ unrecognized keywords are silently ignored.
   (with-context-simple (argopts flagopts aliases styles)
     (let* ((keyify (maybe-chgopt-key-fn))
 	   (parser (make-parser :optargp (optargp-fn)
-				:chgopt (compose (partials-fn) (aliases-fn)
+				:chgopt (compose (aliases-fn) (partials-fn)
 						 (maybe-chgopt-case-fn)))))
       (lambda (fn &key argv)
 	(funcall parser

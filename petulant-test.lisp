@@ -1124,7 +1124,7 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-11
+(test process-10
   (let (res)
     (process-not-really-tar-at-all
      (lambda (&rest args) (push args res))
@@ -1137,7 +1137,7 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-12
+(test process-11
   (let (res)
     (process-not-really-tar-at-all
      (lambda (&rest args) (push args res))
@@ -1150,7 +1150,7 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-13
+(test process-12
   (let (res)
     (process-not-really-tar-at-all
      (lambda (&rest args) (push args res))
@@ -1162,6 +1162,160 @@
 		 (:opt "list" nil)
 		 (:arg "two" nil))
 	       (nreverse res)))))
+
+(defmacro process-not-really-tar-at-all-2 (fn cmdline)
+  `(cli:process ,fn
+		:argopts '("file")
+		:flagopts '("verbose" "extract" "create" "update"
+			    "list")
+		:aliases '(("verbose" "v")
+			   ("extract" "x")
+			   ("create" "c")
+			   ("update" "u")
+			   ("list" "t" "toc")
+			   ("file" "f"))
+		:styles '(:unix :partial)
+		:argv ,cmdline))
+
+(test process-13
+  (let (res)
+    (process-not-really-tar-at-all-2
+     (lambda (&rest args) (push args res))
+     '("--extract" "--verbose" "--file=foo.tar" "one" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-14
+  (let (res)
+    (process-not-really-tar-at-all-2
+     (lambda (&rest args) (push args res))
+     '("--ext" "--verb" "--f=foo.tar" "one" "two"))
+    (is (equal '((:opt "extract" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-15
+  (let (res)
+    (process-not-really-tar-at-all-2
+     (lambda (&rest args) (push args res))
+     '("--list" "--verb" "--f=foo.tar" "one" "two"))
+    (is (equal '((:opt "list" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-16
+  (let (res)
+    (process-not-really-tar-at-all-2
+     (lambda (&rest args) (push args res))
+     '("--l" "--verb" "--f=foo.tar" "one" "two"))
+    (is (equal '((:opt "list" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-17
+  (let (res)
+    (process-not-really-tar-at-all-2
+     (lambda (&rest args) (push args res))
+     '("--t" "--verb" "--f=foo.tar" "one" "two"))
+    (is (equal '((:opt "list" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-18
+  (let (res)
+    (process-not-really-tar-at-all-2
+     (lambda (&rest args) (push args res))
+     '("--to" "--verb" "--f=foo.tar" "one" "two"))
+    (is (equal '((:opt "list" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(test process-19
+  (let (res)
+    (process-not-really-tar-at-all-2
+     (lambda (&rest args) (push args res))
+     '("--toc" "--verb" "--f=foo.tar" "one" "two"))
+    (is (equal '((:opt "list" nil)
+		 (:opt "verbose" nil)
+		 (:opt "file" "foo.tar")
+		 (:arg "one" nil)
+		 (:arg "two" nil))
+	       (nreverse res)))))
+
+(defmacro poor-partials (fn cmdline)
+  `(cli:process ,fn
+		:flagopts '("beta" "beat" "buck")
+		:styles '(:unix :partial)
+		:argv ,cmdline))
+
+(test process-20
+  (let (res)
+    (poor-partials (lambda (&rest x) (push x res))
+		   '("--beta" "--beat" "--buck"))
+    (is (equal '((:opt "beta" nil)
+		 (:opt "beat" nil)
+		 (:opt "buck" nil))
+	       (nreverse res)))))
+
+(test process-21
+  (let (res)
+    (poor-partials (lambda (&rest x) (push x res))
+		   '("--beta" "--bet" "--beat" "--buck"))
+    (is (equal '((:opt "beta" nil)
+		 (:opt "beta" nil)
+		 (:opt "beat" nil)
+		 (:opt "buck" nil))
+	       (nreverse res)))))
+
+(test process-22
+  (let (res)
+    (poor-partials (lambda (&rest x) (push x res))
+		   '("--beta" "--be" "--beat" "--buck"))
+    (is (equal '((:opt "beta" nil)
+		 (:opt "be" nil)
+		 (:opt "beat" nil)
+		 (:opt "buck" nil))
+	       (nreverse res)))))
+
+(test process-23
+  (let (res)
+    (poor-partials (lambda (&rest x) (push x res))
+		   '("--beta" "--bu" "--beat" "--buck"))
+    (is (equal '((:opt "beta" nil)
+		 (:opt "buck" nil)
+		 (:opt "beat" nil)
+		 (:opt "buck" nil))
+	       (nreverse res)))))
+
+(test process-24
+  (let (res)
+    (poor-partials (lambda (&rest x) (push x res))
+		   '("--beta" "--b" "--beat" "--buck"))
+    (is (equal '((:opt "beta" nil)
+		 (:opt "b" nil)
+		 (:opt "beat" nil)
+		 (:opt "buck" nil))
+	       (nreverse res)))))
+
 
 
 ;; (def-suite process :description "process support" :in all)
