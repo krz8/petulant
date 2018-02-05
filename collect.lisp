@@ -2,8 +2,8 @@
 
 (defun collect (&key argopts flagopts aliases styles argv)
   "CLI:COLLECT takes the same keyword arguments, and offers the same
-functionality, as the function it wraps, CLI:PROCESS.  See that
-function for complete documentation.  Unlike CLI:PROCESS, however,
+functionality, as the function it wraps, CLI:SIMPLE.  See that
+function for complete documentation.  Unlike CLI:SIMPLE, however,
 it returns a single list of things found on the command-line, in
 the order that they were found.  Each element of this list is,
 itself, a sublist of three values.  If the first element is
@@ -15,10 +15,11 @@ the STYLES argument\), and the third element is NIL or a string
 containing an argument to this option.
 
 All arguments and options to CLI:COLLECT share the same name and carry the
-same functionality as they appear in CLI:PROCESS.
+same functionality as they appear in CLI:SIMPLE.
 
-CLI:COLLECT is really CLI:PROCESS; the difference is that it supplies its
-own FN which simply collects its arguments into a list.  For example,
+CLI:COLLECT is really almost CLI:SIMPLE; the difference is that it
+supplies its own FN which simply collects its arguments into a list.
+For example,
 
     (cli:collect :argopts '(\"file\")
                  :flagopts '(\"verbose\" \"extract\" \"create\" \"update\"
@@ -37,8 +38,8 @@ returns
     ((:OPT \"extract\" NIL) (:OPT \"verbose\" NIL) (:OPT \"file\" \"foo.tar\")
      (:ARG \"one\") (:ARG \"two\"))"
   (let (results)
-    (process (lambda (&rest args) (push args results))
-	     :argopts argopts :flagopts flagopts :aliases aliases
-	     :styles styles :argv argv)
+    (simple (lambda (&rest args) (push args results))
+	    :argopts argopts :flagopts flagopts :aliases aliases
+	    :styles styles :argv argv)
     (nreverse results)))
  

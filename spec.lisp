@@ -1,9 +1,35 @@
 (in-package #:petulant)
 
-(defparameter *options* (make-hash-table)
-  "Holds a hash table mapping options seen on the command-line to
-  their decoded values.  This hash table reflects the most recent
-  successful call to CLI:SPEC.")
+;;; So, yeah, the silliness about hashes or alists arises because
+;;; there are times when position matters in options.  Most well
+;;; behaved applications eschew that behavior, but we've all seen at
+;;; least one where it matters whether, e.g., --include came before or
+;;; after --exclude.  Normally, I'd say, fine, use the functional
+;;; interface of CLI:SIMPLE, but then the caller misses out on all the
+;;; other goodies we offer up here in fully-specified land (types,
+;;; validation, error messages).
+;;;
+;;; For that person, whoever they are, this exists.  They can set a
+;;; keyword in the call to CLI:FULL that will cause the rest of the
+;;; machinery here to use association lists instead of hash tables,
+;;; and thus determine where options actually fell on the command line.
+
+(defvar *alist-or-hash* :hash
+  "Defines the format of the value bound to *OPTIONS*.  Must be either
+  :HASH or :ALIST.  Typically not manipulated directly by callers, but
+  instead set by the call to CLI:SPEC.  Allows the caller to optimize
+  option lookup for speed via :HASH, or to preserve ordering
+  via :ALIST.")
+
+;; wait
+;; think
+;; do we want to do it this way?
+;; ugh, I don't think so.
+
+(defparameter *options* nil
+  "Holds either a hash table or an associative list, mapping options
+  seen on the command-line to their decoded values, according to
+  *ALIST-OR-HASH*.")
 
 (defparameter *arguments* nil
   "Holds a list of command-line argument strings \(not otherwise

@@ -6,27 +6,26 @@ arguments back.  You can use this as the callback for scanners and
 processors."
   (format t "cb~{ ~s~}~%" args))
 
-(defun make-processor (&key argopts flagopts aliases styles)
-  "CLI:MAKE-PROCESSOR constructs and returns a closure that processes
-command-lines as described by the keyword arguments.  This returned
-function takes one mandatory argument and one optional keyword
-argument.  The mandatory argument is a function that is called for
-each option \(aka switch\) or standalone argument encountered on a
-command-line.  The optional keyword arguments is :ARGV, taking a
-proper list of strings to be used as a command-line instead of those
-with which the application was invoked.
+(defun make-simple (&key argopts flagopts aliases styles)
+  "CLI:MAKE-SIMPLE constructs and returns a closure that processes
+command-lines as described by the keyword arguments in a relatively
+simple way.  This returned function takes one mandatory argument and
+one optional keyword argument.  The mandatory argument is a function
+that is called for each option \(aka switch\) or standalone argument
+encountered on a command-line.  The optional keyword arguments
+is :ARGV, taking a proper list of strings to be used as a command-line
+instead of those with which the application was invoked.
 
-As noted, the function returned by CLI:MAKE-PROCESSOR takes a
-mandatory argument, a function supplied by the caller, which is
-invoked for each option or argument identified by the command-line
-processor.  Each call has three arguments.  The first is the keyword
-:OPT or :ARG, indicating whether an option \(switch\) or an
-non-option argument was found.  When :ARG, the second argument is a
-string, an argument from the command-line that was not associated with
-an option, and the third argument is NIL.  When :OPT, the second
-argument is usually a string naming an option \(although see STYLES
-below\), and the third argument is a string value associated with that
-option, or NIL.
+As noted, the function returned by CLI:MAKE-SIMPLE takes a mandatory
+argument, a function supplied by the caller, which is invoked for each
+option or argument identified by the command-line processor.  Each
+call has three arguments.  The first is the keyword :OPT or :ARG,
+indicating whether an option \(switch\) or an non-option argument was
+found.  When :ARG, the second argument is a string, an argument from
+the command-line that was not associated with an option, and the third
+argument is NIL.  When :OPT, the second argument is usually a string
+naming an option \(although see STYLES below\), and the third argument
+is a string value associated with that option, or NIL.
 
 ARGOPTS, if supplied, is a list of all options \(short or long\) that
 require an argument.  While Petulant can automatically recognize some
@@ -42,10 +41,10 @@ limit the options that the processor handles, even those with
 arguments; it merely ensures that certain options are interpreted
 correctly in ambiguous contexts.
 
-    \(cli:make-processor :argopts '\(\"f\" \"file\"\)
-                        …\)
+    \(cli:make-simple :argopts '\(\"f\" \"file\"\)
+                     …\)
 
-\(Note that \"f\" in this particular use of CLI:MAKE-PROCESSOR is much
+\(Note that \"f\" in this particular use of CLI:MAKE-SIMPLE is much
 better handled by an alias below, or by the use of :PARTIAL in STYLES;
 its presence there is merely for example.\)
 
@@ -54,8 +53,8 @@ that do not take an argument.  Unless :PARTIAL appears in STYLES, this
 has no real effect as flag options are recognized automatically by
 Petulant.
 
-    \(cli:make-processor :flagopts '\(\"verbose\" \"debug\" \"trace\"\)
-                        …\)
+    \(cli:make-simple :flagopts '\(\"verbose\" \"debug\" \"trace\"\)
+                     …\)
 
 ALIASES can be used to supply one or more alternative options that,
 when encountered, are considered aliases for another option.  ALIASES
@@ -67,10 +66,10 @@ recognized by the processor, but treated in all three cases as if
 caller would be invoked with \"delay\" even when \"sleep\" or \"wait\"
 was found on the command-line.
 
-    \(cli:make-processor :aliases '\(\(\"alpha\" \"transparency\"\)
-                                   \(\"delay\" \"sleep\" \"wait\"\)
-                                   \(\"file\" \"f\"\)\)
-                        …\)
+    \(cli:make-simple :aliases '\(\(\"alpha\" \"transparency\"\)
+                                \(\"delay\" \"sleep\" \"wait\"\)
+                                \(\"file\" \"f\"\)\)
+                     …\)
 
 STYLES is a keyword, or a list of keywords, that influence the
 option processor's behavior.  Recognized keywords are as follows;
@@ -114,8 +113,8 @@ unrecognized keywords are silently ignored.
   command-line arguments as if in a Windows environment.  Also implies
   :STREQ.
 
-    \(cli:make-processor :styles '\(:unix :key\)
-                        …\)"
+    \(cli:make-simple :styles '\(:unix :key\)
+                     …\)"
   (with-context-simple (argopts flagopts aliases styles)
     (let* ((keyify (maybe-chgopt-key-fn))
 	   (scanner (make-scanner :optargp (optargp-fn)
@@ -131,27 +130,27 @@ unrecognized keywords are silently ignored.
 			    z))
 		 :argv argv)))))
 
-(defun process (fn &key argopts flagopts aliases styles argv)
-  "CLI:PROCESS examines the command-line with which an application was
+(defun simple (fn &key argopts flagopts aliases styles argv)
+  "CLI:SIMPLE examines the command-line with which an application was
 invoked.  According to given styles and the local environment,
-options (aka switches) and arguments are recognized.  CLI:PROCESS is
+options (aka switches) and arguments are recognized.  CLI:SIMPLE is
 mostly meant for \"one time\" parsing as it creates a new command line
 processor on every invocation; if you have multiple command-lines to
-process, you are better served by CLI:MAKE-PROCESSOR.
+process, you are better served by CLI:MAKE-SIMPLE.
 
-CLI:PROCESS combines the arguments of both CLI:MAKE-PROCESSOR and the
+CLI:SIMPLE combines the arguments of both CLI:MAKE-SIMPLE and the
 processor/scanner it generates.  That is, it takes from the caller:
 
 - FN, a function that will be invoked with three arguments for each
   option (aka switch) found on the command-line and for each standalone
   argument found on the command-line.  The three arguments are described
-  in greater details in CLI:MAKE-PROCESSOR, but briefly, they are:
+  in greater details in CLI:MAKE-SIMPLE, but briefly, they are:
     1. The kind of thing encountered on the command-line, :ARG or :OPT.
     2. The argument or switch (option) itself.
     3. NIL, or a string containing the argument to the option in (2).
 
 - :ARGOPTS, a proper list of strings naming the options (switches) that
-  CLI:PROCESS should recognize as requiring an argument.
+  CLI:SIMPLE should recognize as requiring an argument.
 
 - :FLAGOPTS, a proper list of strings naming the options (switch) that
   do not take an argument.
@@ -169,8 +168,8 @@ processor/scanner it generates.  That is, it takes from the caller:
 - :ARGV, a proper list of strings to be used instead of the actual
   command-line argument with which the application was invoked.
 
-See CLI:MAKE-PROCESSOR or even CLI:MAKE-SCANNER for more details."
-  (funcall (make-processor :argopts argopts :flagopts flagopts
-			   :aliases aliases :styles styles)
+See CLI:MAKE-SIMPLE or even CLI:MAKE-SCANNER for more details."
+  (funcall (make-simple :argopts argopts :flagopts flagopts
+			:aliases aliases :styles styles)
 	   fn
 	   :argv argv))

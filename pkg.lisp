@@ -2,5 +2,6 @@
   (:use #:cl #:anaphora #:iterate #:alexandria)
   (:nicknames #:cli)
   (:export #:argv #:make-scanner #:scan
-	   #:make-processor #:process
-	   #:collect #:spec #:*options* #:*arguments*))
+	   #:make-simple #:simple
+	   #:collect
+	   #:spec #:*options* #:*arguments*))

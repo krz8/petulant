@@ -1,11 +1,11 @@
 (defpackage #:petulant-test
   (:use #:cl #:5am #:iterate #:petulant)
-  (:export #:all #:trie #:misc #:context #:scan #:process #:spec))
+  (:export #:all #:trie #:misc #:context #:scan #:simple #:spec))
 
 ;; We're not using :IMPORT-FROM any longer.  We intend Petulant
 ;; functions to be qualified with their package name.  That's why we
 ;; provide CLI as a nickname for PETULANT, so that client code can
-;; simply use (cli:process ...)  and so on.  So, in here, we'll
+;; simply use (cli:simple ...)  and so on.  So, in here, we'll
 ;; implement our testing either by those symbols, or by explicitly
 ;; invoking unexported symbols (e.g., cli:split).  Overall, the idea
 ;; is to leave as much of as the default packaging in place (that is
@@ -998,11 +998,11 @@
 
 
 
-(def-suite process :description "process support" :in all)
-(in-suite process)
+(def-suite simple :description "simple support" :in all)
+(in-suite simple)
 
-(defmacro process-not-really-tar-at-all (fn cmdline)
-  `(cli:process ,fn
+(defmacro simple-not-really-tar-at-all (fn cmdline)
+  `(cli:simple ,fn
 		:argopts '("file")
 		:flagopts '("verbose" "extract" "create" "update"
 			    "list")
@@ -1015,9 +1015,9 @@
 		:styles :unix
 		:argv ,cmdline))
 
-(test process-1
+(test simple-1
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("--extract" "--verbose" "--file=foo.tar" "one" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1027,9 +1027,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-2
+(test simple-2
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-x" "--verbose" "--file=foo.tar" "one" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1039,9 +1039,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-3
+(test simple-3
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-x" "-v" "--file=foo.tar" "one" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1051,9 +1051,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-4
+(test simple-4
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-xv" "--file=foo.tar" "one" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1063,9 +1063,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-5
+(test simple-5
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-xv" "--file" "foo.tar" "one" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1075,9 +1075,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-6
+(test simple-6
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-xv" "-f" "foo.tar" "one" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1087,9 +1087,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-7
+(test simple-7
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-xvf" "foo.tar" "one" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1099,9 +1099,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-8
+(test simple-8
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-xvffoo.tar" "one" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1111,9 +1111,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-9
+(test simple-9
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-xtvffoo.tar" "one" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1124,9 +1124,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-10
+(test simple-10
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-xvffoo.tar" "one" "--toc" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1137,9 +1137,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-11
+(test simple-11
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-xvffoo.tar" "one" "--list" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1150,9 +1150,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-12
+(test simple-12
   (let (res)
-    (process-not-really-tar-at-all
+    (simple-not-really-tar-at-all
      (lambda (&rest args) (push args res))
      '("-xvffoo.tar" "one" "-t" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1163,8 +1163,8 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(defmacro process-not-really-tar-at-all-2 (fn cmdline)
-  `(cli:process ,fn
+(defmacro simple-not-really-tar-at-all-2 (fn cmdline)
+  `(cli:simple ,fn
 		:argopts '("file")
 		:flagopts '("verbose" "extract" "create" "update"
 			    "list")
@@ -1177,9 +1177,9 @@
 		:styles '(:unix :partial)
 		:argv ,cmdline))
 
-(test process-13
+(test simple-13
   (let (res)
-    (process-not-really-tar-at-all-2
+    (simple-not-really-tar-at-all-2
      (lambda (&rest args) (push args res))
      '("--extract" "--verbose" "--file=foo.tar" "one" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1189,9 +1189,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-14
+(test simple-14
   (let (res)
-    (process-not-really-tar-at-all-2
+    (simple-not-really-tar-at-all-2
      (lambda (&rest args) (push args res))
      '("--ext" "--verb" "--f=foo.tar" "one" "two"))
     (is (equal '((:opt "extract" nil)
@@ -1201,9 +1201,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-15
+(test simple-15
   (let (res)
-    (process-not-really-tar-at-all-2
+    (simple-not-really-tar-at-all-2
      (lambda (&rest args) (push args res))
      '("--list" "--verb" "--f=foo.tar" "one" "two"))
     (is (equal '((:opt "list" nil)
@@ -1213,9 +1213,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-16
+(test simple-16
   (let (res)
-    (process-not-really-tar-at-all-2
+    (simple-not-really-tar-at-all-2
      (lambda (&rest args) (push args res))
      '("--l" "--verb" "--f=foo.tar" "one" "two"))
     (is (equal '((:opt "list" nil)
@@ -1225,9 +1225,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-17
+(test simple-17
   (let (res)
-    (process-not-really-tar-at-all-2
+    (simple-not-really-tar-at-all-2
      (lambda (&rest args) (push args res))
      '("--t" "--verb" "--f=foo.tar" "one" "two"))
     (is (equal '((:opt "list" nil)
@@ -1237,9 +1237,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-18
+(test simple-18
   (let (res)
-    (process-not-really-tar-at-all-2
+    (simple-not-really-tar-at-all-2
      (lambda (&rest args) (push args res))
      '("--to" "--verb" "--f=foo.tar" "one" "two"))
     (is (equal '((:opt "list" nil)
@@ -1249,9 +1249,9 @@
 		 (:arg "two" nil))
 	       (nreverse res)))))
 
-(test process-19
+(test simple-19
   (let (res)
-    (process-not-really-tar-at-all-2
+    (simple-not-really-tar-at-all-2
      (lambda (&rest args) (push args res))
      '("--toc" "--verb" "--f=foo.tar" "one" "two"))
     (is (equal '((:opt "list" nil)
@@ -1262,12 +1262,12 @@
 	       (nreverse res)))))
 
 (defmacro poor-partials (fn cmdline)
-  `(cli:process ,fn
+  `(cli:simple ,fn
 		:flagopts '("beta" "beat" "buck")
 		:styles '(:unix :partial)
 		:argv ,cmdline))
 
-(test process-20
+(test simple-20
   (let (res)
     (poor-partials (lambda (&rest x) (push x res))
 		   '("--beta" "--beat" "--buck"))
@@ -1276,7 +1276,7 @@
 		 (:opt "buck" nil))
 	       (nreverse res)))))
 
-(test process-21
+(test simple-21
   (let (res)
     (poor-partials (lambda (&rest x) (push x res))
 		   '("--beta" "--bet" "--beat" "--buck"))
@@ -1286,7 +1286,7 @@
 		 (:opt "buck" nil))
 	       (nreverse res)))))
 
-(test process-22
+(test simple-22
   (let (res)
     (poor-partials (lambda (&rest x) (push x res))
 		   '("--beta" "--be" "--beat" "--buck"))
@@ -1296,7 +1296,7 @@
 		 (:opt "buck" nil))
 	       (nreverse res)))))
 
-(test process-23
+(test simple-23
   (let (res)
     (poor-partials (lambda (&rest x) (push x res))
 		   '("--beta" "--bu" "--beat" "--buck"))
@@ -1306,7 +1306,7 @@
 		 (:opt "buck" nil))
 	       (nreverse res)))))
 
-(test process-24
+(test simple-24
   (let (res)
     (poor-partials (lambda (&rest x) (push x res))
 		   '("--beta" "--b" "--beat" "--buck"))
