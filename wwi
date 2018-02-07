@@ -1,0 +1,19 @@
+Really rethinking this.  Why not more of a spec for option handling?
+
+    ? (cli:parse ...)
+    <options>
+    <standalone arguments>
+    <error-free?>
+
+Simple:
+
+    (cli:parse :any t)     ; Do your best, little guy!
+
+    (cli:parse :argopts '("volume" "file")
+               :flagopts '("verbose" "dryrun")
+	       :flagopt "trace"
+	       :argopt "conf"
+	        ...)
+
+
+		 
