@@ -9,11 +9,84 @@ Simple:
 
     (cli:parse :any t)     ; Do your best, little guy!
 
-    (cli:parse :argopts '("volume" "file")
-               :flagopts '("verbose" "dryrun")
-	       :flagopt "trace"
-	       :argopt "conf"
+    (cli:parse (:argopts '("volume" "file"))
+               (:flagopts '("verbose" "dryrun"))
+	       (:flagopt "trace")
+	       (:argopt "conf")
 	        ...)
 
+Wait.  Hmm.
 
-		 
+:argv '("one" "two" "three")
+
+:alias        both must handle both ("foo" "bar" "baz") as well as
+:aliases      (("foo" "bar" "baz") ("goo" "moo" "loo"))
+              these accumulate
+
+:argopt       handle both "foo" and ("foo") and ("foo" "doc") and
+:argopts      ("foo" type...) and ("foo" "doc" type...)
+:flagopt      these accumulate
+:flagopts
+
+:name         Names the application, does not accumulate.
+
+:summary      I guess these could accumulate as well?  Meh.
+:tail
+
+:help         default value is '("?" "help")
+              this does NOT accumulate
+
+:styles       :partial    perform partial matching of options
+:style        :strict     errors on anything not in argopt or flagopt
+              :unix
+	      :windows
+	      :str=
+	      :streq
+	      :up
+	      :down
+     	      :key
+              These accumulate.
+
+What about just a plain ol DSL?  Then we could probably more easily
+deal with duplicated keywords without nesting everything in () forms
+(like CLI:SPEC, DEFCLASS, etc).
+
+(clispec :name "myapp"
+	 :flagopt ("verbose" "Display extra information as we proceed.")
+	 :argopt "file"
+	 :argopt ("conf" "Names a path to a configuration file.")
+	 :argopt (("volume" "This one goes to eleven." :real 0 11)
+	 	  ("other" "And something else." :integer 0 100))
+	 :style :partial)
+
+Third value returned is either T, :WARNED, or NIL.
+
+(cli:parse) should be useful, defaulting everything, returning anything
+found, even options with explicit arguments (--foo=bar /foo:bar).
+
+wait waut wait
+What the hell am I doing?
+Why keywords?
+
+Oh, right, because that was in the first version, so I'm stuck thinking
+that way.  Sigh.  Wrap it in a macro, get everything quoted for free.
+
+(clispec (name "myapp")
+	 (flagopt ("verbose" "Display extra information as we proceed."))
+	 (argopt "file")
+	 (argopt ("conf" "Names a path to a configuration file."))
+	 (argopt (("volume" "This one goes to eleven." real 0 11)
+	 	 ("other" "And something else." integer 0 100)))
+	 (style partial))
+
+Now, remember some symbol/package hackery.
+Need to erect some scaffolding and see how this plays out.
+
+------
+
+It might turn out that keywords are still best, to escape the
+packaging situation.  Or maybe we walk the tree and convert
+the symbols into ones in the CLI package?  But then symbols in
+other locations are unusuable.  Only convert ones we recognize?
+Seems heavy handed.
+
